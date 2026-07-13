@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>게임 · 나의 프로젝트 작업실</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<nav class="topnav pixel">
+    <a href="index.html">홈</a>
+    <a href="games.html" class="active">게임</a>
+    <a href="works.html">기타 작업물</a>
+</nav>
+
+<header class="hero">
+    <div class="eyebrow pixel">GAMES</div>
+    <h1>직접 만든 <span>게임들</span></h1>
+    <p>클릭하면 바로 플레이할 수 있어요.</p>
+    <div class="hero-rule"></div>
+</header>
+
+<main>
+    <div class="grid">
+
+        <!-- 새 게임을 추가하려면 이 블록을 복사해서
+             href, cart-icon, 제목, 설명만 바꿔주세요. -->
+        <a class="cart playable" href="games/dungeon-rpg/index.html">
+            <span class="cart-tag playable pixel">PLAYABLE</span>
+            <div class="cart-icon">⚔️</div>
+            <h3>던전 RPG</h3>
+            <p>레벨업하고 스킬트리를 키워가며 던전을 내려가는 픽셀 로그라이크.</p>
+            <div class="cart-play pixel">▶ PLAY</div>
+        </a>
+
+        <div class="cart disabled">
+            <span class="cart-tag wip pixel">제작중</span>
+            <div class="cart-icon">🧩</div>
+            <h3>다음 작품</h3>
+            <p>지금 구상 중인 프로젝트예요. 완성되면 여기 채워질 예정.</p>
+        </div>
+
+        <div class="cart empty">
+            <div class="pixel" style="font-size:10px; letter-spacing:0.05em;">빈 슬롯<br>다음에 만들 걸 여기에</div>
+        </div>
+
+    </div>
+</main>
+
+<footer>
+    made with care · updated as things get made
+</footer>
+
+</body>
+</html>
