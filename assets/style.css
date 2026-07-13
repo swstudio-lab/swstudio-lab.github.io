@@ -148,7 +148,7 @@ main{
     color:var(--muted);
     min-height:150px;
 }
-.cart-icon{ font-size:30px; margin-bottom:14px; display:inline-block; }
+.cart-icon{ margin-bottom:14px; display:inline-flex; }
 .cart-tag{
     font-size:9px;
     letter-spacing:0.06em;
@@ -182,7 +182,7 @@ main{
     border:1px dashed var(--border);
     border-radius:12px;
 }
-.empty-state .cart-icon{ font-size:34px; margin-bottom:16px; }
+.empty-state .cart-icon{ margin-bottom:16px; display:flex; justify-content:center; }
 .empty-state p{ font-size:13px; }
 
 footer{

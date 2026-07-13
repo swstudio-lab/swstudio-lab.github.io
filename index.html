@@ -32,9 +32,24 @@
         border-color:var(--border-lit);
         box-shadow:0 10px 28px -8px rgba(232,185,63,0.28), 0 0 0 1px rgba(232,185,63,0.12);
     }
-    .cat-icon{ font-size:32px; margin-bottom:14px; }
+    .cat-icon{ margin-bottom:14px; display:flex; justify-content:center; }
     .cat-card h3{ margin:0 0 8px; font-size:16px; font-weight:700; }
     .cat-card p{ margin:0; font-size:12.5px; color:var(--muted); line-height:1.55; }
+
+    /* 기타 카드: 설명 없이, 아이콘은 위에 작게 + 라벨은 아래쪽 가운데로 */
+    .cat-card.etc{
+        min-height:172px;
+        display:flex;
+        flex-direction:column;
+        justify-content:space-between;
+        align-items:center;
+    }
+    .cat-card.etc .cat-icon{ margin-bottom:0; opacity:0.75; }
+    .cat-card.etc h3{
+        margin:0 0 6px;
+        font-size:19px;
+        letter-spacing:0.02em;
+    }
 </style>
 </head>
 <body>
@@ -57,19 +72,37 @@
     <div class="shelf-label pixel">둘러보기</div>
     <div class="cat-grid">
         <a class="cat-card" href="games.html">
-            <div class="cat-icon">⚔️</div>
+            <div class="cat-icon">
+                <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#e8b93f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="8" width="18" height="10" rx="5"/>
+                    <line x1="6" y1="11.5" x2="6" y2="14.5"/>
+                    <line x1="4.5" y1="13" x2="7.5" y2="13"/>
+                    <circle cx="15" cy="11.7" r="0.9" fill="#e8b93f"/>
+                    <circle cx="17.5" cy="14.2" r="0.9" fill="#e8b93f"/>
+                </svg>
+            </div>
             <h3>게임</h3>
             <p>직접 만든 플레이 가능한 게임들</p>
         </a>
         <a class="cat-card" href="works.html">
-            <div class="cat-icon">🛠️</div>
+            <div class="cat-icon">
+                <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#e8b93f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2-2z"/>
+                </svg>
+            </div>
             <h3>작업물</h3>
             <p>앱, 디자인, 도구 같은 완성된 결과물</p>
         </a>
-        <a class="cat-card" href="etc.html">
-            <div class="cat-icon">📦</div>
-            <h3>기타</h3>
-            <p>분류하기 애매한 이것저것</p>
+        <a class="cat-card etc" href="etc.html">
+            <div class="cat-icon">
+                <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#e8b93f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="4" x2="12" y2="20"/>
+                    <line x1="4" y1="12" x2="20" y2="12"/>
+                    <line x1="6.3" y1="6.3" x2="17.7" y2="17.7"/>
+                    <line x1="17.7" y1="6.3" x2="6.3" y2="17.7"/>
+                </svg>
+            </div>
+            <h3 class="pixel">기타</h3>
         </a>
     </div>
 </main>

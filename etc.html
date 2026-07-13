@@ -29,7 +29,14 @@
     <!-- 채울 게 생기면 games.html의 .cart 블록을 복사해서
          이 <div class="empty-state">...</div> 대신 .grid 안에 채워넣으면 됩니다. -->
     <div class="empty-state">
-        <div class="cart-icon">📦</div>
+        <div class="cart-icon">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#8f8879" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="4" x2="12" y2="20"/>
+                <line x1="4" y1="12" x2="20" y2="12"/>
+                <line x1="6.3" y1="6.3" x2="17.7" y2="17.7"/>
+                <line x1="17.7" y1="6.3" x2="6.3" y2="17.7"/>
+            </svg>
+        </div>
         <p class="pixel" style="font-size:11px; margin-bottom:10px;">EMPTY</p>
         <p>아직은 비어있어요. 뭔가 생기면 여기 채워질 예정.</p>
     </div>
