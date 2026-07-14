@@ -23,9 +23,6 @@
     }
     .plat-btn.active{ border-color:var(--border-lit); color:var(--gold); background:rgba(232,185,63,0.1); }
 
-    .grid2{ display:grid; grid-template-columns:1.3fr 1fr; gap:20px; }
-    @media (max-width:760px){ .grid2{ grid-template-columns:1fr; } }
-
     .panel{
         background:linear-gradient(180deg, var(--surface2), var(--surface));
         border:1px solid var(--border); border-radius:12px; padding:20px;
@@ -54,21 +51,6 @@
     .copy-btn:hover{ color:var(--gold); border-color:var(--border-lit); }
     .explain-box{ font-size:12.5px; color:var(--muted); line-height:1.6; }
 
-    .paste-zone{
-        border:1.5px dashed var(--border-lit); border-radius:12px; padding:24px; text-align:center;
-        min-height:220px; display:flex; flex-direction:column; align-items:center; justify-content:center;
-        cursor:text; position:relative;
-    }
-    .paste-zone.has-img{ padding:8px; }
-    .paste-zone img{ max-width:100%; max-height:340px; border-radius:8px; }
-    .paste-zone .pz-icon{ font-size:28px; color:var(--muted); margin-bottom:10px; }
-    .paste-zone .pz-hint{ font-size:12.5px; color:var(--muted); }
-    .paste-zone .pz-note{ font-size:11px; color:#8a7f6a; margin-top:6px; }
-    .clear-img-btn{
-        position:absolute; top:8px; right:8px; background:var(--surface2); border:1px solid var(--border);
-        color:var(--muted); border-radius:6px; padding:4px 8px; font-size:11px; cursor:pointer;
-    }
-
     .tier-row{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:8px; }
     .note{ font-size:11px; color:var(--muted); margin-top:4px; }
 </style>
@@ -91,28 +73,17 @@
 <div class="wrap">
     <div class="platform-switch" id="platform-switch"></div>
 
-    <div class="grid2">
-        <div class="panel">
-            <h3>🧩 하고 싶은 일</h3>
-            <select id="scenario-select"></select>
-            <div id="scenario-form"></div>
+    <div class="panel">
+        <h3>🧩 하고 싶은 일</h3>
+        <select id="scenario-select"></select>
+        <div id="scenario-form"></div>
 
-            <h3 style="margin-top:20px;">✅ 완성된 수식</h3>
-            <div class="formula-box">
-                <code id="formula-out">조건을 입력하면 여기에 수식이 완성돼요</code>
-                <button class="copy-btn" id="copy-btn">복사</button>
-            </div>
-            <div class="explain-box" id="explain-out"></div>
+        <h3 style="margin-top:20px;">✅ 완성된 수식</h3>
+        <div class="formula-box">
+            <code id="formula-out">조건을 입력하면 여기에 수식이 완성돼요</code>
+            <button class="copy-btn" id="copy-btn">복사</button>
         </div>
-
-        <div class="panel">
-            <h3>📋 참고용 스크린샷 (선택)</h3>
-            <div class="paste-zone" id="paste-zone" tabindex="0">
-                <div class="pz-icon">🖼️</div>
-                <div class="pz-hint">여기를 클릭하고 Ctrl+V로 붙여넣기</div>
-                <div class="pz-note">이 이미지는 분석되지 않아요. 옆에서 셀 위치 확인하는 용도예요.</div>
-            </div>
-        </div>
+        <div class="explain-box" id="explain-out"></div>
     </div>
 </div>
 
@@ -144,32 +115,31 @@ const SCENARIOS = {
                 <option value="avg">평균</option>
                 <option value="count">개수</option>
             </select>
-            <label class="f-label">조건 1 — 범위 / 조건값</label>
-            <div class="row2"><input id="s_r1" placeholder="예: B2:B100" oninput="recompute()"><input id="s_c1" placeholder="예: 완료" oninput="recompute()"></div>
-            <label class="f-label">조건 2 (선택)</label>
-            <div class="row2"><input id="s_r2" placeholder="예: C2:C100" oninput="recompute()"><input id="s_c2" placeholder="예: 서울" oninput="recompute()"></div>
-            <label class="f-label" id="s_sumlabel">합계/평균 낼 범위</label>
+            <label class="f-label">조건 (전부 만족해야 하는 AND 조건이에요)</label>
+            <div id="s_conds"></div>
+            <button type="button" class="copy-btn" onclick="addSumCond()">+ 조건 추가</button>
+            <label class="f-label" id="s_sumlabel" style="margin-top:14px;">합계/평균 낼 범위</label>
             <input id="s_sr" placeholder="예: D2:D100" oninput="recompute()">
         `,
-        onShow(){ toggleSumRange(); },
+        onShow(){ sumConds = [{r:'',c:''}]; renderSumConds(); toggleSumRange(); },
         build(){
             const type = v('s_type');
-            const conds = [[v('s_r1'), v('s_c1')], [v('s_r2'), v('s_c2')]].filter(c => c[0] && c[1]);
+            const conds = sumConds.filter(c => c.r && c.c);
             const sr = v('s_sr');
             if (conds.length === 0) return { f: '조건을 최소 1개 입력해주세요', e: '' };
             if (type === 'count') {
                 const f = conds.length === 1
-                    ? `=COUNTIF(${conds[0][0]},"${conds[0][1]}")`
-                    : `=COUNTIFS(${conds.map(c=>`${c[0]},"${c[1]}"`).join(',')})`;
-                return { f, e: '조건에 맞는 행의 개수를 세요.' };
+                    ? `=COUNTIF(${conds[0].r},"${conds[0].c}")`
+                    : `=COUNTIFS(${conds.map(c=>`${c.r},"${c.c}"`).join(',')})`;
+                return { f, e: `조건 ${conds.length}개를 모두 만족하는 행의 개수를 세요.` };
             }
             if (!sr) return { f: '합계/평균 낼 범위도 입력해주세요', e: '' };
             const fn = type === 'sum' ? 'SUMIF' : 'AVERAGEIF';
             const fnS = type === 'sum' ? 'SUMIFS' : 'AVERAGEIFS';
             const f = conds.length === 1
-                ? `=${fn}(${conds[0][0]},"${conds[0][1]}",${sr})`
-                : `=${fnS}(${sr},${conds.map(c=>`${c[0]},"${c[1]}"`).join(',')})`;
-            return { f, e: `조건을 만족하는 행들의 값을 ${type==='sum'?'더해요':'평균 내요'}.` };
+                ? `=${fn}(${conds[0].r},"${conds[0].c}",${sr})`
+                : `=${fnS}(${sr},${conds.map(c=>`${c.r},"${c.c}"`).join(',')})`;
+            return { f, e: `조건 ${conds.length}개를 모두 만족하는 행들의 값을 ${type==='sum'?'더해요':'평균 내요'}.` };
         }
     },
     vlookup: {
@@ -366,16 +336,20 @@ const SCENARIOS = {
                 <option value="max">최댓값</option>
                 <option value="min">최솟값</option>
             </select>
-            <label class="f-label">조건 범위 / 조건값</label>
-            <div class="row2"><input id="m_range" placeholder="예: B2:B100" oninput="recompute()"><input id="m_crit" placeholder="예: 서울" oninput="recompute()"></div>
             <label class="f-label">값을 찾을 범위</label>
             <input id="m_val" placeholder="예: C2:C100" oninput="recompute()">
+            <label class="f-label">조건 (전부 만족해야 하는 AND 조건이에요)</label>
+            <div id="m_conds"></div>
+            <button type="button" class="copy-btn" onclick="addMmCond()">+ 조건 추가</button>
         `,
+        onShow(){ mmConds = [{r:'',c:''}]; renderMmConds(); },
         build(){
-            const type = v('m_type'), range = v('m_range'), crit = v('m_crit'), val = v('m_val');
-            if (!range || !crit || !val) return { f: '조건 범위, 조건값, 값 범위를 모두 입력해주세요', e: '' };
+            const type = v('m_type'), val = v('m_val');
+            const conds = mmConds.filter(c => c.r && c.c);
+            if (!val || conds.length === 0) return { f: '값 범위와 조건을 최소 1개 입력해주세요', e: '' };
             const fn = type === 'max' ? 'MAXIFS' : 'MINIFS';
-            return { f: `=${fn}(${val},${range},"${crit}")`, e: `조건을 만족하는 값들 중 가장 ${type==='max'?'큰':'작은'} 값을 찾아요.` };
+            const f = `=${fn}(${val},${conds.map(c=>`${c.r},"${c.c}"`).join(',')})`;
+            return { f, e: `조건 ${conds.length}개를 모두 만족하는 값들 중 가장 ${type==='max'?'큰':'작은'} 값을 찾아요.` };
         }
     },
     textsearch: {
@@ -452,6 +426,67 @@ const SCENARIOS = {
         }
     }
 };
+
+// ---- 동적 조건 목록 (조건에 맞는 합계/평균/개수, 조건부 최댓값/최솟값에서 공용으로 사용) ----
+let sumConds = [{r:'',c:''}];
+function renderSumConds(){
+    const wrap = document.getElementById('s_conds');
+    if (!wrap) return;
+    wrap.innerHTML = sumConds.map((c,i) => `
+        <div class="row2" style="margin-bottom:8px;">
+            <input value="${esc(c.r)}" placeholder="범위 (예: B2:B100)" data-i="${i}" data-f="r" oninput="updateSumCond(event)">
+            <div style="display:flex; gap:6px;">
+                <input value="${esc(c.c)}" placeholder="조건값 (예: 완료)" data-i="${i}" data-f="c" oninput="updateSumCond(event)" style="flex:1;">
+                ${sumConds.length > 1 ? `<button type="button" class="copy-btn" onclick="removeSumCond(${i})">×</button>` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+function updateSumCond(e){
+    sumConds[+e.target.dataset.i][e.target.dataset.f] = e.target.value;
+    recompute();
+}
+function addSumCond(){
+    if (sumConds.length >= 6) { toast('조건은 최대 6개까지 가능해요'); return; }
+    sumConds.push({r:'',c:''});
+    renderSumConds();
+    recompute();
+}
+function removeSumCond(i){
+    sumConds.splice(i,1);
+    renderSumConds();
+    recompute();
+}
+
+let mmConds = [{r:'',c:''}];
+function renderMmConds(){
+    const wrap = document.getElementById('m_conds');
+    if (!wrap) return;
+    wrap.innerHTML = mmConds.map((c,i) => `
+        <div class="row2" style="margin-bottom:8px;">
+            <input value="${esc(c.r)}" placeholder="범위 (예: B2:B100)" data-i="${i}" data-f="r" oninput="updateMmCond(event)">
+            <div style="display:flex; gap:6px;">
+                <input value="${esc(c.c)}" placeholder="조건값 (예: 서울)" data-i="${i}" data-f="c" oninput="updateMmCond(event)" style="flex:1;">
+                ${mmConds.length > 1 ? `<button type="button" class="copy-btn" onclick="removeMmCond(${i})">×</button>` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+function updateMmCond(e){
+    mmConds[+e.target.dataset.i][e.target.dataset.f] = e.target.value;
+    recompute();
+}
+function addMmCond(){
+    if (mmConds.length >= 6) { toast('조건은 최대 6개까지 가능해요'); return; }
+    mmConds.push({r:'',c:''});
+    renderMmConds();
+    recompute();
+}
+function removeMmCond(i){
+    mmConds.splice(i,1);
+    renderMmConds();
+    recompute();
+}
 
 function toggleSumRange(){
     const type = v('s_type');
@@ -530,38 +565,6 @@ document.getElementById('platform-switch').addEventListener('click', e => {
     renderPlatformSwitch();
     recompute();
 });
-
-// ---- 스크린샷 붙여넣기 (분석 없음, 그냥 표시만) ----
-const pasteZone = document.getElementById('paste-zone');
-pasteZone.addEventListener('paste', e => {
-    const items = e.clipboardData && e.clipboardData.items;
-    if (!items) return;
-    for (const item of items) {
-        if (item.type.indexOf('image') !== -1) {
-            const file = item.getAsFile();
-            const reader = new FileReader();
-            reader.onload = ev => {
-                pasteZone.classList.add('has-img');
-                pasteZone.innerHTML = `<button class="clear-img-btn" id="clear-img-btn">지우기</button><img src="${ev.target.result}">`;
-                document.getElementById('clear-img-btn').addEventListener('click', ev2 => {
-                    ev2.stopPropagation();
-                    resetPasteZone();
-                });
-            };
-            reader.readAsDataURL(file);
-            e.preventDefault();
-            break;
-        }
-    }
-});
-function resetPasteZone(){
-    pasteZone.classList.remove('has-img');
-    pasteZone.innerHTML = `
-        <div class="pz-icon">🖼️</div>
-        <div class="pz-hint">여기를 클릭하고 Ctrl+V로 붙여넣기</div>
-        <div class="pz-note">이 이미지는 분석되지 않아요. 옆에서 셀 위치 확인하는 용도예요.</div>
-    `;
-}
 
 renderPlatformSwitch();
 renderScenarioSelect();
