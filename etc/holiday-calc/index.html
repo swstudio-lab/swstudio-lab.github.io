@@ -33,7 +33,14 @@
         background:linear-gradient(180deg, var(--surface2), var(--surface));
         border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:20px;
     }
-    .panel h3{ margin:0 0 14px; font-size:14px; color:var(--text); }
+    .panel h3{
+        margin:0 0 14px; font-size:14px; color:var(--text);
+        display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none;
+    }
+    .panel h3 .chev{ font-size:11px; color:var(--muted); transition:transform .15s ease; }
+    .panel.collapsed h3 .chev{ transform:rotate(-90deg); }
+    .panel.collapsed h3{ margin-bottom:0; }
+    .panel.collapsed .panel-body{ display:none; }
     .holiday-row{
         display:flex; align-items:center; gap:12px; padding:9px 4px; border-bottom:1px solid var(--border); font-size:13px;
     }
@@ -83,14 +90,24 @@
         <div class="stat-card"><div class="num" id="stat-longest">0</div><div class="lbl">최장 연휴(일)</div></div>
     </div>
 
-    <div class="panel">
-        <h3>📅 연휴 구간 (주말 포함, 실제로 이어서 쉬는 기간)</h3>
-        <div id="block-list"></div>
+    <div class="panel" id="panel-blocks">
+        <h3 data-action="toggle-panel" data-target="panel-blocks">
+            <span>📅 연휴 구간 (주말 포함, 실제로 이어서 쉬는 기간)</span>
+            <span class="chev">▾</span>
+        </h3>
+        <div class="panel-body">
+            <div id="block-list"></div>
+        </div>
     </div>
 
-    <div class="panel">
-        <h3>🗓️ 전체 공휴일 목록</h3>
-        <div id="holiday-list"></div>
+    <div class="panel" id="panel-holidays">
+        <h3 data-action="toggle-panel" data-target="panel-holidays">
+            <span>🗓️ 전체 공휴일 목록</span>
+            <span class="chev">▾</span>
+        </h3>
+        <div class="panel-body">
+            <div id="holiday-list"></div>
+        </div>
     </div>
 
     <p class="note">음력 공휴일(설날·추석·부처님오신날)은 2024~2029년 자료를 기준으로 계산돼요. 국회나 정부가 그때그때 정하는 임시공휴일은 반영되지 않으니, 정확한 확정 일정은 관공서 발표를 참고해주세요.</p>
@@ -232,6 +249,26 @@ const today = new Date();
 sel.value = Math.min(Math.max(today.getFullYear(), MIN_YEAR), MAX_YEAR);
 sel.addEventListener('change', () => render(parseInt(sel.value, 10)));
 render(parseInt(sel.value, 10));
+
+// ---- 패널 접기/펼치기 (상태는 브라우저에 저장) ----
+const PANEL_KEY = 'holidayCalcPanels';
+function loadPanelState(){
+    try { return JSON.parse(localStorage.getItem(PANEL_KEY)) || {}; } catch(e) { return {}; }
+}
+function savePanelState(state){
+    try { localStorage.setItem(PANEL_KEY, JSON.stringify(state)); } catch(e) {}
+}
+const panelState = loadPanelState();
+document.querySelectorAll('[data-action="toggle-panel"]').forEach(h3 => {
+    const id = h3.dataset.target;
+    const panel = document.getElementById(id);
+    if (panelState[id]) panel.classList.add('collapsed');
+    h3.addEventListener('click', () => {
+        const collapsed = panel.classList.toggle('collapsed');
+        panelState[id] = collapsed;
+        savePanelState(panelState);
+    });
+});
 </script>
 </body>
 </html>
