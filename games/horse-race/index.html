@@ -109,6 +109,24 @@
     .result-banner .winners{ font-size:12.5px; color:var(--text); margin-top:8px; }
 
     .note{ font-size:11px; color:var(--muted); text-align:center; margin-top:6px; }
+
+    .host-badge{ font-size:9px; color:var(--gold); background:rgba(232,185,63,0.15); padding:2px 6px; border-radius:4px; margin-left:4px; }
+    .horse-name{ font-size:14px; font-weight:700; color:var(--text); }
+    .edit-name-btn{ background:none; border:none; color:var(--muted); font-size:12px; cursor:pointer; padding:2px 4px; }
+    .edit-name-btn:hover{ color:var(--gold); }
+
+    .popup-overlay{
+        position:fixed; inset:0; background:rgba(10,9,8,0.85); z-index:70;
+        display:none; align-items:center; justify-content:center; padding:20px;
+    }
+    .popup-overlay.show{ display:flex; }
+    .popup-box{
+        background:linear-gradient(180deg, var(--surface2), var(--surface));
+        border:1px solid var(--border-lit); border-radius:14px; padding:28px 26px;
+        max-width:340px; width:100%; text-align:center;
+    }
+    .popup-title{ font-size:16px; font-weight:900; color:var(--gold); margin-bottom:10px; }
+    .popup-msg{ font-size:13px; color:var(--text); line-height:1.6; margin-bottom:18px; }
 </style>
 </head>
 <body>
@@ -172,6 +190,15 @@
             <div class="spacer"></div>
             <button class="btn primary" id="start-race-btn">🏁 경주 시작</button>
         </div>
+        <div class="note" id="host-hint"></div>
+    </div>
+</div>
+
+<div class="popup-overlay" id="popup-overlay">
+    <div class="popup-box">
+        <div class="popup-title" id="popup-title"></div>
+        <div class="popup-msg" id="popup-msg"></div>
+        <button class="btn primary" id="popup-ok">확인</button>
     </div>
 </div>
 
@@ -207,6 +234,17 @@ function toast(msg){
     clearTimeout(toast._timer);
     toast._timer = setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(-50%) translateY(20px)'; }, 1800);
 }
+function showPopup(title, msg){
+    document.getElementById('popup-title').textContent = title;
+    document.getElementById('popup-msg').textContent = msg;
+    document.getElementById('popup-overlay').classList.add('show');
+}
+document.getElementById('popup-ok').addEventListener('click', () => {
+    document.getElementById('popup-overlay').classList.remove('show');
+});
+function isHost(){
+    return !!roomState && roomState.hostId === playerId;
+}
 
 let playerId = localStorage.getItem(PLAYER_KEY);
 if (!playerId) { playerId = uid(); localStorage.setItem(PLAYER_KEY, playerId); }
@@ -215,6 +253,7 @@ let roomRef = null;
 let roomState = null;
 let revealTimer = null;
 let revealed = false;
+let allBetNotified = false;
 
 function defaultHorses(){
     const names = ['번개', '질풍', '천둥', '섬광'];
@@ -238,12 +277,13 @@ function joinRoom(code, name){
                 bets: {},
                 players: { [playerId]: { name: nickname } },
                 raceStartedAt: null,
+                hostId: playerId,
                 updatedAt: Date.now()
             });
         } else {
-            roomRef.set({
-                players: { [playerId]: { name: nickname } }
-            }, { merge: true });
+            const patch = { players: { [playerId]: { name: nickname } } };
+            if (!doc.data().hostId) patch.hostId = playerId;
+            roomRef.set(patch, { merge: true });
         }
         subscribeRoom();
     }).catch(() => toast('연결 실패 - 인터넷 연결을 확인해주세요'));
@@ -263,6 +303,7 @@ function subscribeRoom(){
         if (data.status === 'waiting') {
             clearTimeout(revealTimer);
             revealed = false;
+            allBetNotified = false;
             document.getElementById('result-banner').classList.remove('show');
             resetTrackPositions();
         }
@@ -277,11 +318,37 @@ function saveRoom(patch){
 // ---- 렌더링 ----
 function renderAll(){
     if (!roomState) return;
+    const host = isHost();
+    const waiting = roomState.status === 'waiting';
+    const horses = roomState.horses || [];
+    const players = roomState.players || {};
+    const bets = roomState.bets || {};
+
     renderPlayers();
     renderHorses();
     renderTrackLanes();
-    document.getElementById('start-race-btn').disabled = roomState.status !== 'waiting' || (roomState.horses || []).length < 2;
-    document.getElementById('add-horse-btn').disabled = roomState.status !== 'waiting' || (roomState.horses || []).length >= 8;
+
+    const startBtn = document.getElementById('start-race-btn');
+    startBtn.disabled = !host || !waiting || horses.length < 2;
+    startBtn.style.display = host ? '' : 'none';
+
+    const addBtn = document.getElementById('add-horse-btn');
+    addBtn.disabled = !host || !waiting || horses.length >= 8;
+    addBtn.style.display = host ? '' : 'none';
+
+    document.getElementById('host-hint').textContent = host
+        ? ''
+        : '⏳ 경주 시작과 말 추가/삭제/이름 변경은 방장만 할 수 있어요.';
+
+    if (waiting) {
+        const playerIds = Object.keys(players);
+        const allBet = playerIds.length > 0 && playerIds.every(pid => bets[pid]);
+        if (allBet && !allBetNotified) {
+            allBetNotified = true;
+            showPopup('✅ 배팅 완료', '모두 배팅을 마쳤습니다! 경주를 시작해주세요.');
+        }
+        if (!allBet) allBetNotified = false;
+    }
 }
 
 function renderPlayers(){
@@ -292,7 +359,8 @@ function renderPlayers(){
         const p = players[pid];
         const betHorse = horses.find(h => h.id === bets[pid]);
         const betText = betHorse ? ` · ${escapeHtml(betHorse.name)} 베팅` : '';
-        return `<span class="player-chip"><span class="dot"></span>${escapeHtml(p.name)}${pid === playerId ? ' (나)' : ''}${betText}</span>`;
+        const hostTag = pid === roomState.hostId ? '<span class="host-badge">방장</span>' : '';
+        return `<span class="player-chip"><span class="dot"></span>${escapeHtml(p.name)}${pid === playerId ? ' (나)' : ''}${hostTag}${betText}</span>`;
     }).join('') || '<span class="player-chip">아직 참가자가 없어요</span>';
 }
 
@@ -302,6 +370,7 @@ function renderHorses(){
     const players = roomState.players || {};
     const myBet = bets[playerId];
     const waiting = roomState.status === 'waiting';
+    const host = isHost();
 
     document.getElementById('horse-list').innerHTML = horses.map(h => {
         const bettorIds = Object.keys(bets).filter(pid => bets[pid] === h.id);
@@ -310,12 +379,13 @@ function renderHorses(){
         <div class="horse-card ${myBet === h.id ? 'mine' : ''}" data-action="bet" data-id="${h.id}">
             <div class="horse-token" style="background:${h.color}33; color:${h.color}; border-color:${h.color}66;">🐎</div>
             <div class="horse-info">
-                <input type="text" class="horse-name-input" data-id="${h.id}" value="${escapeAttr(h.name)}" ${waiting ? '' : 'readonly'} onclick="event.stopPropagation()">
+                <span class="horse-name">${escapeHtml(h.name)}</span>
+                ${host && waiting ? `<button class="edit-name-btn" data-action="rename" data-id="${h.id}" title="이름 수정">✎</button>` : ''}
                 <div class="horse-bettors">${bettorNames ? '베팅: ' + bettorNames : '베팅한 사람 없음'}</div>
             </div>
             <div class="horse-actions">
                 ${myBet === h.id ? '<span class="my-bet-badge">내 베팅</span>' : ''}
-                ${waiting ? `<button class="del-btn" data-action="delete" data-id="${h.id}" title="삭제" onclick="event.stopPropagation()">🗑</button>` : ''}
+                ${host && waiting && horses.length > 2 ? `<button class="del-btn" data-action="delete" data-id="${h.id}" title="삭제">🗑</button>` : ''}
             </div>
         </div>`;
     }).join('') || '<div class="note">말이 없어요. 말을 추가해주세요.</div>';
@@ -353,29 +423,37 @@ function resetTrackPositions(){
 
 // ---- 이벤트: 말 목록 ----
 document.getElementById('horse-list').addEventListener('click', e => {
+    const renameBtn = e.target.closest('[data-action="rename"]');
+    if (renameBtn) {
+        if (!isHost() || roomState.status !== 'waiting') return;
+        const cur = (roomState.horses || []).find(h => h.id === renameBtn.dataset.id);
+        const newName = prompt('말 이름을 입력하세요', cur ? cur.name : '');
+        if (!newName || !newName.trim()) return;
+        const horses = (roomState.horses || []).map(h => h.id === renameBtn.dataset.id ? Object.assign({}, h, { name: newName.trim() }) : h);
+        saveRoom({ horses });
+        return;
+    }
+    const delBtn = e.target.closest('[data-action="delete"]');
+    if (delBtn) {
+        if (!isHost() || roomState.status !== 'waiting') return;
+        const horses = roomState.horses || [];
+        if (horses.length <= 2) { toast('말은 최소 2마리 있어야 해요'); return; }
+        const remaining = horses.filter(h => h.id !== delBtn.dataset.id);
+        const bets = Object.assign({}, roomState.bets || {});
+        Object.keys(bets).forEach(pid => { if (bets[pid] === delBtn.dataset.id) delete bets[pid]; });
+        saveRoom({ horses: remaining, bets });
+        return;
+    }
     const card = e.target.closest('[data-action="bet"]');
     if (card && roomState.status === 'waiting') {
         const bets = Object.assign({}, roomState.bets || {});
         bets[playerId] = card.dataset.id;
         saveRoom({ bets });
     }
-    const delBtn = e.target.closest('[data-action="delete"]');
-    if (delBtn) {
-        const horses = (roomState.horses || []).filter(h => h.id !== delBtn.dataset.id);
-        const bets = Object.assign({}, roomState.bets || {});
-        Object.keys(bets).forEach(pid => { if (bets[pid] === delBtn.dataset.id) delete bets[pid]; });
-        saveRoom({ horses, bets });
-    }
-});
-document.getElementById('horse-list').addEventListener('input', e => {
-    const input = e.target.closest('.horse-name-input');
-    if (!input || roomState.status !== 'waiting') return;
-    const horses = (roomState.horses || []).map(h => h.id === input.dataset.id ? Object.assign({}, h, { name: input.value }) : h);
-    roomState.horses = horses;
-    saveRoom({ horses });
 });
 
 document.getElementById('add-horse-btn').addEventListener('click', () => {
+    if (!isHost()) { toast('말 추가는 방장만 할 수 있어요'); return; }
     const horses = (roomState.horses || []).slice();
     if (horses.length >= 8) return;
     horses.push({ id: uid(), name: '새 말' + (horses.length + 1), color: PALETTE[horses.length % PALETTE.length] });
@@ -383,6 +461,7 @@ document.getElementById('add-horse-btn').addEventListener('click', () => {
 });
 
 document.getElementById('start-race-btn').addEventListener('click', () => {
+    if (!isHost()) { toast('경주 시작은 방장만 할 수 있어요'); return; }
     const horses = roomState.horses || [];
     if (horses.length < 2) { toast('말이 2마리 이상 있어야 시작할 수 있어요'); return; }
     const winner = horses[Math.floor(Math.random() * horses.length)];
@@ -438,6 +517,10 @@ function revealResult(){
         : '이번 경주는 아무도 못 맞췄어요';
     document.getElementById('result-banner').classList.add('show');
     document.getElementById('race-note').textContent = '경주 종료!';
+    showPopup(
+        `🏆 ${winner.name} 우승!`,
+        winnerNames.length ? `맞춘 사람: ${winnerNames.join(', ')}` : '이번 경주는 아무도 못 맞췄어요'
+    );
 }
 
 // ---- 게이트 ----
