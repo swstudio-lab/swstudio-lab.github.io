@@ -349,6 +349,7 @@ function renderUpcoming(){
     `).join('');
 }
 renderUpcoming();
+const panelState = loadPanelState();
 document.querySelectorAll('[data-action="toggle-panel"]').forEach(h3 => {
     const id = h3.dataset.target;
     const panel = document.getElementById(id);
