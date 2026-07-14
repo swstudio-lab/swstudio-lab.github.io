@@ -21,7 +21,7 @@
         border-radius:8px; padding:10px 16px; font-size:16px; font-weight:700; font-family:inherit;
     }
 
-    .stat-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:24px; }
+    .stat-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(120px,1fr)); gap:14px; margin-bottom:24px; }
     .stat-card{
         background:linear-gradient(180deg, var(--surface2), var(--surface));
         border:1px solid var(--border); border-radius:12px; padding:16px 14px; text-align:center;
@@ -41,6 +41,30 @@
     .panel.collapsed h3 .chev{ transform:rotate(-90deg); }
     .panel.collapsed h3{ margin-bottom:0; }
     .panel.collapsed .panel-body{ display:none; }
+
+    .filter-row{ display:flex; gap:8px; margin-bottom:14px; }
+    .filter-btn{
+        background:var(--surface); border:1px solid var(--border); color:var(--muted);
+        border-radius:6px; padding:7px 14px; font-size:12px; cursor:pointer; font-family:inherit;
+        transition:border-color .15s ease, color .15s ease;
+    }
+    .filter-btn:hover{ color:var(--text); }
+    .filter-btn.active{ border-color:var(--border-lit); color:var(--gold); background:rgba(232,185,63,0.08); }
+
+    .upcoming-banner{
+        display:flex; align-items:center; justify-content:center; gap:10px;
+        background:linear-gradient(180deg, var(--surface2), var(--surface));
+        border:1px solid var(--border-lit); border-radius:12px; padding:16px; margin-bottom:20px;
+        text-align:center; flex-wrap:wrap;
+    }
+    .upcoming-banner .lbl{ font-size:12px; color:var(--muted); }
+    .upcoming-banner .name{ font-size:15px; font-weight:700; color:var(--text); }
+    .upcoming-banner .dday{ font-size:15px; font-weight:900; color:var(--gold); }
+    .upcoming-row{
+        display:flex; align-items:center; gap:12px; padding:9px 4px; border-bottom:1px solid var(--border); font-size:13px;
+    }
+    .upcoming-row:last-child{ border-bottom:none; }
+    .upcoming-dday{ font-size:11px; color:var(--gold); font-weight:700; background:rgba(232,185,63,0.1); padding:3px 8px; border-radius:4px; flex:0 0 auto; }
     .holiday-row{
         display:flex; align-items:center; gap:12px; padding:9px 4px; border-bottom:1px solid var(--border); font-size:13px;
     }
@@ -86,16 +110,33 @@
 
     <div class="stat-grid">
         <div class="stat-card"><div class="num" id="stat-total">0</div><div class="lbl">총 공휴일 일수</div></div>
+        <div class="stat-card"><div class="num" id="stat-weekday">0</div><div class="lbl">토·일 제외 공휴일 수</div></div>
         <div class="stat-card"><div class="num" id="stat-sub">0</div><div class="lbl">대체공휴일 개수</div></div>
         <div class="stat-card"><div class="num" id="stat-longest">0</div><div class="lbl">최장 연휴(일)</div></div>
     </div>
 
-    <div class="panel" id="panel-blocks">
-        <h3 data-action="toggle-panel" data-target="panel-blocks">
-            <span>📅 연휴 구간 (주말 포함, 실제로 이어서 쉬는 기간)</span>
+    <div class="upcoming-banner" id="upcoming-banner"></div>
+
+    <div class="panel" id="panel-upcoming">
+        <h3 data-action="toggle-panel" data-target="panel-upcoming">
+            <span>🔜 다가오는 휴일 (오늘 기준)</span>
             <span class="chev">▾</span>
         </h3>
         <div class="panel-body">
+            <div id="upcoming-list"></div>
+        </div>
+    </div>
+
+    <div class="panel" id="panel-blocks">
+        <h3 data-action="toggle-panel" data-target="panel-blocks">
+            <span>📅 연휴 구간 (실제로 이어서 쉬는 기간)</span>
+            <span class="chev">▾</span>
+        </h3>
+        <div class="panel-body">
+            <div class="filter-row">
+                <button class="filter-btn active" id="filter-include" data-mode="include">토·일 포함</button>
+                <button class="filter-btn" id="filter-exclude" data-mode="exclude">토·일 제외</button>
+            </div>
             <div id="block-list"></div>
         </div>
     </div>
@@ -190,14 +231,14 @@ function buildHolidays(year){
     return all;
 }
 
-function buildRestBlocks(year, holidays){
+function buildRestBlocks(year, holidays, mode){
     const restSet = new Set(holidays.map(h => dkey(h.date)));
     const start = new Date(year, 0, 1);
     const end = new Date(year, 11, 31);
     const blocks = [];
     let cur = null;
     for (let d = new Date(start); d <= end; d = addDays(d,1)) {
-        const rest = isWeekend(d) || restSet.has(dkey(d));
+        const rest = mode === 'exclude' ? restSet.has(dkey(d)) : (isWeekend(d) || restSet.has(dkey(d)));
         if (rest) {
             if (!cur) cur = { start: new Date(d), end: new Date(d) };
             else cur.end = new Date(d);
@@ -212,13 +253,17 @@ function buildRestBlocks(year, holidays){
     })).filter(b => b.days >= 2);
 }
 
+let blockFilterMode = 'include';
+
 function render(year){
     const holidays = buildHolidays(year);
     const subCount = holidays.filter(h => h.isSub).length;
-    const blocks = buildRestBlocks(year, holidays);
+    const weekdayCount = holidays.filter(h => !isWeekend(h.date)).length;
+    const blocks = buildRestBlocks(year, holidays, blockFilterMode);
     const longest = blocks.reduce((m,b) => Math.max(m, b.days), 0);
 
     document.getElementById('stat-total').textContent = holidays.length;
+    document.getElementById('stat-weekday').textContent = weekdayCount;
     document.getElementById('stat-sub').textContent = subCount;
     document.getElementById('stat-longest').textContent = longest;
 
@@ -258,7 +303,52 @@ function loadPanelState(){
 function savePanelState(state){
     try { localStorage.setItem(PANEL_KEY, JSON.stringify(state)); } catch(e) {}
 }
-const panelState = loadPanelState();
+function ddayLabel(target, todayMid){
+    const d = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+    const diff = Math.round((d - todayMid) / 86400000);
+    return diff === 0 ? 'D-DAY' : `D-${diff}`;
+}
+
+function getUpcomingHolidays(limit){
+    const today = new Date();
+    const todayMid = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    let list = [];
+    for (let y = today.getFullYear(); y <= Math.min(today.getFullYear() + 1, MAX_YEAR); y++) {
+        list = list.concat(buildHolidays(y));
+    }
+    list = list.filter(h => {
+        const hd = new Date(h.date.getFullYear(), h.date.getMonth(), h.date.getDate());
+        return hd >= todayMid;
+    });
+    list.sort((a,b) => a.date - b.date);
+    return { list: list.slice(0, limit), todayMid };
+}
+
+function renderUpcoming(){
+    const { list, todayMid } = getUpcomingHolidays(8);
+    const banner = document.getElementById('upcoming-banner');
+    const listEl = document.getElementById('upcoming-list');
+
+    if (!list.length) {
+        banner.innerHTML = `<span class="lbl">이 계산기가 다루는 기간(~${MAX_YEAR}년) 안에 남은 휴일이 없어요.</span>`;
+        listEl.innerHTML = '';
+        return;
+    }
+    const next = list[0];
+    banner.innerHTML = `
+        <span class="lbl">다음 휴일까지</span>
+        <span class="dday">${ddayLabel(next.date, todayMid)}</span>
+        <span class="name">${next.name} (${fmt(next.date)})</span>
+    `;
+    listEl.innerHTML = list.map(h => `
+        <div class="upcoming-row">
+            <span class="upcoming-dday">${ddayLabel(h.date, todayMid)}</span>
+            <span class="holiday-date">${fmt(h.date)}</span>
+            <span class="holiday-name">${h.name}${h.isSub ? ' (대체)' : ''}</span>
+        </div>
+    `).join('');
+}
+renderUpcoming();
 document.querySelectorAll('[data-action="toggle-panel"]').forEach(h3 => {
     const id = h3.dataset.target;
     const panel = document.getElementById(id);
@@ -268,6 +358,19 @@ document.querySelectorAll('[data-action="toggle-panel"]').forEach(h3 => {
         panelState[id] = collapsed;
         savePanelState(panelState);
     });
+});
+
+document.getElementById('filter-include').addEventListener('click', () => {
+    blockFilterMode = 'include';
+    document.getElementById('filter-include').classList.add('active');
+    document.getElementById('filter-exclude').classList.remove('active');
+    render(parseInt(sel.value, 10));
+});
+document.getElementById('filter-exclude').addEventListener('click', () => {
+    blockFilterMode = 'exclude';
+    document.getElementById('filter-exclude').classList.add('active');
+    document.getElementById('filter-include').classList.remove('active');
+    render(parseInt(sel.value, 10));
 });
 </script>
 </body>
