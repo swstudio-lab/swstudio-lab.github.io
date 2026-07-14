@@ -236,7 +236,7 @@
         <input type="text" id="gate-input" placeholder="예: team-2026">
         <button class="btn primary" id="gate-submit">입장하기</button>
         <button class="btn" id="gate-skip">건너뛰고 나만 쓰기</button>
-        <p class="gate-hint">※ 완벽한 보안이 아니에요. 코드를 아는 사람은 누구나 접근할 수 있어요.</p>
+        <p class="gate-hint">🔒 팀 코드로 내용이 암호화돼요. 코드를 잃어버리면 데이터를 복구할 수 없으니 꼭 기억해두세요.</p>
     </div>
 </div>
 
@@ -898,40 +898,88 @@ document.getElementById('xlsx-btn').addEventListener('click', () => {
 
 document.getElementById('print-btn').addEventListener('click', () => window.print());
 
-// ---- 팀 코드 게이트 & 클라우드 동기화 ----
+// ---- 팀 코드 게이트 & 클라우드 동기화 (팀 코드 기반 종단 암호화) ----
+let cryptoKey = null;
+
+async function deriveKey(passphrase){
+    const enc = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+        'raw', enc.encode(passphrase), { name: 'PBKDF2' }, false, ['deriveKey']
+    );
+    return crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt: enc.encode('taskflow-fixed-salt-v1'), iterations: 150000, hash: 'SHA-256' },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+    );
+}
+function bufToBase64(buf){
+    return btoa(String.fromCharCode(...new Uint8Array(buf)));
+}
+function base64ToBuf(b64){
+    const bin = atob(b64);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return arr.buffer;
+}
+async function encryptData(key, obj){
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const enc = new TextEncoder();
+    const cipherBuf = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(JSON.stringify(obj)));
+    return { iv: bufToBase64(iv), data: bufToBase64(cipherBuf) };
+}
+async function decryptData(key, payload){
+    const iv = new Uint8Array(base64ToBuf(payload.iv));
+    const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, base64ToBuf(payload.data));
+    return JSON.parse(new TextDecoder().decode(plainBuf));
+}
+
 function scheduleCloudSave(){
-    if (!teamRef) return;
+    if (!teamRef || !cryptoKey) return;
     clearTimeout(cloudSaveTimer);
     cloudSaveTimer = setTimeout(pushToCloud, 600);
 }
-function pushToCloud(){
-    if (!teamRef) return;
-    teamRef.set({ projects: state.projects, updatedAt: Date.now() }, { merge: true })
-        .catch(() => toast('클라우드 저장 실패 - 인터넷 연결을 확인하세요'));
+async function pushToCloud(){
+    if (!teamRef || !cryptoKey) return;
+    try {
+        const payload = await encryptData(cryptoKey, state.projects);
+        await teamRef.set({ enc: payload, updatedAt: Date.now() }, { merge: true });
+    } catch(e) {
+        toast('클라우드 저장 실패 - 인터넷 연결을 확인하세요');
+    }
 }
 function subscribeCloud(){
-    teamRef.onSnapshot(snap => {
+    teamRef.onSnapshot(async snap => {
         if (snap.metadata.hasPendingWrites) return; // 내가 방금 보낸 변경의 echo는 무시
         const data = snap.data();
-        if (data && Array.isArray(data.projects) && data.projects.length) {
-            state.projects = data.projects;
-            if (!state.projects.find(p => p.id === state.currentId)) state.currentId = state.projects[0].id;
-            renderProject();
+        if (!data || !data.enc) return;
+        try {
+            const projects = await decryptData(cryptoKey, data.enc);
+            if (Array.isArray(projects) && projects.length) {
+                state.projects = projects;
+                if (!state.projects.find(p => p.id === state.currentId)) state.currentId = state.projects[0].id;
+                renderProject();
+            }
+        } catch(e) {
+            toast('복호화 실패 - 팀 코드를 다시 확인해주세요');
         }
     }, () => toast('실시간 동기화 연결에 문제가 있어요'));
 }
-function enterTeam(code){
+async function enterTeam(code){
     document.getElementById('gate-overlay').style.display = 'none';
     if (!cloudEnabled) { toast('먼저 Firebase 설정을 완료해주세요'); return; }
+    cryptoKey = await deriveKey(code);
     const db = firebase.firestore();
     teamRef = db.collection('taskflowTeams').doc(code);
     document.getElementById('team-toolbar').style.display = 'flex';
     const statusEl = document.getElementById('team-status');
-    statusEl.textContent = `🔗 팀 코드 "${code}"로 연결됨 · 실시간 동기화 중`;
+    statusEl.textContent = `🔗 팀 코드 "${code}"로 연결됨 · 암호화된 실시간 동기화 중`;
     statusEl.classList.add('connected');
-    teamRef.get().then(doc => {
+    teamRef.get().then(async doc => {
         if (!doc.exists) {
-            teamRef.set({ projects: state.projects, updatedAt: Date.now() });
+            const payload = await encryptData(cryptoKey, state.projects);
+            teamRef.set({ enc: payload, updatedAt: Date.now() });
         }
         subscribeCloud();
     }).catch(() => toast('연결 실패 - 인터넷 연결이나 Firebase 설정을 확인하세요'));
