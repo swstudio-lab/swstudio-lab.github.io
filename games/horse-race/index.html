@@ -81,7 +81,7 @@
     .horse-bettors{ font-size:11px; color:var(--muted); margin-top:2px; min-height:14px; }
     .horse-actions{ display:flex; align-items:center; gap:6px; flex:0 0 auto; }
     .my-bet-badge{ font-size:10px; color:var(--gold); background:rgba(232,185,63,0.15); padding:3px 8px; border-radius:4px; }
-    .del-btn{ background:none; border:none; color:var(--muted); font-size:14px; cursor:pointer; padding:4px; }
+    .del-btn{ background:none; border:none; color:var(--muted); cursor:pointer; padding:4px; display:inline-flex; align-items:center; justify-content:center; }
     .del-btn:hover{ color:#e0876a; }
 
     .track-lane{ position:relative; height:52px; margin-bottom:10px; }
@@ -112,7 +112,7 @@
 
     .host-badge{ font-size:9px; color:var(--gold); background:rgba(232,185,63,0.15); padding:2px 6px; border-radius:4px; margin-left:4px; }
     .horse-name{ font-size:14px; font-weight:700; color:var(--text); }
-    .edit-name-btn{ background:none; border:none; color:var(--muted); font-size:12px; cursor:pointer; padding:2px 4px; }
+    .edit-name-btn{ background:none; border:none; color:var(--muted); cursor:pointer; padding:2px 4px; display:inline-flex; align-items:center; justify-content:center; vertical-align:middle; }
     .edit-name-btn:hover{ color:var(--gold); }
 
     .popup-overlay{
@@ -380,12 +380,12 @@ function renderHorses(){
             <div class="horse-token" style="background:${h.color}33; color:${h.color}; border-color:${h.color}66;">🐎</div>
             <div class="horse-info">
                 <span class="horse-name">${escapeHtml(h.name)}</span>
-                ${host && waiting ? `<button class="edit-name-btn" data-action="rename" data-id="${h.id}" title="이름 수정">✎</button>` : ''}
+                ${host && waiting ? `<button class="edit-name-btn" data-action="rename" data-id="${h.id}" title="이름 수정"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1-4L16 5l3 3L8 19l-4 1Z"/></svg></button>` : ''}
                 <div class="horse-bettors">${bettorNames ? '베팅: ' + bettorNames : '베팅한 사람 없음'}</div>
             </div>
             <div class="horse-actions">
                 ${myBet === h.id ? '<span class="my-bet-badge">내 베팅</span>' : ''}
-                ${host && waiting && horses.length > 2 ? `<button class="del-btn" data-action="delete" data-id="${h.id}" title="삭제">🗑</button>` : ''}
+                ${host && waiting && horses.length > 2 ? `<button class="del-btn" data-action="delete" data-id="${h.id}" title="삭제"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button>` : ''}
             </div>
         </div>`;
     }).join('') || '<div class="note">말이 없어요. 말을 추가해주세요.</div>';
