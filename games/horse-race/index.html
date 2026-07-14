@@ -291,7 +291,6 @@ function joinRoom(code, name){
 
 function subscribeRoom(){
     roomRef.onSnapshot(snap => {
-        if (snap.metadata.hasPendingWrites) return;
         const data = snap.data();
         if (!data) return;
         const prevStatus = roomState ? roomState.status : null;
