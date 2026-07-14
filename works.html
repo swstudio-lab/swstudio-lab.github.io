@@ -26,16 +26,32 @@
 </header>
 
 <main>
-    <!-- 작업물이 생기면 games.html의 .cart 블록을 복사해서
-         이 <div class="empty-state">...</div> 대신 .grid 안에 채워넣으면 됩니다. -->
-    <div class="empty-state">
-        <div class="cart-icon">
-            <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#8f8879" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2-2z"/>
-            </svg>
+    <div class="grid">
+
+        <!-- 새 작업물을 추가하려면 이 블록을 복사해서
+             href, cart-icon, 제목, 설명만 바꿔주세요. -->
+        <a class="cart playable" href="works/todo-wbs/index.html">
+            <span class="cart-tag playable pixel">READY</span>
+            <div class="cart-icon">
+                <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#e8b93f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2-2z"/>
+                </svg>
+            </div>
+            <h3>TaskFlow</h3>
+            <p>할일 & 프로젝트 관리. 우선순위·상태·기간·진행률까지 테이블로 관리하고 검색/정렬, CSV 내보내기 지원.</p>
+            <div class="cart-play pixel">→ 열기</div>
+        </a>
+
+        <div class="cart empty">
+            <div class="cart-icon" style="justify-content:center; width:100%;">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#8f8879" stroke-width="1.6" stroke-linecap="round">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+            </div>
+            <div class="pixel" style="font-size:10px; letter-spacing:0.05em;">빈 슬롯<br>다음에 만들 걸 여기에</div>
         </div>
-        <p class="pixel" style="font-size:11px; margin-bottom:10px;">EMPTY</p>
-        <p>아직은 비어있어요. 뭔가 만들면 여기 채워질 예정.</p>
+
     </div>
 </main>
 
