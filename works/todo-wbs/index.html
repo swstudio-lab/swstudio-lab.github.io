@@ -9,6 +9,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../../assets/style.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
     .wrap{ max-width:1080px; margin:0 auto; padding:0 20px 100px; }
     .tool-header{ max-width:1080px; margin:0 auto; padding:56px 20px 28px; text-align:center; }
@@ -182,12 +184,38 @@
     }
     #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
 
+    .gate-overlay{
+        position:fixed; inset:0; background:rgba(10,9,8,0.94); z-index:50;
+        display:none; align-items:center; justify-content:center; padding:20px;
+    }
+    .gate-box{
+        background:linear-gradient(180deg, var(--surface2), var(--surface));
+        border:1px solid var(--border-lit); border-radius:14px; padding:32px 28px;
+        max-width:360px; width:100%; text-align:center;
+    }
+    .gate-box h2{ margin:8px 0 10px; font-size:20px; }
+    .gate-box p{ color:var(--muted); font-size:12.5px; margin:0 0 16px; line-height:1.5; }
+    .gate-box input{
+        width:100%; box-sizing:border-box; background:var(--bg); border:1px solid var(--border);
+        color:var(--text); border-radius:8px; padding:10px 12px; font-size:14px; margin-bottom:12px; text-align:center;
+        font-family:inherit;
+    }
+    .gate-box .btn{ width:100%; margin-bottom:8px; padding:10px; box-sizing:border-box; }
+    .gate-hint{ font-size:10.5px; color:#8a7f6a; margin-top:14px; }
+    #team-status{ font-size:11.5px; color:var(--muted); }
+    #team-status.connected{ color:#7dd08a; }
+
     @media print{
         nav.topnav, .toolbar, .row-btn, .row-toggle, .memo-toggle{ display:none !important; }
         body{ background:#fff; color:#111; }
         .panel{ border:1px solid #ccc; background:#fff; }
         .wbs-title, .wbs-assignee, .wbs-date{ color:#111; }
         .tool-header .eyebrow{ color:#555; }
+        *{
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+        }
     }
 </style>
 </head>
@@ -199,6 +227,18 @@
     <a href="../../works.html" class="active">작업물</a>
     <a href="../../etc.html">기타</a>
 </nav>
+
+<div class="gate-overlay" id="gate-overlay">
+    <div class="gate-box">
+        <div class="eyebrow pixel">TEAM SYNC</div>
+        <h2>팀 코드 입력</h2>
+        <p>팀에서 공유받은 코드를 입력하면, 같은 코드를 쓰는 사람들과 실시간으로 같은 프로젝트를 보고 편집할 수 있어요.</p>
+        <input type="text" id="gate-input" placeholder="예: knou-2026">
+        <button class="btn primary" id="gate-submit">입장하기</button>
+        <button class="btn" id="gate-skip">건너뛰고 나만 쓰기</button>
+        <p class="gate-hint">※ 완벽한 보안이 아니에요. 코드를 아는 사람은 누구나 접근할 수 있어요.</p>
+    </div>
+</div>
 
 <header class="tool-header">
     <div class="eyebrow pixel">TASKFLOW</div>
@@ -242,6 +282,11 @@
     </div>
 
     <div class="panel">
+        <div class="toolbar" id="team-toolbar" style="display:none;">
+            <span id="team-status">🔗 팀 코드로 연결됨</span>
+            <button class="btn" id="team-change-btn">팀 코드 변경/나가기</button>
+            <div class="spacer"></div>
+        </div>
         <div class="toolbar">
             <select id="project-select"></select>
             <input type="text" id="project-name-input" placeholder="프로젝트 이름">
@@ -294,6 +339,28 @@
 <script>
 const STORAGE_KEY = 'todoWbsProjects_v3';
 const COL_KEY = 'todoWbsColumns_v1';
+const TEAM_CODE_KEY = 'taskflowTeamCode';
+
+// ---- Firebase 설정 (본인 Firebase 프로젝트 값으로 교체하세요) ----
+// Firebase 콘솔 > 프로젝트 설정 > 일반 > "내 앱"에서 나오는 firebaseConfig 값을 그대로 붙여넣으면 됩니다.
+const firebaseConfig = {
+    apiKey: "AIzaSyB0LRiIpNwdcCkS4Y5Dz4pP9zcLoadO2Xk",
+    authDomain: "taskflow-7cb3b.firebaseapp.com",
+    projectId: "taskflow-7cb3b",
+    storageBucket: "taskflow-7cb3b.firebasestorage.app",
+    messagingSenderId: "811223035419",
+    appId: "1:811223035419:web:08b972916827147bc2d2be"
+};
+let cloudEnabled = false;
+let teamRef = null;
+let cloudSaveTimer = null;
+try {
+    if (firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith('여기에')) {
+        firebase.initializeApp(firebaseConfig);
+        cloudEnabled = true;
+    }
+} catch(e) { cloudEnabled = false; }
+
 const PRIORITIES = ['낮음', '보통', '높음', '긴급'];
 const STATUSES = ['대기', '진행중', '완료', '보류'];
 const PRIORITY_RANK = { '낮음':0, '보통':1, '높음':2, '긴급':3 };
@@ -403,6 +470,7 @@ function currentProject(){
 }
 function saveProjects(){
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.projects)); } catch(e) {}
+    scheduleCloudSave();
 }
 function persistAndRender(){ saveProjects(); renderProject(); }
 
@@ -473,6 +541,12 @@ function formatDate(d){
 
 function escapeAttr(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
 function escapeHtml(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function textBar(pct, len){
+    len = len || 10;
+    const filled = Math.max(0, Math.min(len, Math.round((pct / 100) * len)));
+    return '■'.repeat(filled) + '□'.repeat(len - filled) + ' ' + pct + '%';
+}
 
 function progressColor(pct){
     if (pct >= 100) return '#7dd08a';
@@ -762,7 +836,7 @@ function buildTextOutline(project){
     function walk(list, prefix, depth){
         list.forEach((n, i) => {
             const num = `${prefix}${i + 1}`;
-            const mark = n.children.length ? `${progress(n)}%` : (n.done ? '[x]' : '[ ]');
+            const mark = n.children.length ? textBar(progress(n)) : (n.done ? '[x]' : '[ ]');
             const meta = [
                 n.assignee ? `담당:${n.assignee}` : null,
                 n.priority ? `우선순위:${n.priority}` : null,
@@ -786,7 +860,7 @@ function buildRows(project){
     function walk(list, prefix){
         list.forEach((n, i) => {
             const num = `${prefix}${i + 1}`;
-            rows.push([num, n.title, n.assignee, n.priority, n.status, n.start, n.due, progress(n) + '%', n.memo]);
+            rows.push([num, n.title, n.assignee, n.priority, n.status, n.start, n.due, textBar(progress(n)), n.memo]);
             walk(n.children, `${num}.`);
         });
     }
@@ -816,7 +890,7 @@ document.getElementById('xlsx-btn').addEventListener('click', () => {
     const project = currentProject();
     const rows = buildRows(project);
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols'] = [{ wch:8 }, { wch:32 }, { wch:10 }, { wch:8 }, { wch:8 }, { wch:12 }, { wch:12 }, { wch:8 }, { wch:30 }];
+    ws['!cols'] = [{ wch:8 }, { wch:32 }, { wch:10 }, { wch:8 }, { wch:8 }, { wch:12 }, { wch:12 }, { wch:18 }, { wch:30 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, safeSheetName(project.name));
     XLSX.writeFile(wb, `${project.name}.xlsx`);
@@ -824,7 +898,67 @@ document.getElementById('xlsx-btn').addEventListener('click', () => {
 
 document.getElementById('print-btn').addEventListener('click', () => window.print());
 
+// ---- 팀 코드 게이트 & 클라우드 동기화 ----
+function scheduleCloudSave(){
+    if (!teamRef) return;
+    clearTimeout(cloudSaveTimer);
+    cloudSaveTimer = setTimeout(pushToCloud, 600);
+}
+function pushToCloud(){
+    if (!teamRef) return;
+    teamRef.set({ projects: state.projects, updatedAt: Date.now() }, { merge: true })
+        .catch(() => toast('클라우드 저장 실패 - 인터넷 연결을 확인하세요'));
+}
+function subscribeCloud(){
+    teamRef.onSnapshot(snap => {
+        if (snap.metadata.hasPendingWrites) return; // 내가 방금 보낸 변경의 echo는 무시
+        const data = snap.data();
+        if (data && Array.isArray(data.projects) && data.projects.length) {
+            state.projects = data.projects;
+            if (!state.projects.find(p => p.id === state.currentId)) state.currentId = state.projects[0].id;
+            renderProject();
+        }
+    }, () => toast('실시간 동기화 연결에 문제가 있어요'));
+}
+function enterTeam(code){
+    document.getElementById('gate-overlay').style.display = 'none';
+    if (!cloudEnabled) { toast('먼저 Firebase 설정을 완료해주세요'); return; }
+    const db = firebase.firestore();
+    teamRef = db.collection('taskflowTeams').doc(code);
+    document.getElementById('team-toolbar').style.display = 'flex';
+    const statusEl = document.getElementById('team-status');
+    statusEl.textContent = `🔗 팀 코드 "${code}"로 연결됨 · 실시간 동기화 중`;
+    statusEl.classList.add('connected');
+    teamRef.get().then(doc => {
+        if (!doc.exists) {
+            teamRef.set({ projects: state.projects, updatedAt: Date.now() });
+        }
+        subscribeCloud();
+    }).catch(() => toast('연결 실패 - 인터넷 연결이나 Firebase 설정을 확인하세요'));
+}
+function initGate(){
+    if (!cloudEnabled) return;
+    const saved = localStorage.getItem(TEAM_CODE_KEY);
+    if (saved) enterTeam(saved);
+    else document.getElementById('gate-overlay').style.display = 'flex';
+}
+document.getElementById('gate-submit').addEventListener('click', () => {
+    const code = document.getElementById('gate-input').value.trim();
+    if (!code) { toast('팀 코드를 입력해주세요'); return; }
+    localStorage.setItem(TEAM_CODE_KEY, code);
+    enterTeam(code);
+});
+document.getElementById('gate-skip').addEventListener('click', () => {
+    document.getElementById('gate-overlay').style.display = 'none';
+});
+document.getElementById('team-change-btn').addEventListener('click', () => {
+    if (!confirm('팀 코드 연결을 끊고 코드를 다시 입력할까요?')) return;
+    localStorage.removeItem(TEAM_CODE_KEY);
+    location.reload();
+});
+
 renderProject();
+initGate();
 </script>
 </body>
 </html>
