@@ -431,21 +431,21 @@ function cloneNode(node){
 function seedProjects(){
     return [{
         id: uid(),
-        name: '예시: (국립대학육성사업) 사업계획서 작성',
+        name: '예시: 프로젝트 기획서 작성',
         root: [
-            newNode({ title:'사업 이해 및 현황 파악', priority:'보통', status:'완료', children: [
-                newNode({ title:'사업 공고문 검토', done:true, status:'완료', assignee:'본인', priority:'높음' }),
-                newNode({ title:'전년도 실적자료 수집', done:true, status:'완료', assignee:'본인', priority:'보통' })
+            newNode({ title:'사전 조사 및 현황 파악', priority:'보통', status:'완료', children: [
+                newNode({ title:'관련 자료 조사', done:true, status:'완료', assignee:'본인', priority:'높음' }),
+                newNode({ title:'이전 자료 검토', done:true, status:'완료', assignee:'본인', priority:'보통' })
             ]}),
-            newNode({ title:'사업계획서 작성', priority:'높음', status:'진행중', children: [
-                newNode({ title:'추진 배경 및 목표 작성', done:true, assignee:'본인', priority:'높음', status:'완료', start:'2026-07-14', due:'2026-07-20' }),
-                newNode({ title:'세부 추진과제 및 예산안 편성', assignee:'본인', priority:'긴급', status:'진행중', due:'2026-07-24', memo:'전년도 예산 대비 증감 사유 명시 필요' }),
-                newNode({ title:'성과지표(KPI) 설정', priority:'보통', status:'대기', due:'2026-07-25' })
+            newNode({ title:'기획서 작성', priority:'높음', status:'진행중', children: [
+                newNode({ title:'배경 및 목적 작성', done:true, assignee:'본인', priority:'높음', status:'완료', start:'2026-07-14', due:'2026-07-20' }),
+                newNode({ title:'세부 계획 및 예산안 작성', assignee:'본인', priority:'긴급', status:'진행중', due:'2026-07-24', memo:'예산 항목별 산출 근거 정리 필요' }),
+                newNode({ title:'추진 일정 수립', priority:'보통', status:'대기', due:'2026-07-25' })
             ]}),
-            newNode({ title:'검토 및 제출', status:'대기', children: [
+            newNode({ title:'검토 및 보고', status:'대기', children: [
                 newNode({ title:'부서 내부 검토', priority:'보통', due:'2026-07-28' }),
-                newNode({ title:'총장 결재', priority:'높음', due:'2026-07-30' }),
-                newNode({ title:'교육부 제출', priority:'긴급', due:'2026-08-03', memo:'제출 마감 엄수 - 늦어도 오전 중 제출' })
+                newNode({ title:'상급자 결재', priority:'높음', due:'2026-07-30' }),
+                newNode({ title:'최종 제출', priority:'긴급', due:'2026-08-03', memo:'제출 마감 엄수 - 늦어도 오전 중 제출' })
             ]})
         ]
     }];
