@@ -53,7 +53,7 @@
         border-radius:6px; padding:6px 10px; font-size:11px; cursor:pointer; flex:0 0 auto; font-family:inherit;
     }
     .copy-btn:hover{ color:var(--gold); border-color:var(--border-lit); }
-    .explain-box{ font-size:12.5px; color:var(--muted); line-height:1.6; }
+    .explain-box{ font-size:13px; color:var(--text); line-height:1.7; }
 
     .tier-row{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:8px; }
 
@@ -137,7 +137,7 @@
             <div id="scenario-form"></div>
         </div>
 
-        <h3 style="margin-top:20px;">✅ 완성된 수식</h3>
+        <h3 style="margin-top:20px;" id="result-heading">✅ 완성된 수식</h3>
         <div class="formula-box">
             <code id="formula-out">조건을 입력하면 여기에 수식이 완성돼요</code>
             <button class="copy-btn" id="copy-btn">복사</button>
@@ -191,8 +191,23 @@ function toast(msg){
 let platform = 'excel';
 function v(id){ const el = document.getElementById(id); return el ? el.value.trim() : ''; }
 function setFormula(f, explain){
-    document.getElementById('formula-out').textContent = f;
-    document.getElementById('explain-out').textContent = explain || '';
+    const heading = document.getElementById('result-heading');
+    const box = document.getElementById('formula-out');
+    const copyBtn = document.getElementById('copy-btn');
+    const note = document.getElementById('explain-out');
+    if (currentScenario === 'explain') {
+        heading.textContent = '📖 수식 설명';
+        box.style.whiteSpace = 'pre-line';
+        box.textContent = explain || '수식을 붙여넣으면 여기에 설명이 나와요';
+        copyBtn.style.display = explain ? '' : 'none';
+        note.textContent = '';
+    } else {
+        heading.textContent = '✅ 완성된 수식';
+        box.style.whiteSpace = '';
+        box.textContent = f;
+        copyBtn.style.display = '';
+        note.textContent = explain || '';
+    }
 }
 
 const EXAMPLES = {
@@ -372,26 +387,72 @@ const SCENARIOS = {
             if (!s) return { f: '', e: '설명할 수식을 붙여넣어주세요' };
             const known = [
                 [/VLOOKUP/i, 'VLOOKUP: 표의 첫 열에서 값을 찾아 다른 열의 값을 가져와요.'],
+                [/XLOOKUP/i, 'XLOOKUP: VLOOKUP보다 유연하게, 표에서 값을 찾아 원하는 열의 값을 가져와요.'],
+                [/HLOOKUP/i, 'HLOOKUP: 표의 첫 행에서 값을 찾아 다른 행의 값을 가져와요.'],
+                [/INDEX/i, 'INDEX: 범위에서 몇 번째 행/열의 값을 가져와요.'],
+                [/MATCH\(/i, 'MATCH: 찾는 값이 범위에서 몇 번째 위치에 있는지 찾아요.'],
                 [/IFERROR/i, 'IFERROR: 앞의 수식이 오류가 나면, 지정한 값을 대신 보여줘요.'],
+                [/IFNA/i, 'IFNA: 앞의 수식이 값을 못 찾으면(#N/A 오류), 지정한 값을 대신 보여줘요.'],
                 [/SUMIFS/i, 'SUMIFS: 여러 조건을 모두 만족하는 값들을 더해요.'],
-                [/SUMIF/i, 'SUMIF: 조건을 만족하는 값들을 더해요.'],
+                [/SUMIF(?!S)/i, 'SUMIF: 조건을 만족하는 값들을 더해요.'],
+                [/SUM\(/i, 'SUM: 범위 안의 숫자를 모두 더해요.'],
                 [/COUNTIFS/i, 'COUNTIFS: 여러 조건을 모두 만족하는 행의 개수를 세요.'],
-                [/COUNTIF/i, 'COUNTIF: 조건을 만족하는 행의 개수를 세요.'],
+                [/COUNTIF(?!S)/i, 'COUNTIF: 조건을 만족하는 행의 개수를 세요.'],
+                [/COUNTA/i, 'COUNTA: 비어있지 않은 셀의 개수를 세요.'],
+                [/COUNT\(/i, 'COUNT: 숫자가 들어있는 셀의 개수를 세요.'],
                 [/AVERAGEIFS/i, 'AVERAGEIFS: 여러 조건을 만족하는 값들의 평균을 내요.'],
-                [/AVERAGEIF/i, 'AVERAGEIF: 조건을 만족하는 값들의 평균을 내요.'],
+                [/AVERAGEIF(?!S)/i, 'AVERAGEIF: 조건을 만족하는 값들의 평균을 내요.'],
+                [/AVERAGE\(/i, 'AVERAGE: 범위 안 숫자들의 평균을 내요.'],
+                [/MAXIFS/i, 'MAXIFS: 조건을 만족하는 값들 중 가장 큰 값을 찾아요.'],
+                [/MINIFS/i, 'MINIFS: 조건을 만족하는 값들 중 가장 작은 값을 찾아요.'],
+                [/MAX\(/i, 'MAX: 범위 안에서 가장 큰 값을 찾아요.'],
+                [/MIN\(/i, 'MIN: 범위 안에서 가장 작은 값을 찾아요.'],
                 [/RANK/i, 'RANK: 범위 안에서 몇 등인지 순위를 매겨요.'],
+                [/ROUNDUP/i, 'ROUNDUP: 지정한 자리에서 무조건 올림해요.'],
+                [/ROUNDDOWN/i, 'ROUNDDOWN: 지정한 자리에서 무조건 내림해요.'],
+                [/ROUND\(/i, 'ROUND: 지정한 소수 자리까지 반올림해요.'],
+                [/TRUNC/i, 'TRUNC: 소수점 이하를 잘라내요 (반올림 없이).'],
+                [/CEILING/i, 'CEILING: 지정한 단위로 올림해요.'],
+                [/FLOOR/i, 'FLOOR: 지정한 단위로 내림해요.'],
+                [/ABS\(/i, 'ABS: 숫자를 절댓값(양수)으로 바꿔요.'],
                 [/DATEDIF/i, 'DATEDIF: 두 날짜 사이의 년/월/일 차이를 계산해요.'],
                 [/NETWORKDAYS/i, 'NETWORKDAYS: 주말을 제외한 두 날짜 사이 근무일수를 계산해요.'],
+                [/EOMONTH/i, 'EOMONTH: 몇 개월 뒤/전 달의 마지막 날짜를 구해요.'],
+                [/WEEKDAY/i, 'WEEKDAY: 날짜가 무슨 요일인지 숫자로 알려줘요.'],
+                [/TODAY\(/i, 'TODAY: 오늘 날짜를 보여줘요.'],
+                [/NOW\(/i, 'NOW: 현재 날짜와 시간을 보여줘요.'],
+                [/\bYEAR\(/i, 'YEAR: 날짜에서 연도만 뽑아와요.'],
+                [/\bMONTH\(/i, 'MONTH: 날짜에서 월만 뽑아와요.'],
+                [/\bDAY\(/i, 'DAY: 날짜에서 일(날짜)만 뽑아와요.'],
                 [/TEXTJOIN/i, 'TEXTJOIN: 여러 셀의 텍스트를 구분자로 이어붙여요.'],
+                [/CONCATENATE/i, 'CONCATENATE: 여러 텍스트를 하나로 이어붙여요.'],
+                [/CONCAT\(/i, 'CONCAT: 여러 텍스트나 범위를 하나로 이어붙여요.'],
+                [/UNIQUE/i, 'UNIQUE: 범위에서 중복을 제거한 목록을 뽑아요.'],
+                [/FILTER\(/i, 'FILTER: 조건에 맞는 행들만 걸러서 보여줘요.'],
+                [/\bSORT\(/i, 'SORT: 범위를 기준에 따라 정렬해요.'],
                 [/IFS\(/i, 'IFS: 여러 조건을 순서대로 확인해서 처음 맞는 조건의 결과를 보여줘요.'],
                 [/\bIF\(/i, 'IF: 조건이 맞으면 A, 아니면 B를 보여줘요.'],
+                [/\bAND\(/i, 'AND: 여러 조건이 전부 참일 때만 참(TRUE)이에요.'],
+                [/\bOR\(/i, 'OR: 여러 조건 중 하나라도 참이면 참(TRUE)이에요.'],
+                [/\bNOT\(/i, 'NOT: 조건의 참/거짓을 반대로 뒤집어요.'],
+                [/ISBLANK/i, 'ISBLANK: 셀이 비어있는지 확인해요.'],
+                [/ISERROR/i, 'ISERROR: 수식 결과가 오류인지 확인해요.'],
+                [/ISNUMBER/i, 'ISNUMBER: 셀이 숫자인지 확인해요.'],
                 [/TRIM/i, 'TRIM: 불필요한 공백을 정리해요.'],
+                [/\bCLEAN\(/i, 'CLEAN: 눈에 안 보이는 이상한 문자를 제거해요.'],
+                [/UPPER\(/i, 'UPPER: 영문을 전부 대문자로 바꿔요.'],
+                [/LOWER\(/i, 'LOWER: 영문을 전부 소문자로 바꿔요.'],
+                [/PROPER\(/i, 'PROPER: 각 단어의 첫 글자만 대문자로 바꿔요.'],
+                [/SUBSTITUTE/i, 'SUBSTITUTE: 텍스트 안의 특정 글자를 다른 글자로 바꿔요.'],
+                [/REPLACE\(/i, 'REPLACE: 텍스트의 특정 위치를 다른 글자로 바꿔요.'],
+                [/\bLEN\(/i, 'LEN: 텍스트의 글자 수를 세요.'],
                 [/LEFT\(/i, 'LEFT: 텍스트의 왼쪽에서 몇 글자를 잘라와요.'],
                 [/RIGHT\(/i, 'RIGHT: 텍스트의 오른쪽에서 몇 글자를 잘라와요.'],
                 [/MID\(/i, 'MID: 텍스트의 중간에서 몇 글자를 잘라와요.'],
-                [/MAXIFS/i, 'MAXIFS: 조건을 만족하는 값들 중 가장 큰 값을 찾아요.'],
-                [/MINIFS/i, 'MINIFS: 조건을 만족하는 값들 중 가장 작은 값을 찾아요.'],
-                [/SEARCH\(/i, 'SEARCH: 텍스트 안에 특정 단어가 있는지 찾아요.']
+                [/SEARCH\(/i, 'SEARCH: 텍스트 안에 특정 단어가 있는지 찾아요 (대소문자 구분 안 함).'],
+                [/\bFIND\(/i, 'FIND: 텍스트 안에 특정 단어가 있는지 찾아요 (대소문자 구분함).'],
+                [/\bTEXT\(/i, 'TEXT: 숫자나 날짜를 원하는 형식의 텍스트로 바꿔요.'],
+                [/VALUE\(/i, 'VALUE: 텍스트로 된 숫자를 진짜 숫자로 바꿔요.']
             ];
             const found = known.filter(k => k[0].test(s)).map(k => '· ' + k[1]);
             if (found.length === 0) return { f: '', e: '알고 있는 함수 패턴을 찾지 못했어요. 조금 더 흔한 함수 조합으로 다시 시도해보세요.' };
