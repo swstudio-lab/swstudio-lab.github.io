@@ -115,6 +115,8 @@
             <li>👀 라운드가 시작되면 아주 잠깐 카드가 전부 보였다가 사라져요 — 그 순간 위치를 기억해두세요!</li>
             <li>❤️ 목숨은 3개예요. 짝을 잘못 맞히거나 시간 초과되면 1개씩 줄어요.</li>
             <li>💡 힌트는 라운드당 1번 쓸 수 있어요. 남은 카드가 잠깐 다시 보여요.</li>
+            <li>🎨 6라운드씩 묶여서 카드 그림이 점점 더 헷갈리게 바뀌어요 (묶음 마지막 라운드가 가장 헷갈려요).</li>
+            <li>🌀 6, 12, 18, 24, 30라운드에서는 절반쯤 맞췄을 때 "방해꾼"이 나타나 남은 카드 위치를 뒤섞어요!</li>
             <li>🎁 한 번도 안 틀리고 라운드를 클리어하면 목숨(가득 찼으면 힌트)을 보너스로 받아요.</li>
             <li>📂 중간에 창을 닫아도 자동 저장돼요. 다시 들어오면 그 라운드부터 이어할 수 있어요.</li>
         </ul>
@@ -167,8 +169,24 @@
 </div>
 
 <script>
-const EASY_EMOJI = ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐷','🐸','🐵'];
-const HARD_EMOJI = ['🍎','🍒','🍓','🍅','🍑','🍋','🍌','🥭','🍇','🫐','🥝','🥑','🍈','🍐','🍊','🥥'];
+const TIER_POOLS = [
+    { easy:['🐶','⭐','🍎'], hard:['🐶','🐺','🦊'] },
+    { easy:['🐶','🐱','🍎','🍌','⭐','🚗'], hard:['🐶','🐱','🐭','🐹','🐰','🦊'] },
+    { easy:['🐶','🐱','🍎','🍌','⭐','🚗','🌙','⚽'], hard:['🍎','🍒','🍓','🍅','🍑','🍊','🍋','🍌'] },
+    { easy:['🐶','🐱','🍎','🍌','⭐','🚗','🌙','⚽','🎈','🐟'], hard:['🍎','🍒','🍓','🍅','🍑','🍊','🍋','🍌','🥭','🍐'] },
+    { easy:['🐶','🐱','🍎','🍌','⭐','🚗','🌙','⚽','🎈','🐟','🎧','🔔'], hard:['🍎','🍒','🍓','🍅','🍑','🍊','🍋','🍌','🥭','🍐','🍇','🫐'] }
+];
+function getEmojiPool(r){
+    const tierIdx = Math.min(TIER_POOLS.length - 1, Math.floor((r - 1) / 6));
+    const posInTier = (r - 1) % 6; // 0(티어 첫 라운드, 가장 쉬움) ~ 5(티어 마지막 라운드, 가장 헷갈림)
+    const tier = TIER_POOLS[tierIdx];
+    const n = tier.easy.length;
+    const swapCount = Math.round(posInTier / 5 * n);
+    const pool = tier.easy.slice();
+    for (let i = 0; i < swapCount; i++) { pool[n - 1 - i] = tier.hard[n - 1 - i]; }
+    return pool;
+}
+function isBoundaryRound(r){ return r % 6 === 0; }
 const TOTAL_ROUNDS = 30;
 const BEST_KEY = 'memoryMatchBestRound';
 const SAVE_KEY = 'memoryMatchSave';
@@ -195,6 +213,7 @@ let roundTimeLeft = 0;
 let roundTimerInterval = null;
 let locked = false;
 let finished = false;
+let shuffleEventDone = false;
 
 function getRoundConfig(r){
     const t = (r - 1) / (TOTAL_ROUNDS - 1);
@@ -212,6 +231,19 @@ function fmtTime(s){
     const m = Math.floor(s/60), sec = s%60;
     return `${m}:${sec.toString().padStart(2,'0')}`;
 }
+function triggerShuffleEvent(){
+    shuffleEventDone = true;
+    const unmatched = cards.filter(c => !c.isMatched);
+    const emojis = unmatched.map(c => c.emoji);
+    for (let i = emojis.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i+1));
+        [emojis[i], emojis[j]] = [emojis[j], emojis[i]];
+    }
+    unmatched.forEach((c, i) => { c.emoji = emojis[i]; });
+    toast('🌀 방해꾼 등장! 남은 카드가 뒤섞였어요!');
+    renderBoard();
+}
+
 function toast(msg){
     const t = document.getElementById('round-toast');
     t.textContent = msg;
@@ -242,10 +274,10 @@ function updateHud(){
     document.getElementById('hint-btn').disabled = hintAvail <= 0 || locked || finished;
 }
 
-function buildDeck(cfg){
+function buildDeck(cfg, pool){
     const pairCount = cfg.grid.cols * cfg.grid.rows / 2;
-    const pool = (cfg.hard ? HARD_EMOJI : EASY_EMOJI).slice(0, pairCount);
-    let deck = pool.concat(pool);
+    const usedPool = pool.slice(0, pairCount);
+    let deck = usedPool.concat(usedPool);
     for (let i = deck.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i+1));
         [deck[i], deck[j]] = [deck[j], deck[i]];
@@ -256,38 +288,44 @@ function buildDeck(cfg){
 function startRound(r, keepLives){
     clearInterval(roundTimerInterval);
     const cfg = getRoundConfig(r);
-    cards = buildDeck(cfg);
+    const pool = getEmojiPool(r);
+    cards = buildDeck(cfg, pool);
     flipped = [];
     matchedCount = 0;
     locked = true;
     perfectRound = true;
     hintUsedThisRound = false;
+    shuffleEventDone = false;
     finished = false;
     roundTimeLeft = cfg.timeLimit;
 
     document.getElementById('board').style.gridTemplateColumns = `repeat(${cfg.grid.cols}, minmax(38px, 58px))`;
     document.getElementById('msg-banner').classList.remove('show');
 
-    // ---- 시작하자마자 아주 짧게 전체 공개 ----
-    cards.forEach(c => { c.isFlipped = true; });
+    // ---- 먼저 전부 뒷면으로 깔고, 잠깐 후 "짠!" 하고 공개 ----
     renderBoard();
-    document.getElementById('reveal-note').textContent = '👀 잘 기억해두세요!';
     updateHud();
 
     setTimeout(() => {
-        cards.forEach(c => { c.isFlipped = false; });
-        locked = false;
-        document.getElementById('reveal-note').textContent = '';
+        cards.forEach(c => { c.isFlipped = true; });
         renderBoard();
-        updateHud();
-        saveProgress();
+        document.getElementById('reveal-note').textContent = '👀 잘 기억해두세요!';
 
-        roundTimerInterval = setInterval(() => {
-            roundTimeLeft--;
+        setTimeout(() => {
+            cards.forEach(c => { c.isFlipped = false; });
+            locked = false;
+            document.getElementById('reveal-note').textContent = '';
+            renderBoard();
             updateHud();
-            if (roundTimeLeft <= 0) { onTimeUp(); }
-        }, 1000);
-    }, cfg.revealMs);
+            saveProgress();
+
+            roundTimerInterval = setInterval(() => {
+                roundTimeLeft--;
+                updateHud();
+                if (roundTimeLeft <= 0) { onTimeUp(); }
+            }, 1000);
+        }, cfg.revealMs);
+    }, 250);
 }
 
 function renderBoard(){
@@ -345,10 +383,17 @@ function clearRound(){
         document.getElementById('msg-banner').classList.add('show');
         return;
     }
-    toast(`✅ ${round}라운드 클리어!${bonusMsg}`);
+    document.getElementById('mb-title').textContent = `✅ ${round}라운드 클리어!`;
+    document.getElementById('mb-sub').textContent = bonusMsg ? bonusMsg.replace(/^ · /, '') : '다음 라운드로 넘어갑니다...';
+    document.getElementById('msg-banner').classList.remove('over');
+    document.getElementById('msg-banner').classList.add('show');
+
     saveBestIfNeeded(round);
     round++;
-    setTimeout(() => startRound(round), 900);
+    setTimeout(() => {
+        document.getElementById('msg-banner').classList.remove('show');
+        startRound(round);
+    }, 1400);
 }
 
 function endGame(){
@@ -387,7 +432,12 @@ document.getElementById('board').addEventListener('click', e => {
             flipped = [];
             renderBoard();
             updateHud();
-            if (matchedCount === cfg.grid.cols*cfg.grid.rows/2) clearRound();
+            const totalPairs = cfg.grid.cols*cfg.grid.rows/2;
+            if (matchedCount === totalPairs) {
+                clearRound();
+            } else if (isBoundaryRound(round) && !shuffleEventDone && matchedCount >= Math.floor(totalPairs/2)) {
+                triggerShuffleEvent();
+            }
         } else {
             perfectRound = false;
             locked = true;
