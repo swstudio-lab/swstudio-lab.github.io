@@ -202,7 +202,8 @@ function joinRoom(code, name){
                 players: { [playerId]: { name: nickname, joinedAt: Date.now() } },
                 status: 'waiting',
                 holderId: null,
-                explodeAt: null,
+                startedAt: null,
+                durationMs: null,
                 loserId: null,
                 scores: {},
                 round: 0,
@@ -233,10 +234,17 @@ function saveRoom(patch){
     roomRef.set(Object.assign({ updatedAt: Date.now() }, patch), { merge: true }).catch(() => toast('저장 실패'));
 }
 
+function getExplodeAt(){
+    if (!roomState.startedAt || !roomState.durationMs) return null;
+    const startedMs = roomState.startedAt.toMillis ? roomState.startedAt.toMillis() : roomState.startedAt;
+    return startedMs + roomState.durationMs;
+}
 function watchExplosion(){
     clearTimeout(explodeTimer);
-    if (roomState.status !== 'playing' || !roomState.explodeAt) return;
-    const remain = roomState.explodeAt - Date.now();
+    if (roomState.status !== 'playing') return;
+    const explodeAt = getExplodeAt();
+    if (!explodeAt) return; // 서버 시각이 아직 확정 안 됐으면(막 시작한 직후) 잠깐 기다림
+    const remain = explodeAt - Date.now();
     if (remain <= 0) {
         maybeExplode();
     } else {
@@ -245,7 +253,8 @@ function watchExplosion(){
 }
 function maybeExplode(){
     if (!roomState || roomState.status !== 'playing') return;
-    if (Date.now() < roomState.explodeAt) return;
+    const explodeAt = getExplodeAt();
+    if (!explodeAt || Date.now() < explodeAt) return;
     const loser = roomState.holderId;
     const active = activePlayerIds();
     const winner = active.find(id => id !== loser);
@@ -319,7 +328,8 @@ document.getElementById('start-btn').addEventListener('click', () => {
     saveRoom({
         status: 'playing',
         holderId: holder,
-        explodeAt: Date.now() + duration,
+        startedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        durationMs: duration,
         loserId: null,
         round: (roomState.round || 0) + 1
     });
@@ -342,7 +352,8 @@ document.getElementById('next-round-btn').addEventListener('click', () => {
     saveRoom({
         status: 'playing',
         holderId: holder,
-        explodeAt: Date.now() + duration,
+        startedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        durationMs: duration,
         loserId: null,
         round: (roomState.round || 0) + 1
     });
