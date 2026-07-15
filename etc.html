@@ -79,17 +79,6 @@ function iconSvg(key, color, size){
 }
 function escHtml(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-function seedIfEmpty(){
-    col.where('category','==','etc').limit(1).get().then(snap => {
-        if (!snap.empty) return;
-        const items = [
-            { category:'etc', title:'연휴 계산기', desc:'연도별 공휴일·대체공휴일과, 주말까지 이어지는 연휴 구간을 한눈에 확인.', href:'etc/holiday-calc/index.html', icon:'calendar', tag:'playable', published:true, order:1 },
-            { category:'etc', title:'오늘의 운세', desc:'총운·애정운·금전운 등 항목을 고르고 타로카드를 뽑아 오늘의 운세를 확인.', href:'etc/fortune/index.html', icon:'card', tag:'playable', published:true, order:2 }
-        ];
-        items.forEach(it => col.add(Object.assign({ createdAt: Date.now() }, it)));
-    });
-}
-
 let page = 1;
 
 function cardHtml(it){
@@ -151,7 +140,6 @@ function renderAll(allItems){
     }
 }
 
-seedIfEmpty();
 col.onSnapshot(snap => {
     const allItems = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
     renderAll(allItems);

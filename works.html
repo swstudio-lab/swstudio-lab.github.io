@@ -79,17 +79,6 @@ function iconSvg(key, color, size){
 }
 function escHtml(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-function seedIfEmpty(){
-    col.where('category','==','works').limit(1).get().then(snap => {
-        if (!snap.empty) return;
-        const items = [
-            { category:'works', title:'TaskFlow', desc:'할일 & 프로젝트 관리. 우선순위·상태·기간·진행률까지 테이블로 관리하고 검색/정렬, CSV 내보내기 지원.', href:'works/todo-wbs/index.html', icon:'wrench', tag:'playable', published:true, order:1 },
-            { category:'works', title:'함수식 마법사', desc:'하고 싶은 일을 고르면 엑셀/구글시트 함수식을 완성해줘요. 15가지 상황 지원, 참고용 스크린샷 붙여넣기도 가능.', href:'works/excel-wizard/index.html', icon:'table', tag:'playable', published:true, order:2 }
-        ];
-        items.forEach(it => col.add(Object.assign({ createdAt: Date.now() }, it)));
-    });
-}
-
 let page = 1;
 
 function cardHtml(it){
@@ -151,7 +140,6 @@ function renderAll(allItems){
     }
 }
 
-seedIfEmpty();
 col.onSnapshot(snap => {
     const allItems = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
     renderAll(allItems);

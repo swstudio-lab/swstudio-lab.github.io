@@ -90,19 +90,6 @@ function iconSvg(key, color, size){
 }
 function escHtml(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-function seedIfEmpty(){
-    col.where('category','==','games').limit(1).get().then(snap => {
-        if (!snap.empty) return;
-        const items = [
-            { category:'games', subcategory:'solo', title:'던전 RPG', desc:'레벨업하고 스킬트리를 키워가며 던전을 내려가는 픽셀 로그라이크.', href:'games/dungeon-rpg/index.html', icon:'sword', tag:'playable', published:true, order:1 },
-            { category:'games', subcategory:'solo', title:'카드 짝맞추기', desc:'30라운드 서바이벌 메모리 게임. 목숨 3개, 제한시간, 라운드당 힌트 1회, 이어하기 지원.', href:'games/memory-match/index.html', icon:'grid', tag:'playable', published:true, order:2 },
-            { category:'games', subcategory:'solo', title:'벽돌깨기', desc:'지금 구상 중인 프로젝트예요. 완성되면 여기 채워질 예정.', href:'', icon:'clock', tag:'wip', published:true, order:3 },
-            { category:'games', subcategory:'multi', title:'경마 배팅', desc:'말을 추가/삭제하고 친구들과 방 코드로 접속해 함께 우승마에 베팅하는 실시간 멀티플레이 게임.', href:'games/horse-race/index.html', icon:'horse', tag:'playable', published:true, order:1 }
-        ];
-        items.forEach(it => col.add(Object.assign({ createdAt: Date.now() }, it)));
-    });
-}
-
 let soloPage = 1, multiPage = 1;
 
 function cardHtml(it){
@@ -170,7 +157,6 @@ function renderAll(allItems){
     renderSection(multi, multiPage, 'multi-grid', 'multi-pagination', p => { multiPage = p; renderAll(allItems); });
 }
 
-seedIfEmpty();
 col.onSnapshot(snap => {
     const allItems = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
     renderAll(allItems);
