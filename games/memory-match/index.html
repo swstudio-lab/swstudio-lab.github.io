@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>카드 짝맞추기 · 나의 프로젝트 작업실</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/style.css">
+<style>
+    .wrap{ max-width:680px; margin:0 auto; padding:0 20px 100px; }
+    .tool-header{ max-width:640px; margin:0 auto; padding:56px 20px 24px; text-align:center; }
+    .tool-header .eyebrow{ font-size:11px; letter-spacing:0.18em; color:var(--gold); margin-bottom:14px; }
+    .tool-header h1{ font-size:clamp(24px,5vw,34px); font-weight:900; margin:0 0 10px; }
+    .tool-header p{ color:var(--muted); font-size:13.5px; max-width:440px; margin:0 auto; }
+
+    .hud{ display:flex; justify-content:center; align-items:center; gap:22px; margin-bottom:18px; flex-wrap:wrap; }
+    .hud-item{ text-align:center; }
+    .hud-item .num{ font-size:19px; font-weight:900; color:var(--gold); }
+    .hud-item .num.warn{ color:#e0876a; animation:pulse-warn 1s infinite; }
+    .hud-item .num.critical{ color:#ff4d4d; animation:pulse-critical .5s infinite; }
+    @keyframes pulse-warn{ 0%,100%{ opacity:1; transform:scale(1); } 50%{ opacity:0.55; transform:scale(1.1); } }
+    @keyframes pulse-critical{ 0%,100%{ opacity:1; transform:scale(1); } 50%{ opacity:0.35; transform:scale(1.22); } }
+    .reveal-note{ text-align:center; font-size:12px; color:var(--gold); margin-bottom:10px; min-height:16px; }
+    .hud-item .lbl{ font-size:10px; color:var(--muted); margin-top:2px; }
+    .hearts{ font-size:16px; letter-spacing:2px; }
+
+    .hint-row{ text-align:center; margin-bottom:18px; }
+    .hint-btn{
+        background:var(--surface); border:1px solid var(--border-lit); color:var(--gold);
+        border-radius:20px; padding:7px 16px; font-size:12px; cursor:pointer; font-family:inherit;
+    }
+    .hint-btn:disabled{ opacity:0.35; cursor:not-allowed; color:var(--muted); border-color:var(--border); }
+
+    .board{ display:grid; gap:7px; justify-content:center; margin:0 auto 20px; }
+    .mcard{ width:100%; aspect-ratio:58/82; perspective:600px; cursor:pointer; }
+    .mcard.matched{ cursor:default; }
+    .mc-inner{
+        position:relative; width:100%; height:100%; transition:transform .4s cubic-bezier(.3,.7,.3,1);
+        transform-style:preserve-3d;
+    }
+    .mcard.flipped .mc-inner{ transform:rotateY(180deg); }
+    .mc-face{
+        position:absolute; inset:0; backface-visibility:hidden; border-radius:8px;
+        display:flex; align-items:center; justify-content:center; border:2px solid var(--gold);
+        box-shadow:0 3px 8px rgba(0,0,0,0.3);
+    }
+    .mc-back{
+        background:
+            repeating-linear-gradient(45deg, rgba(232,185,63,0.06) 0 6px, transparent 6px 12px),
+            linear-gradient(155deg, var(--surface2), var(--bg));
+    }
+    .mc-back::before{ content:''; position:absolute; inset:4px; border:1px solid rgba(232,185,63,0.4); border-radius:5px; }
+    .mc-back .sym{ font-size:clamp(10px,3vw,15px); color:var(--gold); opacity:0.8; }
+    .mc-front{
+        background:radial-gradient(circle at 50% 32%, rgba(232,185,63,0.2), var(--surface2));
+        transform:rotateY(180deg);
+    }
+    .mcard.matched .mc-front{ background:radial-gradient(circle at 50% 32%, rgba(125,208,138,0.28), var(--surface2)); border-color:#7dd08a; }
+    .mc-front .center-emoji{ font-size:clamp(15px,5vw,24px); }
+    .mc-front .corner{ position:absolute; font-size:clamp(6px,2vw,9px); opacity:0.5; }
+    .mc-front .corner.tl{ top:4px; left:5px; }
+    .mc-front .corner.br{ bottom:4px; right:5px; transform:rotate(180deg); }
+
+    .msg-banner{
+        text-align:center; padding:22px; border:1px solid var(--border-lit); border-radius:12px;
+        background:rgba(232,185,63,0.08); margin-bottom:20px; display:none;
+    }
+    .msg-banner.show{ display:block; }
+    .msg-banner.over{ border-color:#8a3a2a; background:rgba(217,100,47,0.08); }
+    .msg-banner .mb-title{ font-size:18px; font-weight:900; color:var(--gold); margin-bottom:8px; }
+    .msg-banner.over .mb-title{ color:#e0876a; }
+    .msg-banner .mb-sub{ font-size:12.5px; color:var(--text); margin-bottom:14px; }
+
+    .best-note{ text-align:center; font-size:11.5px; color:var(--muted); margin-bottom:16px; }
+    .restart-row{ text-align:center; }
+    .round-toast{
+        position:fixed; top:24px; left:50%; transform:translateX(-50%) translateY(-16px); opacity:0;
+        background:var(--surface2); border:1px solid var(--border-lit); color:var(--gold);
+        padding:10px 20px; border-radius:20px; font-size:13px; font-weight:700; z-index:50;
+        transition:opacity .25s ease, transform .25s ease;
+    }
+    .round-toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+    .intro-overlay{
+        position:fixed; inset:0; background:rgba(10,9,8,0.94); z-index:60;
+        display:flex; align-items:center; justify-content:center; padding:20px;
+    }
+    .intro-box{
+        background:linear-gradient(180deg, var(--surface2), var(--surface));
+        border:1px solid var(--border-lit); border-radius:14px; padding:30px 26px;
+        max-width:420px; width:100%; text-align:center; max-height:88vh; overflow-y:auto;
+    }
+    .intro-box h2{ margin:8px 0 18px; font-size:21px; }
+    .intro-rules{ list-style:none; padding:0; margin:0 0 18px; text-align:left; }
+    .intro-rules li{ font-size:12.5px; color:var(--text); line-height:1.6; margin-bottom:9px; padding-left:2px; }
+    .intro-resume-note{
+        font-size:12px; color:var(--gold); background:rgba(232,185,63,0.1); border:1px solid var(--border-lit);
+        border-radius:8px; padding:10px 12px; margin-bottom:16px; line-height:1.6;
+    }
+    .intro-reset-link{ font-size:11px; color:var(--muted); text-decoration:underline; cursor:pointer; margin-top:10px; display:inline-block; }
+    .intro-reset-link:hover{ color:var(--gold); }
+</style>
+</head>
+<body>
+
+<div class="intro-overlay" id="intro-overlay">
+    <div class="intro-box">
+        <div class="eyebrow pixel">MEMORY MATCH</div>
+        <h2>카드 짝맞추기</h2>
+        <ul class="intro-rules">
+            <li>🃏 카드를 뒤집어서 같은 그림 두 장을 찾아요.</li>
+            <li>🏁 총 30라운드예요. 갈수록 카드 수가 늘고 제한시간은 줄어들어요.</li>
+            <li>👀 라운드가 시작되면 아주 잠깐 카드가 전부 보였다가 사라져요 — 그 순간 위치를 기억해두세요!</li>
+            <li>❤️ 목숨은 3개예요. 짝을 잘못 맞히거나 시간 초과되면 1개씩 줄어요.</li>
+            <li>💡 힌트는 라운드당 1번 쓸 수 있어요. 남은 카드가 잠깐 다시 보여요.</li>
+            <li>🎁 한 번도 안 틀리고 라운드를 클리어하면 목숨(가득 찼으면 힌트)을 보너스로 받아요.</li>
+            <li>📂 중간에 창을 닫아도 자동 저장돼요. 다시 들어오면 그 라운드부터 이어할 수 있어요.</li>
+        </ul>
+        <div class="intro-resume-note" id="intro-resume-note"></div>
+        <button class="btn primary" id="intro-start-btn">🎮 게임 시작</button>
+        <div id="intro-reset-wrap"></div>
+    </div>
+</div>
+
+<nav class="topnav pixel">
+    <a href="../../index.html">홈</a>
+    <a href="../../games.html" class="active">게임</a>
+    <a href="../../works.html">작업물</a>
+    <a href="../../etc.html">기타</a>
+</nav>
+
+<header class="tool-header">
+    <div class="eyebrow pixel">MEMORY MATCH</div>
+    <h1>카드 짝맞추기</h1>
+    <p>총 30라운드, 갈수록 카드가 늘고 시간은 줄어요. 목숨 3개, 힌트는 라운드당 1번! 중간에 나가도 이어서 할 수 있어요.</p>
+</header>
+
+<div class="round-toast" id="round-toast"></div>
+
+<div class="wrap">
+    <div class="hud">
+        <div class="hud-item"><div class="hearts" id="hud-lives">❤️❤️❤️</div><div class="lbl">목숨</div></div>
+        <div class="hud-item"><div class="num" id="hud-timer">0:00</div><div class="lbl">제한시간</div></div>
+        <div class="hud-item"><div class="num" id="hud-round">1/15</div><div class="lbl">라운드</div></div>
+        <div class="hud-item"><div class="num" id="hud-pairs">0/0</div><div class="lbl">맞춘 짝</div></div>
+    </div>
+
+    <div class="hint-row">
+        <button class="hint-btn" id="hint-btn">💡 힌트 쓰기 (<span id="hint-count">1</span>)</button>
+    </div>
+
+    <div class="msg-banner" id="msg-banner">
+        <div class="mb-title" id="mb-title"></div>
+        <div class="mb-sub" id="mb-sub"></div>
+    </div>
+
+    <div class="best-note" id="best-note"></div>
+
+    <div class="reveal-note" id="reveal-note"></div>
+    <div class="board" id="board"></div>
+
+    <div class="restart-row">
+        <button class="btn primary" id="restart-btn">🔄 처음부터 다시</button>
+    </div>
+</div>
+
+<script>
+const EASY_EMOJI = ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐷','🐸','🐵'];
+const HARD_EMOJI = ['🍎','🍒','🍓','🍅','🍑','🍋','🍌','🥭','🍇','🫐','🥝','🥑','🍈','🍐','🍊','🥥'];
+const TOTAL_ROUNDS = 30;
+const BEST_KEY = 'memoryMatchBestRound';
+const SAVE_KEY = 'memoryMatchSave';
+
+function saveProgress(){
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ round, lives, hintStock })); } catch(e) {}
+}
+function loadProgress(){
+    try { return JSON.parse(localStorage.getItem(SAVE_KEY)); } catch(e) { return null; }
+}
+function clearProgress(){
+    try { localStorage.removeItem(SAVE_KEY); } catch(e) {}
+}
+
+let round = 1;
+let lives = 3;
+let hintStock = 0;
+let hintUsedThisRound = false;
+let perfectRound = true;
+let cards = [];
+let flipped = [];
+let matchedCount = 0;
+let roundTimeLeft = 0;
+let roundTimerInterval = null;
+let locked = false;
+let finished = false;
+
+function getRoundConfig(r){
+    const t = (r - 1) / (TOTAL_ROUNDS - 1);
+    const gridOptions = [{cols:3,rows:2},{cols:4,rows:3},{cols:4,rows:4},{cols:5,rows:4},{cols:6,rows:4}];
+    const gridIdx = Math.min(gridOptions.length - 1, Math.floor(t * gridOptions.length));
+    const grid = gridOptions[gridIdx];
+    const timeLimit = Math.round(60 - t * 25);
+    const flipBack = Math.round(900 - t * 450);
+    const revealMs = Math.round(1300 - t * 850);
+    const hard = r > TOTAL_ROUNDS * 0.55;
+    return { grid, timeLimit, flipBack, revealMs, hard };
+}
+
+function fmtTime(s){
+    const m = Math.floor(s/60), sec = s%60;
+    return `${m}:${sec.toString().padStart(2,'0')}`;
+}
+function toast(msg){
+    const t = document.getElementById('round-toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => t.classList.remove('show'), 1600);
+}
+function loadBest(){ return parseInt(localStorage.getItem(BEST_KEY) || '0', 10); }
+function saveBestIfNeeded(r){
+    const best = loadBest();
+    if (r > best) localStorage.setItem(BEST_KEY, String(r));
+}
+function renderBest(){
+    const best = loadBest();
+    document.getElementById('best-note').textContent = best > 0 ? `🏆 최고 도달 라운드: ${best}` : '아직 기록이 없어요';
+}
+
+function updateHud(){
+    document.getElementById('hud-lives').textContent = '❤️'.repeat(lives) + '🖤'.repeat(3 - lives);
+    const timerEl = document.getElementById('hud-timer');
+    timerEl.textContent = fmtTime(roundTimeLeft);
+    timerEl.className = 'num' + (roundTimeLeft <= 5 ? ' critical' : roundTimeLeft <= 10 ? ' warn' : '');
+    document.getElementById('hud-round').textContent = `${round}/${TOTAL_ROUNDS}`;
+    const cfg = getRoundConfig(round);
+    document.getElementById('hud-pairs').textContent = `${matchedCount}/${cfg.grid.cols*cfg.grid.rows/2}`;
+    const hintAvail = (hintUsedThisRound ? 0 : 1) + hintStock;
+    document.getElementById('hint-count').textContent = hintAvail;
+    document.getElementById('hint-btn').disabled = hintAvail <= 0 || locked || finished;
+}
+
+function buildDeck(cfg){
+    const pairCount = cfg.grid.cols * cfg.grid.rows / 2;
+    const pool = (cfg.hard ? HARD_EMOJI : EASY_EMOJI).slice(0, pairCount);
+    let deck = pool.concat(pool);
+    for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i+1));
+        [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    return deck.map((emoji, i) => ({ id:i, emoji, isFlipped:false, isMatched:false, peek:false }));
+}
+
+function startRound(r, keepLives){
+    clearInterval(roundTimerInterval);
+    const cfg = getRoundConfig(r);
+    cards = buildDeck(cfg);
+    flipped = [];
+    matchedCount = 0;
+    locked = true;
+    perfectRound = true;
+    hintUsedThisRound = false;
+    finished = false;
+    roundTimeLeft = cfg.timeLimit;
+
+    document.getElementById('board').style.gridTemplateColumns = `repeat(${cfg.grid.cols}, minmax(38px, 58px))`;
+    document.getElementById('msg-banner').classList.remove('show');
+
+    // ---- 시작하자마자 아주 짧게 전체 공개 ----
+    cards.forEach(c => { c.isFlipped = true; });
+    renderBoard();
+    document.getElementById('reveal-note').textContent = '👀 잘 기억해두세요!';
+    updateHud();
+
+    setTimeout(() => {
+        cards.forEach(c => { c.isFlipped = false; });
+        locked = false;
+        document.getElementById('reveal-note').textContent = '';
+        renderBoard();
+        updateHud();
+        saveProgress();
+
+        roundTimerInterval = setInterval(() => {
+            roundTimeLeft--;
+            updateHud();
+            if (roundTimeLeft <= 0) { onTimeUp(); }
+        }, 1000);
+    }, cfg.revealMs);
+}
+
+function renderBoard(){
+    const board = document.getElementById('board');
+    board.innerHTML = cards.map(c => `
+        <div class="mcard ${(c.isFlipped||c.peek||c.isMatched)?'flipped':''} ${c.isMatched?'matched':''}" data-id="${c.id}">
+            <div class="mc-inner">
+                <div class="mc-face mc-back"><span class="sym">✦</span></div>
+                <div class="mc-face mc-front">
+                    <span class="corner tl">${c.emoji}</span>
+                    <span class="center-emoji">${c.emoji}</span>
+                    <span class="corner br">${c.emoji}</span>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function onTimeUp(){
+    clearInterval(roundTimerInterval);
+    loseLife('시간 초과!');
+}
+
+function loseLife(reason){
+    lives--;
+    updateHud();
+    if (lives <= 0) {
+        endGame();
+        return;
+    }
+    toast(`💔 ${reason} 목숨 -1`);
+    setTimeout(() => startRound(round), 700);
+}
+
+function clearRound(){
+    clearInterval(roundTimerInterval);
+    finished = true;
+    let bonusMsg = '';
+    if (perfectRound) {
+        if (lives < 3) { lives++; bonusMsg = ' · 완벽 클리어! 목숨 +1 🎁'; }
+        else { hintStock++; bonusMsg = ' · 완벽 클리어! 힌트 +1 🎁'; }
+    }
+    updateHud();
+
+    if (round >= TOTAL_ROUNDS) {
+        saveBestIfNeeded(round);
+        renderBest();
+        clearProgress();
+        document.getElementById('mb-title').textContent = `🏆 ${TOTAL_ROUNDS}라운드 클리어!`;
+        document.getElementById('mb-sub').textContent = `끝까지 도달했어요, 대단해요!${bonusMsg}`;
+        document.getElementById('msg-banner').classList.remove('over');
+        document.getElementById('msg-banner').classList.add('show');
+        return;
+    }
+    toast(`✅ ${round}라운드 클리어!${bonusMsg}`);
+    saveBestIfNeeded(round);
+    round++;
+    setTimeout(() => startRound(round), 900);
+}
+
+function endGame(){
+    clearInterval(roundTimerInterval);
+    finished = true;
+    saveBestIfNeeded(round);
+    renderBest();
+    clearProgress();
+    document.getElementById('mb-title').textContent = '💀 게임 오버';
+    document.getElementById('mb-sub').textContent = `${round}라운드에서 목숨을 다 잃었어요. 다시 도전해보세요!`;
+    document.getElementById('msg-banner').classList.add('over');
+    document.getElementById('msg-banner').classList.add('show');
+    updateHud();
+}
+
+document.getElementById('board').addEventListener('click', e => {
+    if (locked || finished) return;
+    const el = e.target.closest('.mcard');
+    if (!el) return;
+    const id = +el.dataset.id;
+    const card = cards.find(c => c.id === id);
+    if (!card || card.isFlipped || card.isMatched) return;
+    if (flipped.length >= 2) return;
+
+    card.isFlipped = true;
+    flipped.push(card);
+    renderBoard();
+
+    if (flipped.length === 2) {
+        const [a, b] = flipped;
+        const cfg = getRoundConfig(round);
+        if (a.emoji === b.emoji) {
+            a.isMatched = true; b.isMatched = true;
+            a.isFlipped = false; b.isFlipped = false;
+            matchedCount++;
+            flipped = [];
+            renderBoard();
+            updateHud();
+            if (matchedCount === cfg.grid.cols*cfg.grid.rows/2) clearRound();
+        } else {
+            perfectRound = false;
+            locked = true;
+            setTimeout(() => {
+                a.isFlipped = false; b.isFlipped = false;
+                flipped = [];
+                locked = false;
+                renderBoard();
+                loseLife('틀렸어요!');
+            }, cfg.flipBack);
+        }
+    }
+});
+
+document.getElementById('hint-btn').addEventListener('click', () => {
+    const hintAvail = (hintUsedThisRound ? 0 : 1) + hintStock;
+    if (hintAvail <= 0 || locked || finished) return;
+    if (!hintUsedThisRound) hintUsedThisRound = true; else hintStock--;
+    locked = true;
+    updateHud();
+    cards.forEach(c => { if (!c.isMatched) c.peek = true; });
+    renderBoard();
+    setTimeout(() => {
+        cards.forEach(c => { c.peek = false; });
+        locked = false;
+        renderBoard();
+        updateHud();
+    }, 1200);
+});
+
+document.getElementById('restart-btn').addEventListener('click', () => {
+    if (!confirm('처음부터 다시 시작할까요? 저장된 진행상황이 사라져요.')) return;
+    round = 1; lives = 3; hintStock = 0;
+    clearProgress();
+    startRound(round);
+});
+
+renderBest();
+const saved = loadProgress();
+const introNote = document.getElementById('intro-resume-note');
+const introResetWrap = document.getElementById('intro-reset-wrap');
+if (saved && saved.round >= 1 && saved.round <= TOTAL_ROUNDS && saved.lives > 0) {
+    round = saved.round;
+    lives = saved.lives;
+    hintStock = saved.hintStock || 0;
+    introNote.textContent = `📂 저장된 기록이 있어요! ${round}라운드 · 목숨 ${lives}개부터 이어서 시작해요.`;
+    introResetWrap.innerHTML = `<span class="intro-reset-link" id="intro-reset-link">이어하지 않고 처음부터 새로 시작하기</span>`;
+    document.getElementById('intro-reset-link').addEventListener('click', () => {
+        if (!confirm('저장된 진행상황을 지우고 처음부터 시작할까요?')) return;
+        round = 1; lives = 3; hintStock = 0;
+        clearProgress();
+        introNote.textContent = '🆕 1라운드부터 새로 시작해요.';
+        introResetWrap.innerHTML = '';
+    });
+} else {
+    introNote.textContent = '🆕 1라운드부터 새로 시작해요.';
+}
+document.getElementById('intro-start-btn').addEventListener('click', () => {
+    document.getElementById('intro-overlay').style.display = 'none';
+    startRound(round);
+});
+</script>
+</body>
+</html>
