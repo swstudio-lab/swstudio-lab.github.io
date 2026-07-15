@@ -233,15 +233,50 @@ function fmtTime(s){
 }
 function triggerShuffleEvent(){
     shuffleEventDone = true;
-    const unmatched = cards.filter(c => !c.isMatched);
-    const emojis = unmatched.map(c => c.emoji);
-    for (let i = emojis.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i+1));
-        [emojis[i], emojis[j]] = [emojis[j], emojis[i]];
+    locked = true;
+    toast('🌀 방해꾼 등장! 카드 위치가 섞여요...');
+
+    const boardEl = document.getElementById('board');
+    const beforeEls = Array.from(boardEl.children);
+    const firstRects = new Map();
+    cards.forEach((c, i) => { firstRects.set(c.id, beforeEls[i].getBoundingClientRect()); });
+
+    // ---- 아직 안 맞춘 카드들의 "자리"를 서로 뒤섞기 (내용은 그대로, 위치만 이동) ----
+    const unmatchedSlots = [];
+    cards.forEach((c, i) => { if (!c.isMatched) unmatchedSlots.push(i); });
+    const shuffledSlots = unmatchedSlots.slice();
+    for (let i = shuffledSlots.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledSlots[i], shuffledSlots[j]] = [shuffledSlots[j], shuffledSlots[i]];
     }
-    unmatched.forEach((c, i) => { c.emoji = emojis[i]; });
-    toast('🌀 방해꾼 등장! 남은 카드가 뒤섞였어요!');
+    const newCards = cards.slice();
+    unmatchedSlots.forEach((slotIdx, k) => { newCards[slotIdx] = cards[shuffledSlots[k]]; });
+    cards = newCards;
+
     renderBoard();
+
+    // ---- FLIP 애니메이션: 이전 위치에서 새 위치로 슬라이드 ----
+    const afterEls = Array.from(boardEl.children);
+    cards.forEach((c, i) => {
+        const el = afterEls[i];
+        const first = firstRects.get(c.id);
+        const last = el.getBoundingClientRect();
+        const dx = first.left - last.left;
+        const dy = first.top - last.top;
+        if (dx !== 0 || dy !== 0) {
+            el.style.transition = 'none';
+            el.style.transform = `translate(${dx}px, ${dy}px)`;
+            requestAnimationFrame(() => {
+                el.style.transition = 'transform .6s cubic-bezier(.3,.7,.3,1)';
+                el.style.transform = '';
+            });
+        }
+    });
+
+    setTimeout(() => {
+        locked = false;
+        updateHud();
+    }, 750);
 }
 
 function toast(msg){
