@@ -28,6 +28,10 @@
         border:1px solid var(--border); border-radius:12px; padding:20px;
     }
     .panel h3{ margin:0 0 16px; font-size:14px; }
+    .toggle-h3{
+        cursor:pointer; user-select:none; display:flex; align-items:center; justify-content:space-between;
+    }
+    .toggle-h3 .chev{ font-size:11px; color:var(--muted); transition:transform .15s ease; }
 
     select, input[type="text"], input[type="number"], textarea{
         width:100%; box-sizing:border-box; background:var(--surface); border:1px solid var(--border);
@@ -52,6 +56,30 @@
     .explain-box{ font-size:12.5px; color:var(--muted); line-height:1.6; }
 
     .tier-row{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:8px; }
+
+    .range-demo{ display:flex; flex-wrap:wrap; align-items:flex-start; gap:16px; }
+    .namebox-wrap{ display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+    .namebox{
+        background:rgba(232,185,63,0.15); border:1.5px solid var(--gold); border-radius:4px;
+        padding:5px 12px; font-size:13px; color:var(--gold); font-weight:700; font-family:monospace;
+    }
+    .namebox-label{ font-size:10.5px; color:var(--muted); }
+    .grid-mini{
+        display:grid; grid-template-columns:26px repeat(3, 32px); grid-auto-rows:24px;
+        border:1px solid var(--border); flex:0 0 auto;
+    }
+    .gcell{ border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--muted); background:var(--surface); }
+    .gcell.head{ background:var(--surface2); font-weight:700; }
+    .gcell.head.hl{ background:rgba(232,185,63,0.28); color:var(--gold); }
+    .gcell.rownum{ background:var(--surface2); font-weight:700; }
+    .gcell.hl{ background:rgba(232,185,63,0.18); }
+
+    .ex-table{ border-collapse:collapse; font-size:11px; margin-bottom:10px; }
+    .ex-table th, .ex-table td{ border:1px solid var(--border); padding:4px 10px; text-align:center; color:var(--muted); background:var(--surface); white-space:nowrap; }
+    .ex-table th{ background:var(--surface2); color:var(--text); font-weight:700; }
+    .ex-table td.hl, .ex-table th.hl{ background:rgba(232,185,63,0.2); color:var(--gold); font-weight:700; }
+    .ex-caption{ font-size:12px; color:var(--muted); margin-bottom:18px; line-height:1.6; }
+    .ex-wrap{ overflow-x:auto; }
     .note{ font-size:11px; color:var(--muted); margin-top:4px; }
 </style>
 </head>
@@ -73,10 +101,41 @@
 <div class="wrap">
     <div class="platform-switch" id="platform-switch"></div>
 
+    <div class="panel" style="margin-bottom:18px;">
+        <h3 class="toggle-h3" onclick="toggleSection('range-guide-body', this)">
+            <span>💡 "범위"나 "셀"은 직접 안 외우셔도 돼요</span><span class="chev">▾</span>
+        </h3>
+        <div id="range-guide-body">
+            <div class="range-demo">
+                <div class="grid-mini">
+                    <div class="gcell"></div>
+                    <div class="gcell head">A</div>
+                    <div class="gcell head hl">B</div>
+                    <div class="gcell head">C</div>
+                    <div class="gcell rownum">1</div><div class="gcell"></div><div class="gcell"></div><div class="gcell"></div>
+                    <div class="gcell rownum">2</div><div class="gcell"></div><div class="gcell hl"></div><div class="gcell"></div>
+                    <div class="gcell rownum">3</div><div class="gcell"></div><div class="gcell hl"></div><div class="gcell"></div>
+                    <div class="gcell rownum">4</div><div class="gcell"></div><div class="gcell hl"></div><div class="gcell"></div>
+                    <div class="gcell rownum">5</div><div class="gcell"></div><div class="gcell hl"></div><div class="gcell"></div>
+                </div>
+                <div class="namebox-wrap">
+                    <div class="namebox-label">엑셀 왼쪽 위에 이렇게 자동으로 떠요 ↓</div>
+                    <div class="namebox">B2:B5</div>
+                </div>
+            </div>
+            <p class="note" style="margin-top:12px;">엑셀/구글시트 화면에서 <b>원하는 구간을 마우스로 드래그</b>해서 선택해보세요. 그러면 왼쪽 위(이름상자)에 <b>"B2:B5"</b>처럼 범위가 자동으로 나타나요. 그 글자를 그대로 복사해서 아래 입력칸에 붙여넣으면 돼요 — "범위"가 뭔지 몰라도, 그냥 드래그하고 복사-붙여넣기만 하면 됩니다. "조건값"은 그 칸에 실제로 적혀있는 글자를 그대로 적으면 돼요 (예: 상태 칸에 "완료"라고 써있으면 조건값도 "완료").</p>
+        </div>
+    </div>
+
     <div class="panel">
-        <h3>🧩 하고 싶은 일</h3>
-        <select id="scenario-select"></select>
-        <div id="scenario-form"></div>
+        <h3 class="toggle-h3" onclick="toggleSection('scenario-body', this)">
+            <span>🧩 하고 싶은 일</span><span class="chev">▾</span>
+        </h3>
+        <div id="scenario-body">
+            <select id="scenario-select"></select>
+            <div id="scenario-example"></div>
+            <div id="scenario-form"></div>
+        </div>
 
         <h3 style="margin-top:20px;">✅ 완성된 수식</h3>
         <div class="formula-box">
@@ -91,6 +150,37 @@
 
 <script>
 function esc(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function toAbsolute(ref){
+    if (!ref) return ref;
+    return ref.replace(/\$?([A-Za-z]{1,3})\$?(\d+)/g, '$$$1$$$2');
+}
+const SECTION_KEY = 'excelWizardSections';
+function loadSectionState(){
+    try { return JSON.parse(localStorage.getItem(SECTION_KEY)) || {}; } catch(e) { return {}; }
+}
+function saveSectionState(state){
+    try { localStorage.setItem(SECTION_KEY, JSON.stringify(state)); } catch(e) {}
+}
+const sectionState = loadSectionState();
+function toggleSection(id, h3el){
+    const el = document.getElementById(id);
+    const chev = h3el.querySelector('.chev');
+    const collapsed = el.style.display !== 'none';
+    el.style.display = collapsed ? 'none' : '';
+    chev.style.transform = collapsed ? 'rotate(-90deg)' : '';
+    sectionState[id] = collapsed;
+    saveSectionState(sectionState);
+}
+function applySectionState(){
+    Object.keys(sectionState).forEach(id => {
+        if (!sectionState[id]) return;
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.style.display = 'none';
+        const h3 = el.previousElementSibling;
+        if (h3) { const chev = h3.querySelector('.chev'); if (chev) chev.style.transform = 'rotate(-90deg)'; }
+    });
+}
 function toast(msg){
     const t = document.getElementById('toast');
     t.textContent = msg;
@@ -104,6 +194,24 @@ function setFormula(f, explain){
     document.getElementById('formula-out').textContent = f;
     document.getElementById('explain-out').textContent = explain || '';
 }
+
+const EXAMPLES = {
+    sumif: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th>B</th><th class="hl">C</th></tr><tr><td>2</td><td>완료</td><td class="hl">10,000</td></tr><tr><td>3</td><td>진행중</td><td>5,000</td></tr><tr><td>4</td><td>완료</td><td class="hl">8,000</td></tr></table></div><div class="ex-caption">B열이 "완료"인 행만 골라서 C열 값을 더하고 싶을 때 → 조건 범위는 B2:B4, 조건값은 "완료", 합계 범위는 C2:C4</div>`,
+    vlookup: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th class="hl">A</th><th>B</th><th>C</th></tr><tr><td>2</td><td class="hl">101</td><td>김철수</td><td>영업팀</td></tr><tr><td>3</td><td>102</td><td>이영희</td><td>기획팀</td></tr></table></div><div class="ex-caption">사번(A열)으로 이름·부서를 찾아오고 싶을 때 → 찾을 값은 사번 셀, 표 범위는 A2:C100, 가져올 열 번호는 이름=2, 부서=3</div>`,
+    rank: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th>A</th><th class="hl">B</th></tr><tr><td>2</td><td>김철수</td><td class="hl">92</td></tr><tr><td>3</td><td>이영희</td><td>85</td></tr><tr><td>4</td><td>박민수</td><td>78</td></tr></table></div><div class="ex-caption">92점(B2)이 B2:B4 범위 안에서 몇 등인지 알고 싶을 때</div>`,
+    datecalc: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th>A</th><th>B</th></tr><tr><td>2</td><td>2024-01-15</td><td>2024-03-20</td></tr></table></div><div class="ex-caption">근무일수: 시작일(A2)~종료일(B2) 사이 평일 수 / 나이: 생년월일 셀 하나만 / D-day: 목표 날짜 셀 하나만 입력하면 돼요</div>`,
+    duplicate: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th class="hl">A</th></tr><tr><td>2</td><td>가나다</td></tr><tr><td>3</td><td class="hl">홍길동</td></tr><tr><td>4</td><td>이몽룡</td></tr><tr><td>5</td><td class="hl">홍길동</td></tr></table></div><div class="ex-caption">"홍길동"이 A열에 2번 나와서 중복이에요 → 확인할 셀은 A3, 전체 범위는 A2:A5</div>`,
+    iftiers: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th class="hl">B</th></tr><tr><td>2</td><td class="hl">92</td></tr></table></div><div class="ex-caption">점수(B2)가 90 이상이면 "A", 80 이상이면 "B"... 이렇게 구간별로 다른 값을 보여주고 싶을 때</div>`,
+    explain: `<div class="ex-caption">뭘 뜻하는지 모르겠는 복잡한 수식을 붙여넣으면, 어떤 함수가 쓰였는지 하나씩 짚어드려요.</div>`,
+    texttools: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th class="hl">A</th><th class="hl">B</th></tr><tr><td>2</td><td class="hl">홍길동</td><td class="hl">영업팀</td></tr></table></div><div class="ex-caption">"홍길동"과 "영업팀"을 합쳐서 "홍길동-영업팀"처럼 만들거나, 텍스트 일부만 잘라오고 싶을 때</div>`,
+    cleandata: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th class="hl">A</th></tr><tr><td>2</td><td class="hl">"␣␣홍길동␣␣"</td></tr></table></div><div class="ex-caption">다른 곳에서 복사해온 데이터에 불필요한 공백이 껴있을 때 깔끔하게 정리해요.</div>`,
+    maxminif: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th class="hl">B</th><th class="hl">C</th></tr><tr><td>2</td><td class="hl">서울</td><td class="hl">15,000</td></tr><tr><td>3</td><td>부산</td><td>9,000</td></tr><tr><td>4</td><td class="hl">서울</td><td class="hl">22,000</td></tr></table></div><div class="ex-caption">"서울"인 행들 중에서 가장 큰 금액(22,000)을 찾고 싶을 때</div>`,
+    textsearch: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th class="hl">A</th></tr><tr><td>2</td><td class="hl">2024년 정기 워크숍 안내</td></tr></table></div><div class="ex-caption">셀 안에 "워크숍"이라는 단어가 포함되어 있는지 확인하고 싶을 때</div>`,
+    autonum: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th class="hl">A</th><th>B</th></tr><tr><td>1</td><td class="hl">번호</td><td>이름</td></tr><tr><td>2</td><td>1</td><td>홍길동</td></tr><tr><td>3</td><td>2</td><td>이몽룡</td></tr></table></div><div class="ex-caption">머리글(A1) 기준으로, 중간에 행을 지우거나 추가해도 안 꼬이는 순번을 만들고 싶을 때</div>`,
+    numformat: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th class="hl">B</th></tr><tr><td>2</td><td class="hl">1234567</td></tr></table></div><div class="ex-caption">1234567을 "1,234,567"처럼 천 단위 콤마로, 또는 반올림·퍼센트로 바꾸고 싶을 때</div>`,
+    mode: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th class="hl">B</th></tr><tr><td>2</td><td class="hl">3</td></tr><tr><td>3</td><td class="hl">5</td></tr><tr><td>4</td><td class="hl">3</td></tr></table></div><div class="ex-caption">여러 사람이 고른 점수·선택지 중 가장 많이 나온 값을 찾고 싶을 때</div>`,
+    tenure: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th class="hl">B</th></tr><tr><td>2</td><td class="hl">2019-03-04</td></tr></table></div><div class="ex-caption">입사일(B2)부터 오늘까지 몇 년 몇 개월 근무했는지 계산하고 싶을 때</div>`
+};
 
 const SCENARIOS = {
     sumif: {
@@ -214,15 +322,18 @@ const SCENARIOS = {
     duplicate: {
         label: '중복값 찾기',
         form: `
-            <label class="f-label">확인할 셀</label>
-            <input id="dp_cell" placeholder="예: A2" oninput="recompute()">
-            <label class="f-label">전체 범위</label>
-            <input id="dp_range" placeholder="예: $A$2:$A$100" oninput="recompute()">
+            <label class="f-label">확인할 셀 (한 칸만! 예: A3)</label>
+            <input id="dp_cell" placeholder="예: A3 (A3:B200 처럼 범위 X)" oninput="recompute()">
+            <label class="f-label">전체 범위 (중복인지 비교할 전체 대상)</label>
+            <input id="dp_range" placeholder="예: A3:A200" oninput="recompute()">
+            <div class="note">💡 이 수식은 원본 데이터 옆 새 열(예: C열)의 <b>첫 데이터 행</b>에 넣고, 데이터 끝까지 아래로 채워(드래그해)주세요. 한 칸에 결과 하나가 아니라, 행마다 중복 여부가 표시돼요. 범위는 자동으로 고정($)돼서 아래로 채워도 안 밀려요.</div>
         `,
         build(){
-            const cell = v('dp_cell'), range = v('dp_range');
-            if (!cell || !range) return { f: '확인할 셀과 전체 범위를 입력해주세요', e: '' };
-            return { f: `=IF(COUNTIF(${range},${cell})>1,"중복","")`, e: '같은 값이 범위 안에 2번 이상 있으면 "중복"이라고 표시해요.' };
+            const cell = v('dp_cell'), rangeRaw = v('dp_range');
+            if (!cell || !rangeRaw) return { f: '확인할 셀과 전체 범위를 입력해주세요', e: '' };
+            if (/:/.test(cell)) return { f: '"확인할 셀"에는 범위가 아니라 셀 하나만 입력해주세요 (예: A3)', e: '' };
+            const range = toAbsolute(rangeRaw);
+            return { f: `=IF(COUNTIF(${range},${cell})>1,"중복","")`, e: `같은 값이 ${range} 범위 안에 2번 이상 있으면 그 행에 "중복"이라고 표시해요. (드래그해서 채우면 ${cell}이 A4, A5...로 자동으로 바뀌어요)` };
         }
     },
     iftiers: {
@@ -526,6 +637,7 @@ function renderScenarioSelect(){
 }
 function renderScenarioForm(){
     const sc = SCENARIOS[currentScenario];
+    document.getElementById('scenario-example').innerHTML = EXAMPLES[currentScenario] || '';
     document.getElementById('scenario-form').innerHTML = sc.form;
     if (sc.onShow) sc.onShow();
     recompute();
@@ -569,6 +681,7 @@ document.getElementById('platform-switch').addEventListener('click', e => {
 renderPlatformSwitch();
 renderScenarioSelect();
 renderScenarioForm();
+applySectionState();
 </script>
 </body>
 </html>
