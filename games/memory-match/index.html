@@ -308,18 +308,21 @@ function renderBoard(){
 
 function onTimeUp(){
     clearInterval(roundTimerInterval);
-    loseLife('시간 초과!');
+    loseLife('시간 초과!', true);
 }
 
-function loseLife(reason){
+function loseLife(reason, restartRound){
     lives--;
     updateHud();
+    saveProgress();
     if (lives <= 0) {
         endGame();
         return;
     }
     toast(`💔 ${reason} 목숨 -1`);
-    setTimeout(() => startRound(round), 700);
+    if (restartRound) {
+        setTimeout(() => startRound(round), 700);
+    }
 }
 
 function clearRound(){
@@ -393,7 +396,7 @@ document.getElementById('board').addEventListener('click', e => {
                 flipped = [];
                 locked = false;
                 renderBoard();
-                loseLife('틀렸어요!');
+                loseLife('틀렸어요!', false);
             }, cfg.flipBack);
         }
     }
