@@ -102,6 +102,53 @@
     </div>
 
     <div class="panel">
+        <h3>⭐ 대표 프로젝트 (홈 배너 + 대표 프로젝트 섹션)</h3>
+        <label class="f-label">라벨 (예: GAMES, WORKS, AI LAB · 개발 중)</label>
+        <input type="text" id="fp-eyebrow" placeholder="예: GAMES">
+        <label class="f-label">제목</label>
+        <input type="text" id="fp-title" placeholder="예: Dungeon RPG">
+        <label class="f-label">설명</label>
+        <textarea id="fp-desc" rows="2" placeholder="한 줄 설명"></textarea>
+        <label class="f-label">링크 (파일 경로)</label>
+        <input type="text" id="fp-href" placeholder="예: games/dungeon-rpg/index.html">
+        <label class="f-label">아이콘</label>
+        <div class="icon-pick" id="fp-icon-pick"></div>
+        <button class="btn primary" id="fp-add-btn" style="width:100%; margin-top:6px;">추가하기 (비공개로 생성됨)</button>
+        <div id="fp-list" style="margin-top:16px;"></div>
+    </div>
+
+    <div class="panel">
+        <h3>📰 최근 업데이트</h3>
+        <label class="f-label">내용</label>
+        <input type="text" id="up-text" placeholder="예: AI 실험실에 새 빌더 추가">
+        <label class="f-label">날짜</label>
+        <input type="text" id="up-date" placeholder="예: 2026.07.16">
+        <label class="f-label">NEW 배지</label>
+        <select id="up-badge">
+            <option value="NEW">표시함</option>
+            <option value="">표시 안 함</option>
+        </select>
+        <button class="btn primary" id="up-add-btn" style="width:100%; margin-top:6px;">추가하기 (비공개로 생성됨)</button>
+        <div id="up-list" style="margin-top:16px;"></div>
+    </div>
+
+    <div class="panel">
+        <h3>🗺️ 앞으로의 계획</h3>
+        <label class="f-label">진행 상태</label>
+        <select id="rm-status">
+            <option value="진행 중">진행 중</option>
+            <option value="기획 중">기획 중</option>
+            <option value="예정">예정</option>
+        </select>
+        <label class="f-label">제목</label>
+        <input type="text" id="rm-title" placeholder="예: Campus OS">
+        <label class="f-label">설명</label>
+        <textarea id="rm-desc" rows="2" placeholder="짧은 설명"></textarea>
+        <button class="btn primary" id="rm-add-btn" style="width:100%; margin-top:6px;">추가하기 (비공개로 생성됨)</button>
+        <div id="rm-list" style="margin-top:16px;"></div>
+    </div>
+
+    <div class="panel">
         <h3>➕ 새 항목 추가</h3>
         <label class="f-label">카테고리</label>
         <select id="f-category">
@@ -358,11 +405,253 @@ document.getElementById('gate-submit').addEventListener('click', () => {
     document.getElementById('main-wrap').style.display = 'block';
     subscribeItems();
     subscribeConfig();
+    subscribeFp();
+    subscribeUp();
+    subscribeRm();
 });
 document.getElementById('gate-pw').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('gate-submit').click();
 });
 
+const EDIT_ICONS = `
+    <button class="icon-btn" data-action="edit" title="수정">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1-4L16 5l3 3L8 19l-4 1Z"/></svg>
+    </button>
+    <button class="icon-btn" data-action="delete" title="삭제">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>
+    </button>`;
+
+/* ===== ⭐ 대표 프로젝트 ===== */
+const fpCol = db.collection('featuredProjects');
+let fpSelectedIcon = 'sword';
+let fpItems = [];
+
+function renderFpIconPicker(){
+    document.getElementById('fp-icon-pick').innerHTML = Object.keys(ICON_PATHS).map(key => `
+        <div class="icon-opt ${key===fpSelectedIcon?'sel':''}" data-icon="${key}">${iconSvg(key, '#e8b93f', 20)}</div>
+    `).join('');
+}
+document.getElementById('fp-icon-pick').addEventListener('click', e => {
+    const opt = e.target.closest('.icon-opt');
+    if (!opt) return;
+    fpSelectedIcon = opt.dataset.icon;
+    renderFpIconPicker();
+});
+document.getElementById('fp-add-btn').addEventListener('click', () => {
+    const eyebrow = document.getElementById('fp-eyebrow').value.trim();
+    const title = document.getElementById('fp-title').value.trim();
+    const desc = document.getElementById('fp-desc').value.trim();
+    const href = document.getElementById('fp-href').value.trim();
+    if (!title || !href) { toast('제목과 링크는 꼭 입력해주세요'); return; }
+    fpCol.add({ eyebrow, title, desc, href, icon: fpSelectedIcon, published: false, order: Date.now(), createdAt: Date.now() })
+        .then(() => {
+            toast('✅ 추가했어요 (비공개 상태)');
+            ['fp-eyebrow','fp-title','fp-desc','fp-href'].forEach(id => document.getElementById(id).value = '');
+        }).catch(() => toast('추가 실패'));
+});
+function renderFpList(){
+    const wrap = document.getElementById('fp-list');
+    if (fpItems.length === 0) { wrap.innerHTML = '<p style="color:var(--muted); font-size:12px;">아직 항목이 없어요.</p>'; return; }
+    wrap.innerHTML = [...fpItems].sort((a,b)=>(a.order||0)-(b.order||0)).map(it => `
+        <div class="item-row ${it.published?'':'unpub'}" data-id="${it.id}">
+            <div class="item-icon">${iconSvg(it.icon,'#e8b93f',22)}</div>
+            <div class="item-info">
+                <div><span class="item-badge">${escHtml(it.eyebrow||'')}</span><span class="item-title">${escHtml(it.title)}</span></div>
+                <div class="item-desc">${escHtml(it.desc||'')}</div>
+            </div>
+            <div class="item-actions">
+                <div class="toggle-track ${it.published?'on':''}" data-action="toggle" title="공개/비공개"><div class="toggle-knob"></div></div>
+                ${EDIT_ICONS}
+            </div>
+        </div>`).join('');
+}
+document.getElementById('fp-list').addEventListener('click', e => {
+    const row = e.target.closest('.item-row'); if (!row) return;
+    const item = fpItems.find(it => it.id === row.dataset.id); if (!item) return;
+    if (e.target.closest('[data-action="toggle"]')) { fpCol.doc(item.id).update({ published: !item.published }); }
+    else if (e.target.closest('[data-action="delete"]')) { if (confirm(`"${item.title}" 삭제할까요?`)) fpCol.doc(item.id).delete(); }
+    else if (e.target.closest('[data-action="edit"]')) { openFpEdit(row, item); }
+});
+function openFpEdit(row, item){
+    const existing = row.nextElementSibling;
+    if (existing && existing.classList.contains('edit-panel')) { existing.remove(); return; }
+    const panel = document.createElement('div');
+    panel.className = 'edit-panel';
+    panel.innerHTML = `
+        <label class="f-label">라벨</label>
+        <input type="text" class="e-eyebrow" value="${escHtml(item.eyebrow||'')}">
+        <label class="f-label">제목</label>
+        <input type="text" class="e-title" value="${escHtml(item.title)}">
+        <label class="f-label">설명</label>
+        <textarea class="e-desc" rows="2">${escHtml(item.desc||'')}</textarea>
+        <label class="f-label">링크</label>
+        <input type="text" class="e-href" value="${escHtml(item.href)}">
+        <label class="f-label">정렬 순서(작을수록 앞)</label>
+        <input type="number" class="e-order" value="${item.order||0}">
+        <button class="btn primary e-save">저장</button>`;
+    row.after(panel);
+    panel.querySelector('.e-save').addEventListener('click', () => {
+        fpCol.doc(item.id).update({
+            eyebrow: panel.querySelector('.e-eyebrow').value.trim(),
+            title: panel.querySelector('.e-title').value.trim(),
+            desc: panel.querySelector('.e-desc').value.trim(),
+            href: panel.querySelector('.e-href').value.trim(),
+            order: Number(panel.querySelector('.e-order').value) || 0
+        }).then(() => toast('저장했어요'));
+    });
+}
+function subscribeFp(){
+    fpCol.onSnapshot(snap => {
+        fpItems = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+        renderFpList();
+    }, () => toast('데이터 연결 오류'));
+}
+
+/* ===== 📰 최근 업데이트 ===== */
+const upCol = db.collection('updates');
+let upItems = [];
+document.getElementById('up-add-btn').addEventListener('click', () => {
+    const text = document.getElementById('up-text').value.trim();
+    const date = document.getElementById('up-date').value.trim();
+    const badge = document.getElementById('up-badge').value;
+    if (!text || !date) { toast('내용과 날짜는 꼭 입력해주세요'); return; }
+    upCol.add({ text, date, badge, published: false, order: Date.now(), createdAt: Date.now() })
+        .then(() => {
+            toast('✅ 추가했어요 (비공개 상태)');
+            document.getElementById('up-text').value = '';
+            document.getElementById('up-date').value = '';
+        }).catch(() => toast('추가 실패'));
+});
+function renderUpList(){
+    const wrap = document.getElementById('up-list');
+    if (upItems.length === 0) { wrap.innerHTML = '<p style="color:var(--muted); font-size:12px;">아직 항목이 없어요.</p>'; return; }
+    wrap.innerHTML = [...upItems].sort((a,b)=>(b.order||0)-(a.order||0)).map(it => `
+        <div class="item-row ${it.published?'':'unpub'}" data-id="${it.id}">
+            <div class="item-info">
+                <div>${it.badge?`<span class="item-badge">${escHtml(it.badge)}</span>`:''}<span class="item-title">${escHtml(it.text)}</span></div>
+                <div class="item-desc">${escHtml(it.date)}</div>
+            </div>
+            <div class="item-actions">
+                <div class="toggle-track ${it.published?'on':''}" data-action="toggle" title="공개/비공개"><div class="toggle-knob"></div></div>
+                ${EDIT_ICONS}
+            </div>
+        </div>`).join('');
+}
+document.getElementById('up-list').addEventListener('click', e => {
+    const row = e.target.closest('.item-row'); if (!row) return;
+    const item = upItems.find(it => it.id === row.dataset.id); if (!item) return;
+    if (e.target.closest('[data-action="toggle"]')) { upCol.doc(item.id).update({ published: !item.published }); }
+    else if (e.target.closest('[data-action="delete"]')) { if (confirm(`"${item.text}" 삭제할까요?`)) upCol.doc(item.id).delete(); }
+    else if (e.target.closest('[data-action="edit"]')) { openUpEdit(row, item); }
+});
+function openUpEdit(row, item){
+    const existing = row.nextElementSibling;
+    if (existing && existing.classList.contains('edit-panel')) { existing.remove(); return; }
+    const panel = document.createElement('div');
+    panel.className = 'edit-panel';
+    panel.innerHTML = `
+        <label class="f-label">내용</label>
+        <input type="text" class="e-text" value="${escHtml(item.text)}">
+        <label class="f-label">날짜</label>
+        <input type="text" class="e-date" value="${escHtml(item.date)}">
+        <label class="f-label">NEW 배지</label>
+        <select class="e-badge">
+            <option value="NEW" ${item.badge==='NEW'?'selected':''}>표시함</option>
+            <option value="" ${!item.badge?'selected':''}>표시 안 함</option>
+        </select>
+        <button class="btn primary e-save">저장</button>`;
+    row.after(panel);
+    panel.querySelector('.e-save').addEventListener('click', () => {
+        upCol.doc(item.id).update({
+            text: panel.querySelector('.e-text').value.trim(),
+            date: panel.querySelector('.e-date').value.trim(),
+            badge: panel.querySelector('.e-badge').value
+        }).then(() => toast('저장했어요'));
+    });
+}
+function subscribeUp(){
+    upCol.onSnapshot(snap => {
+        upItems = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+        renderUpList();
+    }, () => toast('데이터 연결 오류'));
+}
+
+/* ===== 🗺️ 앞으로의 계획 ===== */
+const rmCol = db.collection('roadmapItems');
+let rmItems = [];
+document.getElementById('rm-add-btn').addEventListener('click', () => {
+    const status = document.getElementById('rm-status').value;
+    const title = document.getElementById('rm-title').value.trim();
+    const desc = document.getElementById('rm-desc').value.trim();
+    if (!title) { toast('제목은 꼭 입력해주세요'); return; }
+    rmCol.add({ status, title, desc, active: status === '진행 중', published: false, order: Date.now(), createdAt: Date.now() })
+        .then(() => {
+            toast('✅ 추가했어요 (비공개 상태)');
+            document.getElementById('rm-title').value = '';
+            document.getElementById('rm-desc').value = '';
+        }).catch(() => toast('추가 실패'));
+});
+function renderRmList(){
+    const wrap = document.getElementById('rm-list');
+    if (rmItems.length === 0) { wrap.innerHTML = '<p style="color:var(--muted); font-size:12px;">아직 항목이 없어요.</p>'; return; }
+    wrap.innerHTML = [...rmItems].sort((a,b)=>(a.order||0)-(b.order||0)).map(it => `
+        <div class="item-row ${it.published?'':'unpub'}" data-id="${it.id}">
+            <div class="item-info">
+                <div><span class="item-badge">${escHtml(it.status)}</span><span class="item-title">${escHtml(it.title)}</span></div>
+                <div class="item-desc">${escHtml(it.desc||'')}</div>
+            </div>
+            <div class="item-actions">
+                <div class="toggle-track ${it.published?'on':''}" data-action="toggle" title="공개/비공개"><div class="toggle-knob"></div></div>
+                ${EDIT_ICONS}
+            </div>
+        </div>`).join('');
+}
+document.getElementById('rm-list').addEventListener('click', e => {
+    const row = e.target.closest('.item-row'); if (!row) return;
+    const item = rmItems.find(it => it.id === row.dataset.id); if (!item) return;
+    if (e.target.closest('[data-action="toggle"]')) { rmCol.doc(item.id).update({ published: !item.published }); }
+    else if (e.target.closest('[data-action="delete"]')) { if (confirm(`"${item.title}" 삭제할까요?`)) rmCol.doc(item.id).delete(); }
+    else if (e.target.closest('[data-action="edit"]')) { openRmEdit(row, item); }
+});
+function openRmEdit(row, item){
+    const existing = row.nextElementSibling;
+    if (existing && existing.classList.contains('edit-panel')) { existing.remove(); return; }
+    const panel = document.createElement('div');
+    panel.className = 'edit-panel';
+    panel.innerHTML = `
+        <label class="f-label">진행 상태</label>
+        <select class="e-status">
+            <option value="진행 중" ${item.status==='진행 중'?'selected':''}>진행 중</option>
+            <option value="기획 중" ${item.status==='기획 중'?'selected':''}>기획 중</option>
+            <option value="예정" ${item.status==='예정'?'selected':''}>예정</option>
+        </select>
+        <label class="f-label">제목</label>
+        <input type="text" class="e-title" value="${escHtml(item.title)}">
+        <label class="f-label">설명</label>
+        <textarea class="e-desc" rows="2">${escHtml(item.desc||'')}</textarea>
+        <label class="f-label">정렬 순서(작을수록 앞)</label>
+        <input type="number" class="e-order" value="${item.order||0}">
+        <button class="btn primary e-save">저장</button>`;
+    row.after(panel);
+    panel.querySelector('.e-save').addEventListener('click', () => {
+        const status = panel.querySelector('.e-status').value;
+        rmCol.doc(item.id).update({
+            status,
+            title: panel.querySelector('.e-title').value.trim(),
+            desc: panel.querySelector('.e-desc').value.trim(),
+            order: Number(panel.querySelector('.e-order').value) || 0,
+            active: status === '진행 중'
+        }).then(() => toast('저장했어요'));
+    });
+}
+function subscribeRm(){
+    rmCol.onSnapshot(snap => {
+        rmItems = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+        renderRmList();
+    }, () => toast('데이터 연결 오류'));
+}
+
+renderFpIconPicker();
 renderIconPicker();
 </script>
 </body>
