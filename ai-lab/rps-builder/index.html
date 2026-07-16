@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 게임 빌더 — 가위바위보</title>
+<style>
+  :root{
+    --bg: #0b0b0e;
+    --panel: #15151a;
+    --panel-2: #1c1c22;
+    --line: #2a2a32;
+    --gold: #e0a94a;
+    --gold-dim: #8a6b30;
+    --teal: #5fc7bd;
+    --ink: #efece4;
+    --muted: #8d8d96;
+    --danger: #d9705f;
+    --mono: 'JetBrains Mono', 'Courier New', monospace;
+    --display: 'Space Grotesk', 'Pretendard', sans-serif;
+    --body: 'Inter', 'Pretendard', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(circle at 20% -10%, rgba(224,169,74,0.08), transparent 40%),
+      var(--bg);
+    color:var(--ink);
+    font-family:var(--body);
+    min-height:100vh;
+    padding:32px 16px 80px;
+  }
+  .wrap{max-width:720px;margin:0 auto;}
+
+  /* header */
+  /* intro */
+  .intro{padding:8px 0 4px;}
+  .intro-eyebrow{
+    font-family:var(--mono);font-size:12px;color:var(--teal);
+    letter-spacing:.1em;margin-bottom:14px;
+  }
+  .intro-title{
+    font-family:var(--display);font-size:30px;font-weight:600;
+    line-height:1.32;margin:0 0 16px;
+  }
+  .intro-title em{color:var(--gold);font-style:normal;}
+  .intro-body{
+    font-size:14.5px;color:var(--muted);line-height:1.75;
+    margin:0 0 26px;
+  }
+  .intro-points{
+    display:flex;flex-direction:column;gap:2px;
+    margin-bottom:28px;
+  }
+  .intro-point{
+    display:flex;gap:12px;align-items:flex-start;
+    padding:13px 0;border-bottom:1px solid var(--line);
+  }
+  .intro-point:last-child{border-bottom:none;}
+  .intro-point-mark{
+    font-family:var(--mono);font-size:12px;color:var(--gold);
+    margin-top:2px;flex-shrink:0;
+  }
+  .intro-point-text{font-size:13.5px;line-height:1.6;}
+  .intro-point-text b{font-weight:600;color:var(--ink);}
+  .intro-note{
+    font-size:13px;color:var(--gold);
+    background:rgba(224,169,74,0.08);
+    border:1px solid var(--gold-dim);border-radius:10px;
+    padding:12px 16px;margin-bottom:26px;line-height:1.6;
+  }
+  .intro-cta{width:100%;padding:15px;font-size:15px;}
+
+  .top{
+    display:flex;align-items:baseline;justify-content:space-between;
+    margin-bottom:36px;
+    border-bottom:1px solid var(--line);
+    padding-bottom:18px;
+  }
+  .brand{
+    font-family:var(--display);
+    font-size:15px;
+    letter-spacing:0.14em;
+    color:var(--gold);
+    text-transform:uppercase;
+  }
+  .progress-track{
+    display:flex;gap:6px;
+  }
+  .dot{
+    width:22px;height:3px;border-radius:2px;background:var(--line);
+    transition:background .3s ease;
+  }
+  .dot.done{background:var(--gold-dim);}
+  .dot.active{background:var(--gold);}
+
+  /* step block */
+  .step{
+    display:none;
+    animation:fadeUp .45s ease both;
+  }
+  .step.visible{display:block;}
+  @keyframes fadeUp{
+    from{opacity:0;transform:translateY(10px);}
+    to{opacity:1;transform:translateY(0);}
+  }
+  .step-eyebrow{
+    font-family:var(--mono);
+    font-size:12px;color:var(--teal);
+    letter-spacing:0.08em;
+    margin-bottom:6px;
+  }
+  .step-title{
+    font-family:var(--display);
+    font-size:26px;
+    font-weight:600;
+    margin:0 0 8px;
+    line-height:1.25;
+  }
+  .step-desc{
+    color:var(--muted);
+    font-size:14.5px;
+    line-height:1.6;
+    margin:0 0 24px;
+  }
+
+  /* option cards */
+  .options{display:grid;gap:10px;}
+  .opt{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:16px 18px;
+    display:flex;align-items:center;gap:14px;
+    cursor:pointer;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .opt:hover{border-color:var(--gold-dim);}
+  .opt.selected{border-color:var(--gold);background:var(--panel-2);}
+  .opt.disabled{opacity:0.4;cursor:not-allowed;}
+  .opt-emoji{font-size:24px;width:32px;text-align:center;}
+  .opt-body{flex:1;}
+  .opt-name{font-weight:600;font-size:15px;}
+  .opt-sub{font-size:12.5px;color:var(--muted);margin-top:2px;}
+  .badge{
+    font-family:var(--mono);font-size:10.5px;
+    padding:3px 8px;border-radius:20px;
+    background:rgba(224,169,74,0.12);color:var(--gold);
+    letter-spacing:.04em;
+  }
+  .badge.soon{background:rgba(141,141,150,0.12);color:var(--muted);}
+
+  /* checkbox rows */
+  .check-row{
+    display:flex;align-items:flex-start;gap:12px;
+    padding:14px 4px;border-bottom:1px solid var(--line);
+    cursor:pointer;
+  }
+  .check-row:last-child{border-bottom:none;}
+  .box{
+    width:19px;height:19px;border-radius:5px;border:1.5px solid var(--line);
+    flex-shrink:0;margin-top:2px;
+    display:flex;align-items:center;justify-content:center;
+    transition:all .15s ease;
+  }
+  .box.on{background:var(--gold);border-color:var(--gold);}
+  .box.on::after{content:"✓";color:#0b0b0e;font-size:12px;font-weight:700;}
+  .check-name{font-weight:600;font-size:14.5px;}
+  .check-desc{font-size:12.5px;color:var(--muted);margin-top:2px;}
+
+  /* footer nav */
+  .nav{
+    display:flex;justify-content:space-between;
+    margin-top:32px;
+  }
+  button{
+    font-family:var(--body);
+    border:none;border-radius:10px;
+    padding:12px 22px;font-size:14px;font-weight:600;
+    cursor:pointer;
+    transition:transform .1s ease, opacity .15s ease;
+  }
+  button:active{transform:scale(0.97);}
+  .btn-primary{background:var(--gold);color:#0b0b0e;}
+  .btn-primary:disabled{opacity:0.3;cursor:not-allowed;}
+  .btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--line);}
+
+  /* STEP4 loading console */
+  .console{
+    background:#0a0a0d;border:1px solid var(--line);
+    border-radius:12px;padding:20px;
+    font-family:var(--mono);font-size:13px;
+    min-height:220px;
+  }
+  .console-line{
+    display:flex;align-items:center;gap:8px;
+    margin-bottom:10px;color:var(--muted);
+    opacity:0;animation:lineIn .3s ease forwards;
+  }
+  .console-line .mark{width:16px;flex-shrink:0;color:var(--muted);}
+  .console-line.ok .mark{color:var(--teal);}
+  .console-line.ok{color:var(--ink);}
+  @keyframes lineIn{ to{opacity:1;} }
+  .cursor-blink{
+    display:inline-block;width:7px;height:14px;background:var(--gold);
+    animation:blink 1s steps(1) infinite;vertical-align:-2px;
+  }
+  @keyframes blink{50%{opacity:0;}}
+
+  /* STEP5 code panel */
+  .code-file{
+    background:#0a0a0d;border:1px solid var(--line);border-radius:12px;
+    overflow:hidden;margin-bottom:14px;
+  }
+  .code-file-head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:12px 16px;border-bottom:1px solid var(--line);
+    font-family:var(--mono);font-size:12.5px;color:var(--muted);
+  }
+  .code-file-head b{color:var(--ink);font-weight:600;}
+  .code-file-head button{
+    background:transparent;color:var(--teal);font-size:11.5px;
+    padding:4px 10px;border:1px solid var(--line);border-radius:8px;
+  }
+  pre.code-body{
+    margin:0;padding:16px;font-family:var(--mono);font-size:12.5px;
+    line-height:1.75;overflow-x:auto;color:#c9c6bd;
+    max-height:0;transition:max-height .35s ease;
+  }
+  pre.code-body.open{max-height:900px;}
+  .code-line{
+    display:block;border-radius:5px;padding:1px 6px;margin:0 -6px;
+    cursor:pointer;
+  }
+  .code-line:hover{background:rgba(224,169,74,0.09);}
+  .code-line.picked{background:rgba(224,169,74,0.16);}
+  .tok-kw{color:#e0a94a;}
+  .tok-str{color:#7fbf8f;}
+  .tok-cmt{color:#5f5f68;}
+  .tok-fn{color:#5fc7bd;}
+
+  .compare-toggle{
+    display:inline-flex;align-items:center;gap:6px;
+    background:transparent;color:var(--gold);
+    font-size:12.5px;font-weight:600;
+    border:1px solid var(--gold-dim);border-radius:8px;
+    padding:8px 14px;margin:2px 0 12px;
+  }
+  .compare-panel{display:none;margin-bottom:14px;}
+  .compare-panel.open{display:block;}
+  .compare-box{
+    background:#0a0a0d;border:1px solid var(--line);border-radius:12px;
+    padding:14px 16px;margin-bottom:10px;
+  }
+  .compare-box.is-new{border-color:var(--gold-dim);}
+  .compare-label{
+    font-family:var(--mono);font-size:11px;letter-spacing:.06em;
+    margin-bottom:8px;color:var(--muted);
+  }
+  .compare-box.is-new .compare-label{color:var(--gold);}
+  .compare-code{
+    font-family:var(--mono);font-size:12.5px;line-height:1.75;
+    color:#c9c6bd;white-space:pre-wrap;margin:0;
+  }
+  .diff-plus-line{
+    display:block;background:rgba(224,169,74,0.14);
+    border-radius:5px;padding:1px 6px;margin:0 -6px;
+    color:var(--gold);
+  }
+  .diff-plus-line::before{content:"+ ";opacity:0.7;}
+  .compare-note{
+    font-size:12px;color:var(--muted);margin-top:2px;
+  }
+
+  .explain-box{
+    background:var(--panel);border:1px solid var(--gold-dim);
+    border-radius:12px;padding:16px 18px;margin-top:12px;
+    display:none;font-size:13.5px;line-height:1.7;
+  }
+  .explain-box.show{display:block;}
+  .explain-box .who{font-family:var(--mono);color:var(--gold);font-size:11.5px;margin-bottom:6px;letter-spacing:.05em;}
+
+  /* preview */
+  .preview-frame{
+    position:relative;
+    background:var(--panel);border:1px solid var(--line);border-radius:16px;
+    padding:28px 20px;text-align:center;
+    overflow:hidden;
+  }
+  .rps-arena{display:flex;align-items:center;justify-content:center;gap:28px;margin:18px 0;}
+  .rps-slot{
+    width:84px;height:84px;border-radius:20px;background:var(--panel-2);
+    border:1px solid var(--line);display:flex;align-items:center;justify-content:center;
+    font-size:38px;
+  }
+  .vs{font-family:var(--mono);color:var(--muted);font-size:13px;}
+  .match-tally{
+    font-family:var(--mono);font-size:12px;color:var(--gold);
+    letter-spacing:.05em;margin-top:-6px;margin-bottom:2px;
+    display:none;
+  }
+  .match-tally.show{display:block;}
+  .rps-choices{display:flex;gap:10px;justify-content:center;margin-top:20px;flex-wrap:wrap;}
+  .rps-choices button{
+    background:var(--panel-2);color:var(--ink);border:1px solid var(--line);
+    font-size:22px;padding:14px 18px;border-radius:14px;
+  }
+  .rps-choices button:hover{border-color:var(--gold);}
+  .rps-choices button:active{transform:none;}
+  .rps-choices.anim-on button{transition:transform 0.12s cubic-bezier(.34,1.6,.64,1);}
+  .rps-choices.anim-on button:active{transform:scale(0.82) rotate(-6deg);}
+  .rps-choices.locked button{opacity:0.3;pointer-events:none;}
+  .result-msg{
+    font-family:var(--display);font-size:17px;font-weight:600;
+    margin-top:16px;min-height:24px;
+  }
+  .result-msg.win{color:var(--teal);}
+  .result-msg.lose{color:var(--danger);}
+  .result-msg.draw{color:var(--muted);}
+  .stat-row{
+    display:flex;justify-content:center;gap:22px;margin-top:14px;
+    font-family:var(--mono);font-size:12px;color:var(--muted);
+  }
+  .stat-row b{color:var(--ink);font-size:14px;display:block;font-family:var(--body);}
+
+  .match-overlay{
+    position:absolute;inset:0;
+    background:rgba(11,11,14,0.92);
+    display:none;align-items:center;justify-content:center;
+    flex-direction:column;gap:6px;padding:24px;
+    border-radius:16px;
+  }
+  .match-overlay.show{display:flex;}
+  .match-overlay .mo-emoji{font-size:42px;margin-bottom:4px;}
+  .match-overlay .mo-title{
+    font-family:var(--display);font-size:22px;font-weight:600;
+  }
+  .match-overlay .mo-title.win{color:var(--teal);}
+  .match-overlay .mo-title.lose{color:var(--danger);}
+  .match-overlay .mo-score{
+    font-family:var(--mono);font-size:13px;color:var(--muted);margin-bottom:14px;
+  }
+  .match-overlay button{
+    background:var(--gold);color:#0b0b0e;font-weight:600;
+    padding:11px 22px;border-radius:10px;font-size:14px;
+  }
+</style>
+</head>
+
+<body>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyB0LRiIpNwdcCkS4Y5Dz4pP9zcLoadO2Xk",
+  authDomain: "taskflow-7cb3b.firebaseapp.com",
+  projectId: "taskflow-7cb3b",
+  storageBucket: "taskflow-7cb3b.firebasestorage.app",
+  messagingSenderId: "811223035419",
+  appId: "1:811223035419:web:08b972916827147bc2d2be"
+};
+firebase.initializeApp(firebaseConfig);
+</script>
+
+<div class="wrap">
+
+  <div class="top">
+    <div class="brand">AI GAME BUILDER · PROTO</div>
+    <div class="progress-track" id="progressTrack"></div>
+  </div>
+
+  <!-- INTRO -->
+  <section class="step" data-step="0">
+    <div class="intro">
+      <div class="intro-eyebrow">AI GAME BUILDER · 시작하기 전에</div>
+      <h1 class="intro-title">AI를 처음 써보는 사람을 위한<br><em>인터랙티브 제작 놀이터</em></h1>
+      <p class="intro-body">이건 "누르면 게임이 뚝딱 나오는" 도구가 아니에요. 체크박스를 몇 번 누르는 것만으로 직접 코드를 만들고, 그 코드가 실제로 어떻게 움직이는지 눈으로 확인하면서 배우는 공간이에요. 개발을 몰라도 괜찮아요 — 오히려 그런 분들을 위해 만들었어요.</p>
+
+      <div class="intro-points">
+        <div class="intro-point">
+          <div class="intro-point-mark">01</div>
+          <div class="intro-point-text"><b>코드 한 줄이 이런 역할을 하는구나</b> — 완성된 코드를 클릭하면 바로 옆에서 설명해줘요.</div>
+        </div>
+        <div class="intro-point">
+          <div class="intro-point-mark">02</div>
+          <div class="intro-point-text"><b>기능을 켜면 코드도 이렇게 달라지는구나</b> — 켜기 전/후 코드를 나란히 비교할 수 있어요.</div>
+        </div>
+        <div class="intro-point">
+          <div class="intro-point-mark">03</div>
+          <div class="intro-point-text"><b>이게 진짜로 이렇게 동작하는구나</b> — 마지막엔 내가 고른 것들이 실제로 눌리는 게임이 돼요.</div>
+        </div>
+      </div>
+
+      <div class="intro-note">선택만 하면, 만들면서 배울 수 있어요. 결과물보다 그 과정이 이 프로젝트의 핵심이에요.</div>
+
+      <button class="btn-primary intro-cta" onclick="goStep(1)">AI와 함께 첫 작품 만들어보기 →</button>
+    </div>
+  </section>
+
+  <!-- STEP 1 -->
+  <section class="step" data-step="1">
+    <div class="step-eyebrow">STEP 1 / 6</div>
+    <h2 class="step-title">어떤 게임을 만들고 싶나요?</h2>
+    <p class="step-desc">지금은 가위바위보만 체험할 수 있어요. 나머지는 이 흐름이 검증되면 순서대로 열릴 예정입니다.</p>
+    <div class="options" id="gameOptions"></div>
+    <div class="nav">
+      <span></span>
+      <button class="btn-primary" id="next1" disabled>다음</button>
+    </div>
+  </section>
+
+  <!-- STEP 2 -->
+  <section class="step" data-step="2">
+    <div class="step-eyebrow">STEP 2 / 6</div>
+    <h2 class="step-title">캐릭터를 선택하세요</h2>
+    <p class="step-desc">미리보기 화면에 표시될 내 캐릭터예요.</p>
+    <div class="options" id="charOptions"></div>
+    <div class="nav">
+      <button class="btn-ghost" onclick="goStep(1)">이전</button>
+      <button class="btn-primary" id="next2" disabled>다음</button>
+    </div>
+  </section>
+
+  <!-- STEP 3 -->
+  <section class="step" data-step="3">
+    <div class="step-eyebrow">STEP 3 / 6</div>
+    <h2 class="step-title">넣고 싶은 기능을 고르세요</h2>
+    <p class="step-desc">체크한 만큼 코드가 늘어나요. 어떤 기능이 어떤 코드를 만드는지 이후 단계에서 직접 확인할 수 있어요.</p>
+    <div class="options" id="featureOptions" style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px 16px;"></div>
+    <div class="nav">
+      <button class="btn-ghost" onclick="goStep(2)">이전</button>
+      <button class="btn-primary" id="next3">AI에게 만들어달라고 하기</button>
+    </div>
+  </section>
+
+  <!-- STEP 4 -->
+  <section class="step" data-step="4">
+    <div class="step-eyebrow">STEP 4 / 6</div>
+    <h2 class="step-title">AI가 코드를 만드는 중이에요</h2>
+    <p class="step-desc">그냥 로딩만 보여주지 않아요. 지금 어떤 부분을 만들고 있는지 실시간으로 보여줄게요.</p>
+    <div class="console" id="consoleBox"></div>
+    <div class="nav">
+      <span></span>
+      <button class="btn-primary" id="next4" disabled>코드 확인하기</button>
+    </div>
+  </section>
+
+  <!-- STEP 5 -->
+  <section class="step" data-step="5">
+    <div class="step-eyebrow">STEP 5 / 6</div>
+    <h2 class="step-title">완성된 코드예요</h2>
+    <p class="step-desc">파일별로 접혀 있어요. <b style="color:var(--ink)">펼쳐보기</b>를 누르면 실제 코드가 나오고, <b style="color:var(--ink)">코드 한 줄을 클릭</b>하면 무슨 역할인지 바로 설명해줘요.</p>
+    <div id="codeFiles"></div>
+    <div class="explain-box" id="explainBox">
+      <div class="who">🤖 AI 해설</div>
+      <div id="explainText"></div>
+    </div>
+    <div class="nav">
+      <button class="btn-ghost" onclick="goStep(3)">기능 다시 고르기</button>
+      <button class="btn-primary" onclick="goStep(6)">완성! 미리보기로 →</button>
+    </div>
+  </section>
+
+  <!-- STEP 6 : preview -->
+  <section class="step" data-step="6">
+    <div class="step-eyebrow">완성</div>
+    <h2 class="step-title">내가 만든 가위바위보</h2>
+    <p class="step-desc">방금 그 코드가 실제로 이렇게 동작해요. 직접 눌러서 플레이해보세요.</p>
+
+    <div class="preview-frame">
+      <div class="match-tally" id="matchTally"></div>
+      <div class="rps-arena">
+        <div class="rps-slot" id="meSlot">🙂</div>
+        <div class="vs">VS</div>
+        <div class="rps-slot" id="cpuSlot">🤖</div>
+      </div>
+      <div class="rps-choices" id="rpsChoices"></div>
+      <div class="result-msg" id="resultMsg"></div>
+      <div class="stat-row" id="statRow"></div>
+
+      <div class="match-overlay" id="matchOverlay">
+        <div class="mo-emoji" id="moEmoji">🏆</div>
+        <div class="mo-title" id="moTitle">승리했어요!</div>
+        <div class="mo-score" id="moScore">2 : 0</div>
+        <button onclick="restartMatch()">다시 대결하기</button>
+      </div>
+    </div>
+
+    <div class="nav">
+      <button class="btn-ghost" onclick="resetAll();goStep(0);">처음부터 다시 만들기</button>
+      <span></span>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* ---------------------------------------------------------
+   데이터 정의
+--------------------------------------------------------- */
+const GAMES = [
+  {id:'rps', name:'가위바위보', sub:'80~120줄 · 지금 만들 수 있어요', emoji:'✊', ready:true},
+  {id:'rpg', name:'미니 RPG', sub:'준비 중', emoji:'🗡️', ready:false},
+  {id:'quiz', name:'퀴즈 게임', sub:'준비 중', emoji:'❓', ready:false},
+  {id:'maze', name:'미로 게임', sub:'준비 중', emoji:'🧩', ready:false},
+];
+
+const CHARS = [
+  {id:'cat', name:'고양이', emoji:'🐱'},
+  {id:'dog', name:'강아지', emoji:'🐶'},
+  {id:'human', name:'사람', emoji:'🧑'},
+  {id:'robot', name:'로봇', emoji:'🤖'},
+];
+
+const FEATURES = [
+  {id:'score', name:'점수판', desc:'이길 때마다 점수가 쌓여요.', thinking:'점수 시스템 생성'},
+  {id:'streak', name:'연승 기록', desc:'연속으로 이긴 횟수를 보여줘요.', thinking:'연승 카운터 생성'},
+  {id:'sound', name:'효과음', desc:'이기고 질 때 짧은 소리가 나요.', thinking:'효과음 재생 로직 생성'},
+  {id:'anim', name:'선택 애니메이션', desc:'버튼을 누르면 살짝 튀는 효과가 나요.', thinking:'애니메이션 스타일 생성'},
+  {id:'best3', name:'3판 2선승제', desc:'무한 대결 대신 3판 안에 승부를 내요.', thinking:'라운드 제한 로직 생성'},
+];
+
+/* ---------------------------------------------------------
+   Firestore — 실제 코드/설명은 여기서 그때그때 받아옴
+   (get만 허용, list는 막혀있어서 통째로 못 긁어감)
+--------------------------------------------------------- */
+const db = (typeof firebase !== 'undefined') ? firebase.firestore() : null;
+const featureCache = {}; // id -> {thinking, code, before, after, explain}
+
+async function fetchFeatureContent(id){
+  if(featureCache[id]) return featureCache[id];
+  if(!db) throw new Error('Firestore 연결 안 됨');
+  const snap = await db.collection('gameFeatures').doc('rps-' + id).get();
+  if(!snap.exists) throw new Error(id + ' 문서 없음');
+  const data = snap.data();
+  featureCache[id] = data;
+  return data;
+}
+
+/* ---------------------------------------------------------
+   상태
+--------------------------------------------------------- */
+let state = {
+  game: 'rps',
+  char: null,
+  features: new Set(),  // 아무것도 기본으로 체크하지 않음 — 사용자가 고른 것만 반영
+  step: 1,
+};
+
+/* ---------------------------------------------------------
+   진행바
+--------------------------------------------------------- */
+function renderProgress(){
+  const track = document.getElementById('progressTrack');
+  track.style.visibility = state.step === 0 ? 'hidden' : 'visible';
+  track.innerHTML = '';
+  for(let i=1;i<=6;i++){
+    const d = document.createElement('div');
+    d.className = 'dot' + (i < state.step ? ' done' : i === state.step ? ' active' : '');
+    track.appendChild(d);
+  }
+}
+
+function goStep(n){
+  state.step = n;
+  document.querySelectorAll('.step').forEach(s=>{
+    s.classList.toggle('visible', Number(s.dataset.step) === n);
+  });
+  renderProgress();
+  window.scrollTo({top:0, behavior:'smooth'});
+  if(n===4) runThinking();
+  if(n===6) initPreview();
+}
+
+/* ---------------------------------------------------------
+   STEP 1
+--------------------------------------------------------- */
+function renderGames(){
+  const box = document.getElementById('gameOptions');
+  box.innerHTML = '';
+  GAMES.forEach(g=>{
+    const el = document.createElement('div');
+    el.className = 'opt' + (!g.ready ? ' disabled' : '') + (state.game===g.id?' selected':'');
+    el.innerHTML = `
+      <div class="opt-emoji">${g.emoji}</div>
+      <div class="opt-body">
+        <div class="opt-name">${g.name}</div>
+        <div class="opt-sub">${g.sub}</div>
+      </div>
+      <div class="badge ${g.ready?'':'soon'}">${g.ready?'플레이 가능':'준비중'}</div>
+    `;
+    if(g.ready){
+      el.onclick = ()=>{ state.game=g.id; renderGames(); document.getElementById('next1').disabled=false; };
+    }
+    box.appendChild(el);
+  });
+}
+document.getElementById('next1').onclick = ()=>goStep(2);
+
+/* ---------------------------------------------------------
+   STEP 2
+--------------------------------------------------------- */
+function renderChars(){
+  const box = document.getElementById('charOptions');
+  box.innerHTML = '';
+  CHARS.forEach(c=>{
+    const el = document.createElement('div');
+    el.className = 'opt' + (state.char===c.id?' selected':'');
+    el.innerHTML = `
+      <div class="opt-emoji">${c.emoji}</div>
+      <div class="opt-body"><div class="opt-name">${c.name}</div></div>
+    `;
+    el.onclick = ()=>{ state.char=c.id; renderChars(); document.getElementById('next2').disabled=false; };
+    box.appendChild(el);
+  });
+}
+document.getElementById('next2').onclick = ()=>goStep(3);
+
+/* ---------------------------------------------------------
+   STEP 3
+--------------------------------------------------------- */
+function renderFeatures(){
+  const box = document.getElementById('featureOptions');
+  box.innerHTML = '';
+  FEATURES.forEach(f=>{
+    const row = document.createElement('div');
+    row.className = 'check-row';
+    const on = state.features.has(f.id);
+    row.innerHTML = `
+      <div class="box ${on?'on':''}"></div>
+      <div>
+        <div class="check-name">${f.name}</div>
+        <div class="check-desc">${f.desc}</div>
+      </div>
+    `;
+    row.onclick = ()=>{
+      if(state.features.has(f.id)) state.features.delete(f.id);
+      else state.features.add(f.id);
+      renderFeatures();
+    };
+    box.appendChild(row);
+  });
+}
+document.getElementById('next3').onclick = ()=>goStep(4);
+document.getElementById('next4').onclick = ()=>goStep(5);
+
+/* ---------------------------------------------------------
+   STEP 4 — 생각하는 과정 연출
+--------------------------------------------------------- */
+function runThinking(){
+  const box = document.getElementById('consoleBox');
+  box.innerHTML = '';
+  document.getElementById('next4').disabled = true;
+
+  const chosen = FEATURES.filter(f=>state.features.has(f.id));
+
+  // 화면 연출과 동시에 실제 데이터도 Firestore에서 받아옴
+  const fetchJobs = Promise.all(chosen.map(f=>fetchFeatureContent(f.id).catch(err=>{
+    console.warn('fetch 실패:', f.id, err);
+    return null;
+  })));
+
+  const lines = [
+    {text:'게임 구조를 분석하고 있습니다...', ok:false},
+    {text:'가위바위보 기본 판정 로직 생성', ok:true},
+    ...chosen.map(f=>({text:f.thinking, ok:true})),
+    {text:'HTML 화면 구성', ok:true},
+    {text:'CSS 스타일 적용', ok:true},
+    {text:'파일 정리 중...', ok:false},
+  ];
+
+  let i = 0;
+  function step(){
+    if(i>=lines.length){
+      fetchJobs.then(()=>{
+        document.getElementById('next4').disabled = false;
+        buildCodeFiles();
+      });
+      return;
+    }
+    const l = lines[i];
+    const row = document.createElement('div');
+    row.className = 'console-line' + (l.ok?' ok':'');
+    row.style.animationDelay = '0s';
+    row.innerHTML = `<span class="mark">${l.ok?'✔':'▸'}</span><span>${l.text}${!l.ok?' <span class="cursor-blink"></span>':''}</span>`;
+    box.appendChild(row);
+    box.scrollTop = box.scrollHeight;
+    i++;
+    setTimeout(step, l.ok ? 420 : 550);
+  }
+  step();
+}
+
+/* ---------------------------------------------------------
+   STEP 5 — 코드 + 해설
+--------------------------------------------------------- */
+function buildCodeFiles(){
+  const chosen = FEATURES.filter(f=>state.features.has(f.id));
+  const wrap = document.getElementById('codeFiles');
+  wrap.innerHTML = '';
+
+  const baseCode =
+`<span class="tok-cmt">// 가위바위보 기본 판정</span>
+<span class="tok-kw">function</span> <span class="tok-fn">judge</span>(me, cpu) {
+  <span class="tok-kw">if</span> (me === cpu) <span class="tok-kw">return</span> <span class="tok-str">'draw'</span>;
+  <span class="tok-kw">const</span> beats = { '✊':'✌️', '✌️':'🖐️', '🖐️':'✊' };
+  <span class="tok-kw">return</span> beats[me] === cpu ? <span class="tok-str">'win'</span> : <span class="tok-str">'lose'</span>;
+}`;
+
+  const file = makeFileBlock('game.js', baseCode, [
+    {label:'게임 기본 판정 로직', text:'me(내 선택)와 cpu(상대 선택)를 비교해서 비기는지, 이기는지, 지는지를 계산하는 부분이에요. beats 객체는 "무엇이 무엇을 이기는지" 규칙을 담고 있어요.'}
+  ]);
+  wrap.appendChild(file);
+
+  chosen.forEach(f=>{
+    const data = featureCache[f.id];
+    if(!data){
+      const errBox = document.createElement('div');
+      errBox.className = 'code-file';
+      errBox.innerHTML = `<div class="code-file-head"><span><b>${f.name}.js</b> · 불러오기 실패</span></div>
+        <div style="padding:14px 16px;font-size:12.5px;color:var(--danger);">이 기능의 코드를 서버에서 불러오지 못했어요. 잠시 후 다시 시도해주세요.</div>`;
+      wrap.appendChild(errBox);
+      return;
+    }
+    const fb = makeFileBlock(f.name + '.js', data.code, [{label:f.name, text:data.explain}]);
+    wrap.appendChild(fb);
+    if(data.before && data.after){
+      wrap.appendChild(makeCompareBlock(f, data));
+    }
+  });
+}
+
+function diffLinesToHtml(str){
+  return str.split('\n').map(line=>{
+    const m = line.match(/^\[\[(.*)\]\]$/);
+    if(m) return `<span class="diff-plus-line">${m[1]}</span>`;
+    return line;
+  }).join('\n');
+}
+
+function makeCompareBlock(f, data){
+  const wrap = document.createElement('div');
+  const uid = 'c'+Math.random().toString(36).slice(2,8);
+  const toggle = document.createElement('button');
+  toggle.className = 'compare-toggle';
+  toggle.innerHTML = `⇄ ${f.name} 켜기 전 / 후 코드 비교`;
+  const panel = document.createElement('div');
+  panel.className = 'compare-panel';
+  panel.id = uid;
+  panel.innerHTML = `
+    <div class="compare-box">
+      <div class="compare-label">기존 코드 · ${f.name} 켜기 전</div>
+      <pre class="compare-code">${diffLinesToHtml(data.before)}</pre>
+    </div>
+    <div class="compare-box is-new">
+      <div class="compare-label">새 코드 · ${f.name} 켠 후 (추가된 줄이 강조돼요)</div>
+      <pre class="compare-code">${diffLinesToHtml(data.after)}</pre>
+    </div>
+    <div class="compare-note">"${f.name}" 체크박스를 켜니까 이 줄이 새로 생겼어요.</div>
+  `;
+  toggle.onclick = ()=>{
+    panel.classList.toggle('open');
+    toggle.innerHTML = panel.classList.contains('open')
+      ? `⇄ 비교 접기`
+      : `⇄ ${f.name} 켜기 전 / 후 코드 비교`;
+  };
+  wrap.appendChild(toggle);
+  wrap.appendChild(panel);
+  return wrap;
+}
+
+function makeFileBlock(title, codeHtml, notes){
+  const el = document.createElement('div');
+  el.className = 'code-file';
+  const uid = 'f'+Math.random().toString(36).slice(2,8);
+  el.innerHTML = `
+    <div class="code-file-head">
+      <span><b>${title}</b> · 코드 ${codeHtml.split(String.fromCharCode(10)).length}줄</span>
+      <button data-target="${uid}">펼쳐보기</button>
+    </div>
+    <pre class="code-body" id="${uid}"><code class="code-line" data-note="0">${codeHtml.replace(/\n/g,'</code>\n<code class="code-line" data-note="0">')}</code></pre>
+  `;
+  const btn = el.querySelector('button');
+  const pre = el.querySelector('.code-body');
+  btn.onclick = ()=>{
+    pre.classList.toggle('open');
+    btn.textContent = pre.classList.contains('open') ? '접기' : '펼쳐보기';
+  };
+  el.querySelectorAll('.code-line').forEach(line=>{
+    line.onclick = ()=>{
+      document.querySelectorAll('.code-line.picked').forEach(l=>l.classList.remove('picked'));
+      line.classList.add('picked');
+      const eb = document.getElementById('explainBox');
+      const note = notes[0];
+      document.getElementById('explainText').textContent = note.text;
+      eb.classList.add('show');
+      eb.scrollIntoView({behavior:'smooth', block:'nearest'});
+    };
+  });
+  return el;
+}
+
+/* ---------------------------------------------------------
+   STEP 6 — 실제 동작하는 미리보기
+--------------------------------------------------------- */
+const CHAR_EMOJI = Object.fromEntries(CHARS.map(c=>[c.id,c.emoji]));
+let previewStats = {my:0, cpu:0, streak:0};
+let matchState = {my:0, cpu:0, over:false};
+
+function initPreview(){
+  previewStats = {my:0, cpu:0, streak:0};
+  matchState = {my:0, cpu:0, over:false};
+  document.getElementById('meSlot').textContent = CHAR_EMOJI[state.char] || '🙂';
+  document.getElementById('resultMsg').textContent = '';
+  document.getElementById('resultMsg').className = 'result-msg';
+  document.getElementById('matchOverlay').classList.remove('show');
+  document.getElementById('rpsChoices').classList.remove('locked');
+  document.getElementById('rpsChoices').classList.toggle('anim-on', state.features.has('anim'));
+  renderChoices();
+  renderStats();
+  renderMatchTally();
+}
+
+function renderChoices(){
+  const box = document.getElementById('rpsChoices');
+  box.innerHTML = '';
+  ['✊','✌️','🖐️'].forEach(h=>{
+    const b = document.createElement('button');
+    b.textContent = h;
+    b.onclick = ()=>play(h);
+    box.appendChild(b);
+  });
+}
+
+function play(myHand){
+  if(matchState.over) return;
+
+  const options = ['✊','✌️','🖐️'];
+  const cpuHand = options[Math.floor(Math.random()*3)];
+  document.getElementById('cpuSlot').textContent = cpuHand;
+
+  const beats = {'✊':'✌️','✌️':'🖐️','🖐️':'✊'};
+  let result;
+  if(myHand === cpuHand) result = 'draw';
+  else result = beats[myHand] === cpuHand ? 'win' : 'lose';
+
+  if(state.features.has('score')){
+    if(result==='win') previewStats.my++;
+    if(result==='lose') previewStats.cpu++;
+  }
+  if(state.features.has('streak')){
+    previewStats.streak = result==='win' ? previewStats.streak+1 : 0;
+  }
+  if(state.features.has('sound')) beep(result==='win' ? 880 : result==='lose' ? 220 : 440);
+
+  const msg = document.getElementById('resultMsg');
+  msg.textContent = result==='win' ? '이겼어요! 🎉' : result==='lose' ? '졌어요 😵' : '비겼어요';
+  msg.className = 'result-msg ' + result;
+
+  renderStats();
+
+  if(state.features.has('best3')){
+    if(result==='win') matchState.my++;
+    if(result==='lose') matchState.cpu++;
+    renderMatchTally();
+    if(matchState.my===2 || matchState.cpu===2){
+      matchState.over = true;
+      endMatch(matchState.my===2 ? 'win' : 'lose');
+    }
+  }
+}
+
+function renderMatchTally(){
+  const el = document.getElementById('matchTally');
+  if(!state.features.has('best3')){
+    el.classList.remove('show');
+    return;
+  }
+  el.classList.add('show');
+  el.textContent = `3판 2선승 · ${matchState.my} : ${matchState.cpu}`;
+}
+
+function endMatch(outcome){
+  document.getElementById('rpsChoices').classList.add('locked');
+  const overlay = document.getElementById('matchOverlay');
+  const title = document.getElementById('moTitle');
+  const emoji = document.getElementById('moEmoji');
+  const score = document.getElementById('moScore');
+  if(outcome==='win'){
+    emoji.textContent = '🏆';
+    title.textContent = '승리했어요!';
+    title.className = 'mo-title win';
+  } else {
+    emoji.textContent = '💔';
+    title.textContent = '패배했어요';
+    title.className = 'mo-title lose';
+  }
+  score.textContent = `최종 스코어 ${matchState.my} : ${matchState.cpu}`;
+  overlay.classList.add('show');
+}
+
+function restartMatch(){
+  matchState = {my:0, cpu:0, over:false};
+  document.getElementById('matchOverlay').classList.remove('show');
+  document.getElementById('rpsChoices').classList.remove('locked');
+  document.getElementById('resultMsg').textContent = '';
+  document.getElementById('resultMsg').className = 'result-msg';
+  renderMatchTally();
+}
+
+function beep(freq){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    osc.frequency.value = freq;
+    osc.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.12);
+  }catch(e){}
+}
+
+function renderStats(){
+  const row = document.getElementById('statRow');
+  const parts = [];
+  if(state.features.has('score')) parts.push(`<div><b>${previewStats.my}</b>승</div>`);
+  if(state.features.has('streak')) parts.push(`<div><b>${previewStats.streak}</b>연승</div>`);
+  row.innerHTML = parts.join('');
+}
+
+function resetAll(){
+  state = {game:'rps', char:null, features:new Set(), step:1};
+  renderGames(); renderChars(); renderFeatures();
+  document.getElementById('next1').disabled = true;
+  document.getElementById('next2').disabled = true;
+}
+
+/* init */
+renderGames();
+renderChars();
+renderFeatures();
+renderProgress();
+goStep(0);
+</script>
+</body>
+</html>

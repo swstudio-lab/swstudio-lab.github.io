@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>게임 · 나의 프로젝트 작업실</title>
+<title>AI 실험실 · 나의 프로젝트 작업실</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
@@ -25,33 +25,22 @@
 
 <nav class="topnav pixel">
     <a href="index.html">홈</a>
-    <a href="games.html" class="active">게임</a>
+    <a href="games.html">게임</a>
     <a href="works.html">작업물</a>
     <a href="etc.html">기타</a>
-    <a href="ai-lab.html">AI 실험실</a>
+    <a href="ai-lab.html" class="active">AI 실험실</a>
 </nav>
 
 <header class="hero">
-    <div class="eyebrow pixel">GAMES</div>
-    <h1>직접 만든 <span>게임들</span></h1>
-    <p>클릭하면 바로 플레이할 수 있어요.</p>
+    <div class="eyebrow pixel">AI&nbsp;LAB</div>
+    <h1>AI를 처음 써보는 사람을 위한 <span>제작 놀이터</span></h1>
+    <p>체크박스 몇 번으로 직접 코드를 만들고, 그 코드가 실제로 어떻게 동작하는지 확인하면서 배우는 공간이에요.</p>
     <div class="hero-rule"></div>
 </header>
 
 <main>
-    <div class="shelf-label pixel" style="color:var(--gold); font-size:13px;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8b93f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>
-        혼자 플레이
-    </div>
-    <div class="grid" id="solo-grid"><div class="section-loading">불러오는 중...</div></div>
-    <div class="pagination" id="solo-pagination" style="display:none;"></div>
-
-    <div class="shelf-label pixel" style="color:var(--gold); font-size:13px; margin-top:44px;">
-        <svg width="18" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8b93f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3.5"/><path d="M2 21c0-3.9 2.7-6 6-6s6 2.1 6 6"/><circle cx="17" cy="9" r="3"/><path d="M13.5 21c0-3.3 1.9-5.2 3.5-5.6"/><path d="M16 15.4c2.6 0 4.5 2.1 4.5 5.6"/></svg>
-        함께 플레이 (2인 이상)
-    </div>
-    <div class="grid" id="multi-grid"><div class="section-loading">불러오는 중...</div></div>
-    <div class="pagination" id="multi-pagination" style="display:none;"></div>
+    <div class="grid" id="items-grid"><div class="section-loading">불러오는 중...</div></div>
+    <div class="pagination" id="items-pagination" style="display:none;"></div>
 </main>
 
 <footer>
@@ -92,10 +81,10 @@ function iconSvg(key, color, size){
 }
 function escHtml(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-let soloPage = 1, multiPage = 1;
+let page = 1;
 
 function cardHtml(it){
-    const tagLabel = it.tag === 'wip' ? '제작중' : 'PLAYABLE';
+    const tagLabel = it.tag === 'wip' ? '제작중' : 'READY';
     const tagClass = it.tag === 'wip' ? 'wip' : 'playable';
     const color = it.tag === 'wip' ? '#d9642f' : '#e8b93f';
     if (it.tag === 'wip' || !it.href) {
@@ -113,7 +102,7 @@ function cardHtml(it){
             <div class="cart-icon">${iconSvg(it.icon, color)}</div>
             <h3>${escHtml(it.title)}</h3>
             <p>${escHtml(it.desc)}</p>
-            <div class="cart-play pixel">▶ PLAY</div>
+            <div class="cart-play pixel">→ 열기</div>
         </a>`;
 }
 const EMPTY_SLOT_HTML = `
@@ -126,9 +115,10 @@ const EMPTY_SLOT_HTML = `
         <div class="pixel" style="font-size:10px; letter-spacing:0.05em;">빈 슬롯<br>다음에 만들 걸 여기에</div>
     </div>`;
 
-function renderSection(items, page, gridId, pagId, setPage){
-    const gridEl = document.getElementById(gridId);
-    const pagEl = document.getElementById(pagId);
+function renderAll(allItems){
+    const items = allItems.filter(it => it.category==='ai-lab' && it.published).sort((a,b)=>(a.order||0)-(b.order||0));
+    const gridEl = document.getElementById('items-grid');
+    const pagEl = document.getElementById('items-pagination');
     const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
     const clampedPage = Math.min(page, totalPages);
     const start = (clampedPage - 1) * PAGE_SIZE;
@@ -141,22 +131,15 @@ function renderSection(items, page, gridId, pagId, setPage){
     if (totalPages > 1) {
         pagEl.style.display = 'flex';
         pagEl.innerHTML = `
-            <button id="${pagId}-prev" ${clampedPage<=1?'disabled':''}>← 이전</button>
+            <button id="pg-prev" ${clampedPage<=1?'disabled':''}>← 이전</button>
             <span class="pg-label">${clampedPage} / ${totalPages}</span>
-            <button id="${pagId}-next" ${clampedPage>=totalPages?'disabled':''}>다음 →</button>
+            <button id="pg-next" ${clampedPage>=totalPages?'disabled':''}>다음 →</button>
         `;
-        document.getElementById(`${pagId}-prev`).addEventListener('click', () => setPage(clampedPage - 1));
-        document.getElementById(`${pagId}-next`).addEventListener('click', () => setPage(clampedPage + 1));
+        document.getElementById('pg-prev').addEventListener('click', () => { page = clampedPage - 1; renderAll(allItems); });
+        document.getElementById('pg-next').addEventListener('click', () => { page = clampedPage + 1; renderAll(allItems); });
     } else {
         pagEl.style.display = 'none';
     }
-}
-
-function renderAll(allItems){
-    const solo = allItems.filter(it => it.category==='games' && it.subcategory==='solo' && it.published).sort((a,b)=>(a.order||0)-(b.order||0));
-    const multi = allItems.filter(it => it.category==='games' && it.subcategory==='multi' && it.published).sort((a,b)=>(a.order||0)-(b.order||0));
-    renderSection(solo, soloPage, 'solo-grid', 'solo-pagination', p => { soloPage = p; renderAll(allItems); });
-    renderSection(multi, multiPage, 'multi-grid', 'multi-pagination', p => { multiPage = p; renderAll(allItems); });
 }
 
 col.onSnapshot(snap => {

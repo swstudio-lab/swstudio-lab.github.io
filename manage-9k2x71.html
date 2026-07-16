@@ -94,6 +94,7 @@
             <option value="games">게임</option>
             <option value="works">작업물</option>
             <option value="etc">기타</option>
+            <option value="ai-lab">AI 실험실</option>
         </select>
         <div id="f-sub-wrap">
             <label class="f-label">하위 분류</label>
@@ -151,7 +152,8 @@ const ICON_PATHS = {
     card: '<rect x="4" y="3" width="10" height="16" rx="2" transform="rotate(-8 9 11)"/><rect x="11" y="4" width="10" height="16" rx="2" transform="rotate(8 16 12)"/><circle cx="16" cy="11" r="1.4" fill="C"/>',
     clock: '<circle cx="12" cy="12" r="8"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="12" x2="15" y2="14"/>',
     box: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16M9 9v11"/>',
-    star: '<path d="M12 3l2.6 5.9L21 9.6l-4.8 4.2 1.4 6.6L12 17l-5.6 3.4 1.4-6.6L3 9.6l6.4-.7z"/>'
+    star: '<path d="M12 3l2.6 5.9L21 9.6l-4.8 4.2 1.4 6.6L12 17l-5.6 3.4 1.4-6.6L3 9.6l6.4-.7z"/>',
+    sparkle: '<path d="M12 4l1.5 5.5L19 11l-5.5 1.5L12 18l-1.5-5.5L5 11l5.5-1.5L12 4z"/>'
 };
 function iconSvg(key, color, size){
     size = size || 22;
@@ -208,17 +210,17 @@ document.getElementById('add-btn').addEventListener('click', () => {
     }).catch(() => toast('추가 실패'));
 });
 
-const CAT_LABEL = { games:'게임', works:'작업물', etc:'기타' };
+const CAT_LABEL = { games:'게임', works:'작업물', etc:'기타', 'ai-lab':'AI 실험실' };
 const SUB_LABEL = { solo:'혼자', multi:'함께' };
 
 function renderItemList(items){
     const listEl = document.getElementById('item-list');
     if (items.length === 0) { listEl.innerHTML = '<p style="color:var(--muted); font-size:12.5px;">아직 항목이 없어요.</p>'; return; }
-    const groups = { games:[], works:[], etc:[] };
+    const groups = { games:[], works:[], etc:[], 'ai-lab':[] };
     items.forEach(it => { (groups[it.category] || groups.etc).push(it); });
 
     let html = '';
-    ['games','works','etc'].forEach(cat => {
+    ['games','works','etc','ai-lab'].forEach(cat => {
         if (groups[cat].length === 0) return;
         html += `<div class="cat-group-title pixel">${CAT_LABEL[cat]}</div>`;
         groups[cat].sort((a,b)=>(a.order||0)-(b.order||0)).forEach(it => {
