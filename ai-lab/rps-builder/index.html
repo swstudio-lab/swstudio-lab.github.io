@@ -216,6 +216,13 @@
     background:#0a0a0d;border:1px solid var(--line);border-radius:12px;
     overflow:hidden;margin-bottom:14px;
   }
+  .full-code-file{
+    border:1px solid var(--gold-dim);
+    box-shadow:0 0 0 1px rgba(224,169,74,0.08);
+    margin-bottom:22px;
+  }
+  .full-code-file .code-file-head{ background:rgba(224,169,74,0.06); }
+  .full-code-file .code-file-head b{ color:var(--gold); }
   .code-file-head{
     display:flex;align-items:center;justify-content:space-between;
     padding:12px 16px;border-bottom:1px solid var(--line);
@@ -296,6 +303,12 @@
     width:84px;height:84px;border-radius:20px;background:var(--panel-2);
     border:1px solid var(--line);display:flex;align-items:center;justify-content:center;
     font-size:38px;
+  }
+  .rps-slot.shaking{ animation:rpsShake .28s ease-in-out infinite; border-color:var(--gold-dim); }
+  @keyframes rpsShake{
+    0%,100%{ transform:rotate(0deg) scale(1); }
+    25%{ transform:rotate(-8deg) scale(1.04); }
+    75%{ transform:rotate(8deg) scale(1.04); }
   }
   .vs{font-family:var(--mono);color:var(--muted);font-size:13px;}
   .match-tally{
@@ -455,6 +468,7 @@ firebase.initializeApp(firebaseConfig);
     <div class="step-eyebrow">STEP 5 / 6</div>
     <h2 class="step-title">완성된 코드예요</h2>
     <p class="step-desc">파일별로 접혀 있어요. <b style="color:var(--ink)">펼쳐보기</b>를 누르면 실제 코드가 나오고, <b style="color:var(--ink)">코드 한 줄을 클릭</b>하면 무슨 역할인지 바로 설명해줘요.</p>
+    <div id="fullCodeWrap"></div>
     <div id="codeFiles"></div>
     <div class="explain-box" id="explainBox">
       <div class="who">🤖 AI 해설</div>
@@ -547,7 +561,7 @@ async function fetchFeatureContent(id){
 --------------------------------------------------------- */
 let state = {
   game: 'rps',
-  char: null,
+  char: 'cat',  // 다중선택(기능)은 기본 없음, 단일선택(게임/캐릭터)은 첫 옵션이 기본 — 물론 바꿀 수 있음
   features: new Set(),  // 아무것도 기본으로 체크하지 않음 — 사용자가 고른 것만 반영
   step: 1,
 };
@@ -702,7 +716,9 @@ function runThinking(){
 function buildCodeFiles(){
   const chosen = FEATURES.filter(f=>state.features.has(f.id));
   const wrap = document.getElementById('codeFiles');
+  const fullWrap = document.getElementById('fullCodeWrap');
   wrap.innerHTML = '';
+  fullWrap.innerHTML = '';
 
   const baseCode =
 `<span class="tok-cmt">// 가위바위보 기본 판정</span>
@@ -711,11 +727,15 @@ function buildCodeFiles(){
   <span class="tok-kw">const</span> beats = { '✊':'✌️', '✌️':'🖐️', '🖐️':'✊' };
   <span class="tok-kw">return</span> beats[me] === cpu ? <span class="tok-str">'win'</span> : <span class="tok-str">'lose'</span>;
 }`;
+  const baseNote = 'me(내 선택)와 cpu(상대 선택)를 비교해서 비기는지, 이기는지, 지는지를 계산하는 부분이에요. beats 객체는 "무엇이 무엇을 이기는지" 규칙을 담고 있어요.';
 
   const file = makeFileBlock('game.js', baseCode, [
-    {label:'게임 기본 판정 로직', text:'me(내 선택)와 cpu(상대 선택)를 비교해서 비기는지, 이기는지, 지는지를 계산하는 부분이에요. beats 객체는 "무엇이 무엇을 이기는지" 규칙을 담고 있어요.'}
+    {label:'게임 기본 판정 로직', text:baseNote}
   ]);
   wrap.appendChild(file);
+
+  // 전체 코드 통합 블록에 쓸 섹션들 (기본 + 선택한 기능들)
+  const fullSections = [{ title:'game.js — 기본 판정', codeHtml: baseCode, note: baseNote }];
 
   chosen.forEach(f=>{
     const data = featureCache[f.id];
@@ -732,7 +752,50 @@ function buildCodeFiles(){
     if(data.before && data.after){
       wrap.appendChild(makeCompareBlock(f, data));
     }
+    fullSections.push({ title: f.name + '.js', codeHtml: data.code, note: data.explain });
   });
+
+  // 전체 코드 통합 블록은 맨 위에 삽입
+  fullWrap.appendChild(makeFullCodeBlock(fullSections));
+}
+
+function makeFullCodeBlock(sections){
+  const el = document.createElement('div');
+  el.className = 'code-file full-code-file';
+  const uid = 'full'+Math.random().toString(36).slice(2,8);
+  let totalLines = 0;
+  const bodyParts = sections.map((s, idx) => {
+    const lines = s.codeHtml.split('\n');
+    totalLines += lines.length;
+    const header = `<code class="code-line" data-note-idx="${idx}"><span class="tok-cmt">// ── ${s.title} ──</span></code>`;
+    const body = lines.map(l => `<code class="code-line" data-note-idx="${idx}">${l}</code>`).join('\n');
+    return header + '\n' + body;
+  });
+  el.innerHTML = `
+    <div class="code-file-head">
+      <span><b>📄 전체 코드</b> · 선택한 파일 ${sections.length}개 · 총 ${totalLines}줄</span>
+      <button data-target="${uid}">펼쳐보기</button>
+    </div>
+    <pre class="code-body" id="${uid}">${bodyParts.join('\n\n')}</pre>
+  `;
+  const btn = el.querySelector('button');
+  const pre = el.querySelector('.code-body');
+  btn.onclick = ()=>{
+    pre.classList.toggle('open');
+    btn.textContent = pre.classList.contains('open') ? '접기' : '펼쳐보기';
+  };
+  el.querySelectorAll('.code-line').forEach(line=>{
+    line.onclick = ()=>{
+      document.querySelectorAll('.code-line.picked').forEach(l=>l.classList.remove('picked'));
+      line.classList.add('picked');
+      const idx = +line.dataset.noteIdx;
+      const eb = document.getElementById('explainBox');
+      document.getElementById('explainText').textContent = sections[idx].note;
+      eb.classList.add('show');
+      eb.scrollIntoView({behavior:'smooth', block:'nearest'});
+    };
+  });
+  return el;
 }
 
 function diffLinesToHtml(str){
@@ -815,7 +878,10 @@ let matchState = {my:0, cpu:0, over:false};
 function initPreview(){
   previewStats = {my:0, cpu:0, streak:0};
   matchState = {my:0, cpu:0, over:false};
+  choiceBusy = false;
   document.getElementById('meSlot').textContent = CHAR_EMOJI[state.char] || '🙂';
+  document.getElementById('cpuSlot').textContent = '🤖';
+  document.getElementById('cpuSlot').classList.remove('shaking');
   document.getElementById('resultMsg').textContent = '';
   document.getElementById('resultMsg').className = 'result-msg';
   document.getElementById('matchOverlay').classList.remove('show');
@@ -837,13 +903,38 @@ function renderChoices(){
   });
 }
 
+let choiceBusy = false;
+
 function play(myHand){
-  if(matchState.over) return;
+  if(matchState.over || choiceBusy) return;
+  choiceBusy = true;
+  document.getElementById('rpsChoices').classList.add('locked');
 
   const options = ['✊','✌️','🖐️'];
   const cpuHand = options[Math.floor(Math.random()*3)];
-  document.getElementById('cpuSlot').textContent = cpuHand;
 
+  const cpuSlot = document.getElementById('cpuSlot');
+  const msg = document.getElementById('resultMsg');
+  msg.textContent = '';
+  msg.className = 'result-msg';
+  cpuSlot.textContent = '❔';
+  cpuSlot.classList.add('shaking');
+
+  // 1단계: 잠깐 흔들리며 긴장감 (700ms)
+  setTimeout(() => {
+    cpuSlot.classList.remove('shaking');
+    cpuSlot.textContent = cpuHand;
+
+    // 2단계: 상대 손 공개 후 살짝 텀을 두고 결과 판정 (450ms)
+    setTimeout(() => {
+      resolveRound(myHand, cpuHand);
+      choiceBusy = false;
+      if(!matchState.over) document.getElementById('rpsChoices').classList.remove('locked');
+    }, 450);
+  }, 700);
+}
+
+function resolveRound(myHand, cpuHand){
   const beats = {'✊':'✌️','✌️':'🖐️','🖐️':'✊'};
   let result;
   if(myHand === cpuHand) result = 'draw';
@@ -906,6 +997,7 @@ function endMatch(outcome){
 
 function restartMatch(){
   matchState = {my:0, cpu:0, over:false};
+  choiceBusy = false;
   document.getElementById('matchOverlay').classList.remove('show');
   document.getElementById('rpsChoices').classList.remove('locked');
   document.getElementById('resultMsg').textContent = '';
@@ -933,10 +1025,10 @@ function renderStats(){
 }
 
 function resetAll(){
-  state = {game:'rps', char:null, features:new Set(), step:1};
+  state = {game:'rps', char:'cat', features:new Set(), step:1};
   renderGames(); renderChars(); renderFeatures();
-  document.getElementById('next1').disabled = true;
-  document.getElementById('next2').disabled = true;
+  document.getElementById('next1').disabled = false;
+  document.getElementById('next2').disabled = false;
 }
 
 /* init */
@@ -944,6 +1036,8 @@ renderGames();
 renderChars();
 renderFeatures();
 renderProgress();
+document.getElementById('next1').disabled = false;
+document.getElementById('next2').disabled = false;
 goStep(0);
 </script>
 </body>
