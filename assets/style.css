@@ -36,7 +36,11 @@ nav.topnav{
     background:rgba(10,9,8,0.86);
     backdrop-filter:blur(6px);
     border-bottom:1px solid var(--border);
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
 }
+nav.topnav::-webkit-scrollbar{ display:none; }
 nav.topnav a{
     text-decoration:none;
     font-size:12px;
@@ -44,13 +48,21 @@ nav.topnav a{
     color:var(--muted);
     padding:9px 16px;
     border-radius:6px;
+    white-space:nowrap;
+    flex:0 0 auto;
     transition:color .15s ease, background .15s ease;
 }
 nav.topnav a:hover{ color:var(--text); background:rgba(255,255,255,0.04); }
 nav.topnav a.active{ color:var(--gold); background:rgba(232,185,63,0.1); }
 
+@media (max-width:480px){
+    nav.topnav{ gap:2px; padding:14px 14px; justify-content:flex-start; }
+    nav.topnav a{ font-size:11px; padding:8px 11px; }
+    .nav-drop-caret{ padding:8px 6px 8px 0; }
+}
+
 /* ---------- Nav 드롭다운 (게임 > 혼자/함께) ---------- */
-.nav-drop{ position:relative; display:inline-flex; align-items:center; }
+.nav-drop{ position:relative; display:inline-flex; align-items:center; flex:0 0 auto; }
 .nav-drop-caret{
     background:none; border:none; color:var(--muted); font-size:8px;
     padding:9px 8px 9px 0; margin-left:-6px; cursor:pointer; line-height:1;
