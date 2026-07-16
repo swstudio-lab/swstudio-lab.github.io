@@ -449,6 +449,7 @@ document.getElementById('gate-submit').addEventListener('click', () => {
     const pw = document.getElementById('gate-pw').value;
     if (!email || !pw) { showAdminError('이메일과 비밀번호를 입력해주세요'); return; }
     showAdminError('');
+    try { localStorage.setItem('adminEmailRemember', email); } catch(e) {}
     auth.signInWithEmailAndPassword(email, pw).catch(err => {
         showAdminError('로그인 실패: 이메일 또는 비밀번호를 확인해주세요');
     });
@@ -458,6 +459,18 @@ document.getElementById('gate-submit').addEventListener('click', () => {
         if (e.key === 'Enter') document.getElementById('gate-submit').click();
     });
 });
+
+// 저장해둔 이메일이 있으면 자동으로 채워넣고, 바로 비밀번호 칸에 커서를 둠
+(function fillRememberedEmail(){
+    try {
+        const saved = localStorage.getItem('adminEmailRemember');
+        if (saved) {
+            document.getElementById('gate-email').value = saved;
+            document.getElementById('gate-pw').focus();
+        }
+    } catch(e) {}
+})();
+
 document.getElementById('logout-btn').addEventListener('click', () => {
     auth.signOut();
 });
