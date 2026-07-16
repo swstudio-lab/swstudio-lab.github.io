@@ -13,10 +13,17 @@
 <style>
     .maint-banner{
         display:none; align-items:center; justify-content:center; gap:10px;
-        background:rgba(232,185,63,0.12); border-bottom:1px solid var(--border-lit);
-        color:var(--gold); font-size:12.5px; padding:10px 18px; text-align:center;
+        background:linear-gradient(90deg, var(--ember), var(--gold));
+        color:#1c1208; font-weight:700; font-size:14px; letter-spacing:0.01em;
+        padding:14px 20px; text-align:center;
+        box-shadow:0 2px 12px rgba(0,0,0,0.35);
     }
     .maint-banner.show{ display:flex; }
+    .maint-dot{
+        width:7px; height:7px; border-radius:50%; background:#1c1208; flex:0 0 auto;
+        animation:maintPulse 1.6s ease-in-out infinite;
+    }
+    @keyframes maintPulse{ 0%,100%{ opacity:1; } 50%{ opacity:0.25; } }
 </style>
 <style>
     .reveal{ opacity:0; transform:translateY(14px); animation:revealIn .6s ease forwards; }
@@ -146,7 +153,14 @@
     <a href="index.html" class="active">홈</a>
     <a href="ai-lab.html">AI 실험실</a>
     <a href="works.html">작업물</a>
-    <a href="games.html">게임</a>
+    <div class="nav-drop">
+        <a href="games.html">게임</a>
+        <button class="nav-drop-caret" aria-label="게임 하위메뉴 열기">▾</button>
+        <div class="nav-drop-menu">
+            <a href="games.html?mode=solo">🕹️ 혼자 플레이</a>
+            <a href="games.html?mode=multi">👥 함께 플레이</a>
+        </div>
+    </div>
     <a href="etc.html">기타</a>
 </nav>
 
@@ -250,7 +264,8 @@ try {
     db.collection('siteConfig').doc('main').onSnapshot(doc => {
         const banner = document.getElementById('maint-banner');
         if (doc.exists && doc.data().maintenance) {
-            banner.textContent = doc.data().maintenanceMsg || '🚧 홈페이지를 점검하고 있어요.';
+            const msg = doc.data().maintenanceMsg || '홈페이지를 점검하고 있어요.';
+            banner.innerHTML = `<span class="maint-dot"></span><span>${msg}</span>`;
             banner.classList.add('show');
         } else {
             banner.classList.remove('show');
@@ -336,8 +351,7 @@ document.getElementById('updates-list').innerHTML = UPDATES.map(u => `
 
 const ROADMAP = [
     { status:'진행 중', active:true, title:'AI Builder (AI 실험실 게임 빌더)', desc:'체크박스로 기능을 고르면 코드가 만들어지는 흐름을 게임별로 확장 중' },
-    { status:'기획 중', active:false, title:'Campus OS', desc:'다음 프로젝트 구상 단계' },
-    { status:'예정', active:false, title:'교육 콘텐츠', desc:'만드는 과정을 공유하는 콘텐츠 제작 예정' }
+    { status:'기획 중', active:false, title:'Campus OS', desc:'다음 프로젝트 구상 단계' }
 ];
 document.getElementById('roadmap-list').innerHTML = ROADMAP.map(r => `
     <div class="roadmap-item ${r.active?'active':''}">
@@ -348,5 +362,6 @@ document.getElementById('roadmap-list').innerHTML = ROADMAP.map(r => `
 `).join('');
 </script>
 
+<script src="assets/nav.js"></script>
 </body>
 </html>

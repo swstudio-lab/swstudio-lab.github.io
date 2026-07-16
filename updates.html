@@ -15,7 +15,14 @@
     <a href="index.html">홈</a>
     <a href="ai-lab.html">AI 실험실</a>
     <a href="works.html">작업물</a>
-    <a href="games.html">게임</a>
+    <div class="nav-drop">
+        <a href="games.html">게임</a>
+        <button class="nav-drop-caret" aria-label="게임 하위메뉴 열기">▾</button>
+        <div class="nav-drop-menu">
+            <a href="games.html?mode=solo">🕹️ 혼자 플레이</a>
+            <a href="games.html?mode=multi">👥 함께 플레이</a>
+        </div>
+    </div>
     <a href="etc.html">기타</a>
 </nav>
 
@@ -30,5 +37,6 @@
     made with care · updated as things get made
 </footer>
 
+<script src="assets/nav.js"></script>
 </body>
 </html>

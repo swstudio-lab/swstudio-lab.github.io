@@ -11,6 +11,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
+    .reveal{ opacity:0; transform:translateY(12px); animation:revealIn .5s ease forwards; }
+    @keyframes revealIn{ to{ opacity:1; transform:translateY(0); } }
     .pagination{ display:flex; align-items:center; justify-content:center; gap:14px; margin:20px 0 8px; }
     .pagination button{
         background:var(--surface); border:1px solid var(--border-lit); color:var(--gold);
@@ -27,11 +29,18 @@
     <a href="index.html">홈</a>
     <a href="ai-lab.html">AI 실험실</a>
     <a href="works.html" class="active">작업물</a>
-    <a href="games.html">게임</a>
+    <div class="nav-drop">
+        <a href="games.html">게임</a>
+        <button class="nav-drop-caret" aria-label="게임 하위메뉴 열기">▾</button>
+        <div class="nav-drop-menu">
+            <a href="games.html?mode=solo">🕹️ 혼자 플레이</a>
+            <a href="games.html?mode=multi">👥 함께 플레이</a>
+        </div>
+    </div>
     <a href="etc.html">기타</a>
 </nav>
 
-<header class="hero">
+<header class="hero reveal">
     <div class="eyebrow pixel">WORKS</div>
     <h1>사이드 <span>프로젝트</span></h1>
     <p>앱, 디자인, 도구처럼 실제로 완성한 결과물들을 모아두는 곳이에요.</p>
@@ -148,5 +157,6 @@ col.onSnapshot(snap => {
 });
 </script>
 
+<script src="assets/nav.js"></script>
 </body>
 </html>
