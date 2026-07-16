@@ -420,7 +420,7 @@ firebase.initializeApp(firebaseConfig);
 
       <div class="intro-fact">💡 <b>이 콘텐츠는 이렇게 만들어졌어요</b> — 체크박스를 누를 때마다 AI를 실시간으로 호출해서 코드를 새로 만드는 건 아니에요. 코드와 설명을 AI와 함께 미리 기획·검증해서 준비해둔 것을, 사용자가 고른 조합대로 보여주는 방식이에요.</div>
 
-      <button class="btn-primary intro-cta" onclick="goStep(1)">AI와 함께 첫 작품 만들어보기 →</button>
+      <button class="btn-primary intro-cta" onclick="if(window.gaEvent)gaEvent('create_start',{content:'rps-builder'});goStep(1)">AI와 함께 첫 작품 만들어보기 →</button>
     </div>
   </section>
 
@@ -484,7 +484,7 @@ firebase.initializeApp(firebaseConfig);
       <div id="explainText"></div>
     </div>
     <div class="nav">
-      <button class="btn-ghost" onclick="goStep(3)">기능 다시 고르기</button>
+      <button class="btn-ghost" onclick="if(window.gaEvent)gaEvent('service_edit_request',{content:'rps-builder'});goStep(3)">기능 다시 고르기</button>
       <button class="btn-primary" onclick="goStep(6)">완성! 미리보기로 →</button>
     </div>
   </section>
@@ -669,7 +669,10 @@ function renderFeatures(){
     box.appendChild(row);
   });
 }
-document.getElementById('next3').onclick = ()=>goStep(4);
+document.getElementById('next3').onclick = ()=>{
+  if(window.gaEvent) gaEvent('service_generate_start', {content:'rps-builder', feature_count: state.features.size});
+  goStep(4);
+};
 document.getElementById('next4').onclick = ()=>goStep(5);
 
 /* ---------------------------------------------------------
@@ -703,6 +706,7 @@ function runThinking(){
       fetchJobs.then(()=>{
         document.getElementById('next4').disabled = false;
         buildCodeFiles();
+        if(window.gaEvent) gaEvent('service_generate_complete', {content:'rps-builder', feature_count: state.features.size});
       });
       return;
     }
@@ -1049,5 +1053,8 @@ document.getElementById('next1').disabled = false;
 document.getElementById('next2').disabled = false;
 goStep(0);
 </script>
+<script src="../../assets/analytics-config.js"></script>
+<script src="../../assets/ga4.js"></script>
+<script src="../../assets/visitor-counter.js"></script>
 </body>
 </html>
