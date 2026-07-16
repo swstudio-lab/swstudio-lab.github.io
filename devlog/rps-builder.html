@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>가위바위보 빌더 · 개발일지 · SW STUDIO LAB</title>
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="SW STUDIO LAB">
+<meta property="og:title" content="가위바위보 빌더 · 개발일지">
+<meta property="og:description" content="AI 실험실의 첫 콘텐츠를 만들며 했던 고민과 받았던 질문들.">
+<meta property="og:image" content="https://swstudio-lab.github.io/assets/og-image.png">
+<meta property="og:url" content="https://swstudio-lab.github.io/devlog/rps-builder.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="가위바위보 빌더 · 개발일지">
+<meta name="twitter:description" content="AI 실험실의 첫 콘텐츠를 만들며 했던 고민과 받았던 질문들.">
+<meta name="twitter:image" content="https://swstudio-lab.github.io/assets/og-image.png">
+<meta name="description" content="AI 실험실의 첫 콘텐츠를 만들며 했던 고민과 받았던 질문들.">
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+    .reveal{ opacity:0; transform:translateY(12px); animation:revealIn .5s ease forwards; }
+    @keyframes revealIn{ to{ opacity:1; transform:translateY(0); } }
+    .art-header{ max-width:680px; margin:0 auto; padding:56px 20px 20px; text-align:center; }
+    .art-date{ font-family:'Press Start 2P',monospace; font-size:10px; color:var(--gold); letter-spacing:0.08em; margin-bottom:16px; }
+    .art-header h1{ font-size:clamp(24px,4.4vw,34px); font-weight:900; margin:0 0 10px; line-height:1.35; }
+    .art-tags{ display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:14px; }
+    .art-tag{ font-size:10.5px; color:var(--muted); border:1px solid var(--border); border-radius:20px; padding:4px 12px; }
+    .art-body{ max-width:640px; margin:0 auto; padding:20px 20px 100px; }
+    .art-body h2{ font-size:18px; margin:40px 0 14px; color:var(--gold); }
+    .art-body h2:first-child{ margin-top:0; }
+    .art-body p{ font-size:14px; line-height:1.85; color:var(--text); margin:0 0 16px; }
+    .art-body p.muted{ color:var(--muted); }
+    .art-body ul{ margin:0 0 18px; padding-left:20px; }
+    .art-body li{ font-size:13.5px; line-height:1.8; color:var(--text); margin-bottom:8px; }
+    .art-body li b{ color:var(--gold); }
+    .callout{
+        background:rgba(232,185,63,0.06); border:1px solid var(--border-lit); border-radius:12px;
+        padding:16px 20px; margin:22px 0; font-size:13px; color:var(--muted); line-height:1.75;
+    }
+    .callout b{ color:var(--gold); }
+    .quote-box{
+        border-left:3px solid var(--border-lit); padding:4px 0 4px 18px; margin:22px 0;
+        font-size:13.5px; color:var(--muted); font-style:italic; line-height:1.8;
+    }
+    .divider-line{ max-width:640px; margin:36px auto; height:1px; background:var(--border); }
+    .art-nav{ max-width:640px; margin:0 auto; padding:0 20px 60px; text-align:center; }
+    .art-nav a{ font-size:12.5px; color:var(--gold); text-decoration:none; }
+</style>
+</head>
+<body>
+
+<nav class="topnav pixel">
+    <div class="nav-drop">
+        <a href="../index.html">홈</a>
+        <button class="nav-drop-caret" aria-label="홈 하위메뉴 열기">▾</button>
+        <div class="nav-drop-menu">
+            <a href="../about.html">💬 소개</a>
+            <a href="../devlog.html">📓 개발일지</a>
+        </div>
+    </div>
+    <a href="../ai-lab.html">AI 실험실</a>
+    <a href="../works.html">작업물</a>
+    <div class="nav-drop">
+        <a href="../games.html">게임</a>
+        <button class="nav-drop-caret" aria-label="게임 하위메뉴 열기">▾</button>
+        <div class="nav-drop-menu">
+            <a href="../games.html?mode=solo">🕹️ 혼자 플레이</a>
+            <a href="../games.html?mode=multi">👥 함께 플레이</a>
+        </div>
+    </div>
+    <a href="../etc.html">기타</a>
+</nav>
+
+<header class="art-header reveal">
+    <div class="art-date">DEVLOG · 2026.07.16</div>
+    <h1>AI가 다 해주는 게 아니라,<br>AI로 배우는 걸 만들고 싶었다</h1>
+    <div class="art-tags">
+        <span class="art-tag">AI 실험실</span>
+        <span class="art-tag">Firestore</span>
+        <span class="art-tag">사용자 피드백</span>
+    </div>
+</header>
+
+<article class="art-body reveal" style="animation-delay:.05s;">
+
+<h2>왜 만들었나</h2>
+<p>AI를 실무에서 써보면서 느낀 게 있어요. 여전히 많은 사람들이 AI를 어렵게 생각한다는 거예요. 복잡한 프롬프트나 개발 지식이 없어도, 직접 만들어보고 결과를 눈으로 확인하면서 자연스럽게 배울 수 있는 공간을 만들고 싶었어요. 그래서 목표를 하나 확실히 정했어요 — <b style="color:var(--gold);">"AI가 다 해줍니다"가 아니라 "선택만 하면, 만들면서 배울 수 있어요"</b>.</p>
+
+<h2>완성본이 아니라 과정을 보여주는 흐름</h2>
+<p>그냥 체크박스 몇 개 누르면 완성된 게임이 뚝 나오는 도구는 만들고 싶지 않았어요. 그래서 STEP1부터 STEP6까지 단계를 나눴어요 — 게임 선택 → 캐릭터 선택 → 기능 체크 → "AI가 생각하는 과정" 연출 → 완성된 코드(줄마다 클릭하면 설명) → 미리보기(실제로 눌러보는 게임). 완성본만 보여주는 게 아니라, 기능을 하나 켤 때마다 코드가 어떻게 달라지는지 켜기 전/후를 나란히 비교하는 기능도 나중에 추가했어요.</p>
+
+<h2>공개하되, 그냥 다운로드는 못 하게</h2>
+<p>고민이 하나 있었어요. 소스 코드를 다 공개하면, 이 기획 자체(어떤 기능에 어떤 코드가 매칭되는지)를 남이 그대로 복사해갈 수 있다는 우려였어요. 완벽하게 막는 방법은 없다는 걸 먼저 인정했어요. 대신 현실적인 선을 그었어요:</p>
+<ul>
+    <li>저작권 표시로 법적 최소 방어선을 깔고</li>
+    <li>진짜 가치가 있는 데이터(기능별 코드·설명)는 Firestore로 옮기고, <b>목록 전체 조회는 막고 정확한 항목 하나씩만 조회 가능</b>하게 규칙을 짰어요</li>
+</ul>
+<p class="muted">"완전 차단"이 아니라 "그냥 다운로드 한 번으로는 못 가져가게, 품이 많이 들게" 만드는 현실적인 타협이었어요.</p>
+
+<h2>지인의 예리한 질문</h2>
+<p>실제로 지인이 써보고 이런 질문을 했어요.</p>
+<div class="quote-box">"이미 다 완성이 되어있는 텍스트 출력하는 서비스인지, 기획한 AI 놀이터랑은 거리가 있어보이는데... 그러면 AI가 아니지 않을까?"</div>
+<p>정곡을 찌르는 질문이었어요. 방어하고 싶은 마음도 있었지만, 그러지 않기로 했어요. 솔직하게 인정했어요 — 지금은 체크박스 누를 때마다 실시간으로 AI를 부르는 게 아니라, 코드와 설명 자체를 AI와 함께 미리 만들어서 저장해둔 거라고요. "AI가 실시간으로 반응하는 서비스"보다는 "AI로 만든 콘텐츠를 체험하는 서비스"에 더 가깝다고요.</p>
+<p>이 대화를 계기로, 아예 시작 화면에 이런 문구를 넣기로 했어요.</p>
+<div class="callout">💡 <b>이 콘텐츠는 이렇게 만들어졌어요</b> — 체크박스를 누를 때마다 AI를 실시간으로 호출해서 코드를 새로 만드는 건 아니에요. 코드와 설명을 AI와 함께 미리 기획·검증해서 준비해둔 것을, 사용자가 고른 조합대로 보여주는 방식이에요.</div>
+<p class="muted">숨기지 않고 먼저 밝히는 쪽을 택했어요. 나중에 진짜 실시간 AI 호출 버전을 만들 계획도 있는데, 그건 그때 가서 이 문구를 그 콘텐츠에 맞게 다시 쓰면 될 일이었어요.</p>
+
+<h2>실제로 써보고서야 보인 버그들</h2>
+<ul>
+    <li><b>기본값 문제</b> — 아무것도 체크 안 했는데 "점수판"이 이미 켜져 있던 버그. 기본값을 하나 켜두면 편할 거라 생각했는데, 오히려 "내가 선택 안 한 게 왜 나와?"라는 혼란을 줬어요. 결국 아무것도 기본으로 켜지 않는 쪽으로 바꿨어요.</li>
+    <li><b>애니메이션이 안 보이던 문제</b> — "애니메이션" 기능을 켜도 티가 안 난다는 피드백을 받았는데, 알고 보니 모든 버튼에 이미 비슷한 눌림 효과가 기본으로 깔려 있어서 차이가 안 느껴졌던 거였어요. 기본 효과를 없애고 기능 켰을 때만 확실히 티나게 바꿨어요.</li>
+    <li><b>무한 루프 버그</b> — "3판 2선승제"를 골랐는데 실제로는 계속 무한정 플레이가 되는 버그가 있었어요. STEP5 코드 설명에는 그 로직을 예시로만 보여줬을 뿐, 정작 미리보기 게임 로직에는 연결을 안 해놨던 실수였어요.</li>
+</ul>
+<p>완성해놓은 것도 실제로 눌러보지 않으면 이런 문제들이 잘 안 보인다는 걸 다시 느꼈어요.</p>
+
+<h2>재미 요소도 나중에 추가됐다</h2>
+<p>기능적으로는 다 됐는데, 실제로 플레이해보니 결과가 너무 빨리 나와서 밋밋하다는 피드백을 받았어요. 그래서 버튼을 누르면 상대 손이 물음표로 흔들리다가, 잠깐 뒤 공개되고, 그 다음에 결과가 나오는 서스펜스 딜레이를 추가했어요. 기능은 다 갖췄어도 "체감"까지 신경 쓰는 게 다르다는 걸 배웠어요.</p>
+
+<h2>지금 상태</h2>
+<p>가위바위보 하나는 완성됐고, 미니 RPG나 퀴즈 게임처럼 다른 게임으로 확장할 수 있는 구조(STEP1에서 게임을 고르는 화면)는 이미 만들어뒀어요. 다음 단계는 그 잠긴 슬롯들을 하나씩 채우는 것, 그리고 언젠가는 진짜 실시간으로 AI를 호출하는 버전도 만들어보는 거예요.</p>
+
+</article>
+
+<div class="divider-line"></div>
+<div class="art-nav reveal" style="animation-delay:.1s;">
+    <a href="../devlog.html">← 개발일지 목록으로</a>
+</div>
+
+<footer>
+    made with care · updated as things get made
+</footer>
+
+<script src="../assets/nav.js"></script>
+<script src="../assets/maintenance.js"></script>
+</body>
+</html>

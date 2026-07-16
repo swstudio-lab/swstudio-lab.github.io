@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>홈페이지 리뉴얼 · 개발일지 · SW STUDIO LAB</title>
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="SW STUDIO LAB">
+<meta property="og:title" content="홈페이지 리뉴얼 · 개발일지">
+<meta property="og:description" content="포트폴리오 나열형 사이트에서 성장하는 플랫폼으로 — 홈페이지를 다시 설계한 과정.">
+<meta property="og:image" content="https://swstudio-lab.github.io/assets/og-image.png">
+<meta property="og:url" content="https://swstudio-lab.github.io/devlog/homepage-renewal.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="홈페이지 리뉴얼 · 개발일지">
+<meta name="twitter:description" content="포트폴리오 나열형 사이트에서 성장하는 플랫폼으로 — 홈페이지를 다시 설계한 과정.">
+<meta name="twitter:image" content="https://swstudio-lab.github.io/assets/og-image.png">
+<meta name="description" content="포트폴리오 나열형 사이트에서 성장하는 플랫폼으로 — 홈페이지를 다시 설계한 과정.">
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+    .reveal{ opacity:0; transform:translateY(12px); animation:revealIn .5s ease forwards; }
+    @keyframes revealIn{ to{ opacity:1; transform:translateY(0); } }
+    .art-header{ max-width:680px; margin:0 auto; padding:56px 20px 20px; text-align:center; }
+    .art-date{ font-family:'Press Start 2P',monospace; font-size:10px; color:var(--gold); letter-spacing:0.08em; margin-bottom:16px; }
+    .art-header h1{ font-size:clamp(24px,4.4vw,34px); font-weight:900; margin:0 0 10px; line-height:1.35; }
+    .art-tags{ display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:14px; }
+    .art-tag{ font-size:10.5px; color:var(--muted); border:1px solid var(--border); border-radius:20px; padding:4px 12px; }
+    .art-body{ max-width:640px; margin:0 auto; padding:20px 20px 100px; }
+    .art-body h2{ font-size:18px; margin:40px 0 14px; color:var(--gold); }
+    .art-body h2:first-child{ margin-top:0; }
+    .art-body p{ font-size:14px; line-height:1.85; color:var(--text); margin:0 0 16px; }
+    .art-body p.muted{ color:var(--muted); }
+    .art-body ul{ margin:0 0 18px; padding-left:20px; }
+    .art-body li{ font-size:13.5px; line-height:1.8; color:var(--text); margin-bottom:8px; }
+    .art-body li b{ color:var(--gold); }
+    .callout{
+        background:rgba(232,185,63,0.06); border:1px solid var(--border-lit); border-radius:12px;
+        padding:16px 20px; margin:22px 0; font-size:13px; color:var(--muted); line-height:1.75;
+    }
+    .callout b{ color:var(--gold); }
+    .divider-line{ max-width:640px; margin:36px auto; height:1px; background:var(--border); }
+    .art-nav{ max-width:640px; margin:0 auto; padding:0 20px 60px; text-align:center; }
+    .art-nav a{ font-size:12.5px; color:var(--gold); text-decoration:none; }
+</style>
+</head>
+<body>
+
+<nav class="topnav pixel">
+    <div class="nav-drop">
+        <a href="../index.html">홈</a>
+        <button class="nav-drop-caret" aria-label="홈 하위메뉴 열기">▾</button>
+        <div class="nav-drop-menu">
+            <a href="../about.html">💬 소개</a>
+            <a href="../devlog.html">📓 개발일지</a>
+        </div>
+    </div>
+    <a href="../ai-lab.html">AI 실험실</a>
+    <a href="../works.html">작업물</a>
+    <div class="nav-drop">
+        <a href="../games.html">게임</a>
+        <button class="nav-drop-caret" aria-label="게임 하위메뉴 열기">▾</button>
+        <div class="nav-drop-menu">
+            <a href="../games.html?mode=solo">🕹️ 혼자 플레이</a>
+            <a href="../games.html?mode=multi">👥 함께 플레이</a>
+        </div>
+    </div>
+    <a href="../etc.html">기타</a>
+</nav>
+
+<header class="art-header reveal">
+    <div class="art-date">DEVLOG · 2026.07.16</div>
+    <h1>포트폴리오에서 "성장하는 플랫폼"으로<br>— 홈페이지 리뉴얼</h1>
+    <div class="art-tags">
+        <span class="art-tag">홈 화면 설계</span>
+        <span class="art-tag">Firestore 연동</span>
+        <span class="art-tag">모바일 버그</span>
+    </div>
+</header>
+
+<article class="art-body reveal" style="animation-delay:.05s;">
+
+<h2>왜 다시 만들게 됐나</h2>
+<p>처음 이 사이트는 그냥 "홈 / 게임 / 작업물 / 기타" 4개 탭에 만든 걸 하나씩 얹는 구조였어요. 그러다 AI 실험실이라는 새로운 성격의 콘텐츠를 넣으려고 보니, 이 사이트가 정확히 어떤 곳인지 처음 오는 사람이 3초 안에 이해하기 어렵다는 걸 깨달았어요. "무엇을 만들었나"는 보이는데 "왜 만들고 있고 어디로 가고 있나"는 안 보이는 구조였던 거죠.</p>
+<p class="muted">그래서 콘텐츠를 하나 더 추가하는 대신, 홈 화면부터 다시 설계하기로 방향을 바꿨어요.</p>
+
+<h2>기획안을 그대로 만들지 않았다</h2>
+<p>처음엔 리디자인 기획안(PDF)을 하나 만들어서 메인 배너, 소개, 대표 프로젝트, 최근 업데이트, 로드맵까지 순서대로 정리해뒀어요. 그런데 실제로 만들면서 기획안대로만 가지는 않았어요.</p>
+<ul>
+    <li><b>대표 프로젝트</b> — 원래는 관리자 페이지에서 제목·설명·링크·아이콘을 별도로 입력하는 폼을 만들었어요. 근데 만들고 나서 보니 "이미 게임/작업물 목록에 다 있는 정보를 왜 여기서 또 입력해야 하지?"라는 문제가 보였어요. 그래서 폼을 통째로 없애고, 기존 항목 옆에 별표(⭐) 하나만 누르면 그 항목의 제목/설명/링크/아이콘을 그대로 가져와서 대표로 띄우는 방식으로 다시 짰어요.</li>
+    <li><b>최근 업데이트</b> — 이것도 처음엔 손으로 매번 "OO 추가했어요"라고 써야 하는 구조였는데, 콘텐츠를 공개로 전환하는 순간 자동으로 업데이트 로그가 남도록 바꿨어요. 사람이 기록을 까먹는 순간 이 섹션은 죽은 정보가 되니까요.</li>
+</ul>
+<p>둘 다 "일단 기능은 완성했는데, 쓰면서 보니 비효율이 보여서 구조를 다시 짠" 경우예요. 처음부터 완벽하게 설계하지 못했다는 뜻이기도 하지만, 실제로 써보지 않고는 이런 비효율이 잘 안 보인다는 것도 배웠어요.</p>
+
+<div class="callout">💡 <b>관리자 페이지도 같이 자랐어요</b> — 콘텐츠가 늘어날수록 관리자 페이지도 길어져서, 지금은 각 섹션을 접고 펼 수 있게 아코디언 형태로 바꿔뒀어요.</div>
+
+<h2>사이트는 계속 열려있어야 했다</h2>
+<p>리뉴얼 작업 중에도 사이트는 계속 방문자를 받고 있었어요. 그래서 "지금 단장 중"이라는 걸 알려주는 점검 모드를 따로 만들었어요. 처음엔 상단에 옅은 배너 하나만 뒀는데 "잘 안 보인다"는 피드백을 받고 색을 진하게 바꿨고, 나중엔 방문자가 처음 들어왔을 때 확실히 인지할 수 있도록 중앙 팝업도 추가했어요. 대신 팝업은 한 번 닫으면 그 방문 동안은 다시 안 뜨게 해서 방해되지 않게 했고요.</p>
+
+<h2>실제로 써보며 잡은 버그</h2>
+<p>nav 탭이 5개(홈/AI실험실/작업물/게임/기타)로 늘면서, 좁은 화면(아이폰)에서 글자가 줄마다 깨져서 나오는 문제가 생겼어요. 원인을 찾다가 가로 스크롤을 허용하는 CSS를 넣었는데, 이게 오히려 "게임" 탭의 하위 드롭다운 메뉴를 통째로 잘라먹는 새로운 버그를 만들어냈어요. 알고 보니 CSS에서 가로 스크롤(overflow-x)을 켜면 세로 방향도 자동으로 "잘림" 모드가 되는 특성 때문이었어요. 결국 애초에 스크롤이 필요 없을 정도로 여백과 글자 크기를 조정하는 쪽으로 해결했어요.</p>
+<p class="muted">기능 하나를 고치다가 다른 게 깨지는, 아주 전형적인 사례였어요.</p>
+
+<h2>지금 상태</h2>
+<p>홈 화면의 뼈대(배너·소개·대표 프로젝트·업데이트·로드맵)와 관리자 페이지 연동까지는 끝났어요. 다만 실제 콘텐츠(대표 프로젝트 지정, 업데이트/로드맵 내용)는 계속 채워나가는 중이에요. "완성"이라기보다는 "지금 이 상태"에 가까워요 — 계속 자라는 사이트라는 원래 취지에 맞게요.</p>
+
+</article>
+
+<div class="divider-line"></div>
+<div class="art-nav reveal" style="animation-delay:.1s;">
+    <a href="../devlog.html">← 개발일지 목록으로</a>
+</div>
+
+<footer>
+    made with care · updated as things get made
+</footer>
+
+<script src="../assets/nav.js"></script>
+<script src="../assets/maintenance.js"></script>
+</body>
+</html>

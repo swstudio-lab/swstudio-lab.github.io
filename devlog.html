@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>개발일지 · SW STUDIO LAB</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="SW STUDIO LAB">
+<meta property="og:title" content="개발일지 · SW STUDIO LAB">
+<meta property="og:description" content="무엇을 만들었는지보다, 왜 그렇게 만들었는지를 기록하는 개발일지예요.">
+<meta property="og:image" content="https://swstudio-lab.github.io/assets/og-image.png">
+<meta property="og:url" content="https://swstudio-lab.github.io/devlog.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="개발일지 · SW STUDIO LAB">
+<meta name="twitter:description" content="무엇을 만들었는지보다, 왜 그렇게 만들었는지를 기록하는 개발일지예요.">
+<meta name="twitter:image" content="https://swstudio-lab.github.io/assets/og-image.png">
+<meta name="description" content="무엇을 만들었는지보다, 왜 그렇게 만들었는지를 기록하는 개발일지예요.">
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<style>
+    .reveal{ opacity:0; transform:translateY(12px); animation:revealIn .5s ease forwards; }
+    @keyframes revealIn{ to{ opacity:1; transform:translateY(0); } }
+    .log-wrap{ max-width:720px; margin:0 auto; padding:0 20px 100px; }
+    .log-card{
+        display:block; text-decoration:none; color:var(--text);
+        background:linear-gradient(180deg, var(--surface2), var(--surface));
+        border:1px solid var(--border); border-radius:14px;
+        padding:26px 24px; margin-bottom:16px;
+        transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+    }
+    .log-card:hover{
+        transform:translateY(-3px); border-color:var(--border-lit);
+        box-shadow:0 12px 28px -10px rgba(232,185,63,0.25);
+    }
+    .log-date{ font-family:'Press Start 2P',monospace; font-size:9.5px; color:var(--gold); letter-spacing:0.06em; margin-bottom:10px; }
+    .log-card h3{ margin:0 0 8px; font-size:17px; }
+    .log-card p{ margin:0 0 14px; font-size:13px; color:var(--muted); line-height:1.65; }
+    .log-go{ font-size:11px; color:var(--gold); }
+</style>
+</head>
+<body>
+
+<nav class="topnav pixel">
+    <div class="nav-drop">
+        <a href="index.html">홈</a>
+        <button class="nav-drop-caret" aria-label="홈 하위메뉴 열기">▾</button>
+        <div class="nav-drop-menu">
+            <a href="about.html">💬 소개</a>
+            <a href="devlog.html">📓 개발일지</a>
+        </div>
+    </div>
+    <a href="ai-lab.html">AI 실험실</a>
+    <a href="works.html">작업물</a>
+    <div class="nav-drop">
+        <a href="games.html">게임</a>
+        <button class="nav-drop-caret" aria-label="게임 하위메뉴 열기">▾</button>
+        <div class="nav-drop-menu">
+            <a href="games.html?mode=solo">🕹️ 혼자 플레이</a>
+            <a href="games.html?mode=multi">👥 함께 플레이</a>
+        </div>
+    </div>
+    <a href="etc.html">기타</a>
+</nav>
+
+<header class="hero reveal">
+    <div class="eyebrow pixel">DEVLOG</div>
+    <h1>개발 <span>일지</span></h1>
+    <p>무엇을 만들었는지보다, 왜 그렇게 만들었는지를 기록해요. 코드보다는 고민과 과정 위주예요.</p>
+    <div class="hero-rule"></div>
+</header>
+
+<div class="log-wrap">
+    <a class="log-card reveal" href="devlog/homepage-renewal.html">
+        <div class="log-date">2026.07.16</div>
+        <h3>포트폴리오에서 "성장하는 플랫폼"으로 — 홈페이지 리뉴얼</h3>
+        <p>단순히 만든 걸 나열하던 사이트가 왜 다시 설계됐는지, 그 과정에서 뭘 뒤엎고 뭘 자동화했는지 기록했어요.</p>
+        <div class="log-go">자세히 보기 →</div>
+    </a>
+
+    <a class="log-card reveal" href="devlog/taskflow.html" style="animation-delay:.05s;">
+        <div class="log-date">2026.07.16</div>
+        <h3>행정 업무에 진짜 쓸 수 있는 도구, TaskFlow</h3>
+        <p>단순 투두리스트로 시작했다가 왜 WBS 구조까지 합치게 됐는지, 이름이 왜 바뀌었는지에 대한 이야기예요.</p>
+        <div class="log-go">자세히 보기 →</div>
+    </a>
+
+    <a class="log-card reveal" href="devlog/rps-builder.html" style="animation-delay:.1s;">
+        <div class="log-date">2026.07.16</div>
+        <h3>AI가 다 해주는 게 아니라, AI로 배우는 걸 만들고 싶었다</h3>
+        <p>AI 실험실의 첫 콘텐츠, 가위바위보 빌더를 만들며 했던 고민과 받았던 예리한 질문들에 대한 기록이에요.</p>
+        <div class="log-go">자세히 보기 →</div>
+    </a>
+</div>
+
+<footer>
+    made with care · updated as things get made
+</footer>
+
+<script src="assets/nav.js"></script>
+<script src="assets/maintenance.js"></script>
+</body>
+</html>

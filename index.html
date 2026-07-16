@@ -148,7 +148,14 @@
 <body>
 
 <nav class="topnav pixel">
-    <a href="index.html" class="active">홈</a>
+    <div class="nav-drop">
+        <a href="index.html" class="active">홈</a>
+        <button class="nav-drop-caret" aria-label="홈 하위메뉴 열기">▾</button>
+        <div class="nav-drop-menu">
+            <a href="about.html">💬 소개</a>
+            <a href="devlog.html">📓 개발일지</a>
+        </div>
+    </div>
     <a href="ai-lab.html">AI 실험실</a>
     <a href="works.html">작업물</a>
     <div class="nav-drop">
@@ -201,7 +208,10 @@
 
 <section class="intro-band">
     <p>이 홈페이지는 단순한 포트폴리오가 아닙니다. 게임, 업무 도구, AI 프로젝트를 직접 기획하고 제작하며, 그 과정을 기록하는 프로젝트 공간입니다.</p>
-    <a class="btn-outline pixel" href="about.html">소개 보기</a>
+    <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+        <a class="btn-outline pixel" href="about.html">소개 보기</a>
+        <a class="btn-outline pixel" href="devlog.html">개발일지 보기</a>
+    </div>
 </section>
 
 <div class="divider-line"></div>
