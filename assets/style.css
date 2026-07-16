@@ -36,11 +36,7 @@ nav.topnav{
     background:rgba(10,9,8,0.86);
     backdrop-filter:blur(6px);
     border-bottom:1px solid var(--border);
-    overflow-x:auto;
-    -webkit-overflow-scrolling:touch;
-    scrollbar-width:none;
 }
-nav.topnav::-webkit-scrollbar{ display:none; }
 nav.topnav a{
     text-decoration:none;
     font-size:12px;
@@ -56,7 +52,7 @@ nav.topnav a:hover{ color:var(--text); background:rgba(255,255,255,0.04); }
 nav.topnav a.active{ color:var(--gold); background:rgba(232,185,63,0.1); }
 
 @media (max-width:480px){
-    nav.topnav{ gap:2px; padding:14px 14px; justify-content:flex-start; }
+    nav.topnav{ gap:2px; padding:14px 14px; justify-content:flex-start; flex-wrap:nowrap; }
     nav.topnav a{ font-size:11px; padding:8px 11px; }
     .nav-drop-caret{ padding:8px 6px 8px 0; }
 }
