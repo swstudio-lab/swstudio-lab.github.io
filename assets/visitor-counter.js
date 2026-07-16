@@ -54,18 +54,33 @@
         const ref = db.collection('siteStats').doc(dateKey);
         const flagKey = 'visited_' + dateKey;
 
+        // 카운트는 공개 여부와 상관없이 항상 집계함
         if (!localStorage.getItem(flagKey)) {
             ref.set({ visits: firebase.firestore.FieldValue.increment(1) }, { merge: true })
                 .then(() => { try { localStorage.setItem(flagKey, '1'); } catch (e) {} })
                 .catch(() => {});
         }
 
-        if (badge) {
-            ref.onSnapshot(doc => {
-                const n = doc.exists ? (doc.data().visits || 0) : 0;
-                badge.textContent = `오늘의 방문자 ${n.toLocaleString()}명`;
-            }, () => { badge.style.display = 'none'; });
+        if (!badge) return;
+
+        let isPublic = true; // 설정을 아직 못 받아왔을 땐 기본으로 공개 취급 (깜빡임 방지)
+        let latestCount = 0;
+
+        function renderBadge(){
+            if (!isPublic) { badge.style.display = 'none'; return; }
+            badge.style.display = '';
+            badge.textContent = `오늘의 방문자 ${latestCount.toLocaleString()}명`;
         }
+
+        db.collection('siteConfig').doc('main').onSnapshot(doc => {
+            isPublic = !doc.exists || doc.data().showVisitorCount !== false;
+            renderBadge();
+        }, () => {});
+
+        ref.onSnapshot(doc => {
+            latestCount = doc.exists ? (doc.data().visits || 0) : 0;
+            renderBadge();
+        }, () => { badge.style.display = 'none'; });
     }).catch(() => {
         if (badge) badge.style.display = 'none';
     });
