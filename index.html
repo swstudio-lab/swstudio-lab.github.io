@@ -43,6 +43,21 @@
         background:var(--gold); color:#1c1208; border:none; font-weight:700;
         font-size:12.5px; padding:10px 26px; border-radius:8px; cursor:pointer;
     }
+
+    .sticky-top-wrap{ position:sticky; top:0; z-index:15; }
+    .maint-banner{
+        display:none; align-items:center; justify-content:center; gap:10px;
+        background:linear-gradient(90deg, var(--ember), var(--gold));
+        color:#1c1208; font-weight:700; font-size:13.5px; letter-spacing:0.01em;
+        padding:12px 18px; text-align:center;
+        box-shadow:0 2px 12px rgba(0,0,0,0.35);
+    }
+    .maint-banner.show{ display:flex; }
+    .maint-dot{
+        width:7px; height:7px; border-radius:50%; background:#1c1208; flex:0 0 auto;
+        animation:maintPulse 1.6s ease-in-out infinite;
+    }
+    @keyframes maintPulse{ 0%,100%{ opacity:1; } 50%{ opacity:0.25; } }
 </style>
 <style>
     .reveal{ opacity:0; transform:translateY(14px); animation:revealIn .6s ease forwards; }
@@ -176,7 +191,9 @@
     </div>
 </div>
 
-<nav class="topnav pixel">
+<div class="sticky-top-wrap">
+    <div class="maint-banner" id="maint-banner"></div>
+    <nav class="topnav pixel">
     <a href="index.html" class="active">홈</a>
     <a href="ai-lab.html">AI 실험실</a>
     <a href="works.html">작업물</a>
@@ -190,6 +207,7 @@
     </div>
     <a href="etc.html">기타</a>
 </nav>
+</div>
 
 <section class="hero-banner">
     <div class="hero-left reveal">
@@ -289,11 +307,23 @@ try {
     const db = firebase.firestore();
 
     db.collection('siteConfig').doc('main').onSnapshot(doc => {
+        const isMaint = doc.exists && doc.data().maintenance;
+        const msg = (doc.exists && doc.data().maintenanceMsg) || '홈페이지를 더 좋은 모습으로 단장하고 있어요. 곧 새로운 모습으로 찾아올게요!';
+
+        // 상단 배너: 점검모드가 켜져있는 동안 계속 고정 표시 (닫기 없음)
+        const banner = document.getElementById('maint-banner');
+        if (isMaint) {
+            banner.innerHTML = `<span class="maint-dot"></span><span>${msg}</span>`;
+            banner.classList.add('show');
+        } else {
+            banner.classList.remove('show');
+        }
+
+        // 중앙 팝업: 세션당 한 번만
         const overlay = document.getElementById('maint-overlay');
         const dismissed = sessionStorage.getItem('maintDismissed') === '1';
-        if (doc.exists && doc.data().maintenance && !dismissed) {
-            document.getElementById('maint-text').textContent =
-                doc.data().maintenanceMsg || '홈페이지를 더 좋은 모습으로 단장하고 있어요. 곧 새로운 모습으로 찾아올게요!';
+        if (isMaint && !dismissed) {
+            document.getElementById('maint-text').textContent = msg;
             overlay.classList.add('show');
         } else {
             overlay.classList.remove('show');
