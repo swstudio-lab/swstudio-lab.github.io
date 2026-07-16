@@ -329,10 +329,13 @@ setInterval(() => {
     if (featuredData.length > 1) showSlide((curSlide + 1) % featuredData.length);
 }, 4500);
 
-db.collection('featuredProjects').onSnapshot(snap => {
+const CAT_EYEBROW = { games:'GAMES', works:'WORKS', etc:'ETC', 'ai-lab':'AI LAB' };
+
+db.collection('siteItems').onSnapshot(snap => {
     featuredData = snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
-        .filter(it => it.published)
-        .sort((a,b) => (a.order||0) - (b.order||0));
+        .filter(it => it.published && it.featured)
+        .map(it => ({ ...it, eyebrow: CAT_EYEBROW[it.category] || '' }))
+        .sort((a,b) => (a.featuredOrder||0) - (b.featuredOrder||0));
     renderFeatured();
 }, () => {
     document.getElementById('feat-grid').innerHTML = `<div style="grid-column:1/-1; text-align:center; color:var(--muted); font-size:12.5px;">데이터를 불러오지 못했어요.</div>`;

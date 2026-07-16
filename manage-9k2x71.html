@@ -29,9 +29,18 @@
     }
     .panel{
         background:linear-gradient(180deg, var(--surface2), var(--surface));
-        border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:20px;
+        border:1px solid var(--border); border-radius:12px; padding:0; margin-bottom:20px;
+        overflow:hidden;
     }
-    .panel h3{ margin:0 0 14px; font-size:14px; }
+    .panel-header{
+        display:flex; align-items:center; justify-content:space-between;
+        padding:18px 20px; cursor:pointer; user-select:none;
+    }
+    .panel-header h3{ margin:0; font-size:14px; }
+    .panel-chev{ color:var(--muted); font-size:12px; transition:transform .2s ease; flex:0 0 auto; }
+    .panel.open .panel-chev{ transform:rotate(180deg); color:var(--gold); }
+    .panel-body{ display:none; padding:0 20px 20px; }
+    .panel.open .panel-body{ display:block; }
     select, input[type="text"], input[type="number"], textarea{
         width:100%; box-sizing:border-box; background:var(--surface); border:1px solid var(--border);
         color:var(--text); border-radius:6px; padding:8px 10px; font-size:13px; font-family:inherit; margin-bottom:10px;
@@ -85,104 +94,105 @@
 
 <div class="wrap" id="main-wrap" style="display:none;">
     <h1 style="font-size:22px; margin-bottom:6px;">🛠️ 콘텐츠 관리</h1>
-    <p style="color:var(--muted); font-size:12.5px; margin-bottom:24px;">여기서 공개/비공개를 전환하고 새 항목을 추가하세요. 새로 추가한 항목은 기본적으로 비공개예요.</p>
+    <p style="color:var(--muted); font-size:12.5px; margin-bottom:24px;">헤더를 눌러 펼치고 접을 수 있어요. 공개로 전환하면 방문자 화면에 바로 반영돼요.</p>
 
-    <div class="panel">
-        <h3>🔧 사이트 상태</h3>
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;">
-            <div>
-                <div style="font-size:13.5px; font-weight:700;">점검 모드</div>
-                <div style="font-size:11.5px; color:var(--muted); margin-top:2px;">켜면 방문자에게 상단 점검 안내 배너가 보여요.</div>
+    <div class="panel" data-panel="maint">
+        <div class="panel-header"><h3>🔧 사이트 상태</h3><span class="panel-chev">▾</span></div>
+        <div class="panel-body">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;">
+                <div>
+                    <div style="font-size:13.5px; font-weight:700;">점검 모드</div>
+                    <div style="font-size:11.5px; color:var(--muted); margin-top:2px;">켜면 방문자에게 상단 점검 안내 배너가 보여요.</div>
+                </div>
+                <div class="toggle-track" id="maint-toggle"><div class="toggle-knob"></div></div>
             </div>
-            <div class="toggle-track" id="maint-toggle"><div class="toggle-knob"></div></div>
+            <label class="f-label">배너 문구</label>
+            <input type="text" id="maint-msg" value="🚧 홈페이지를 더 좋은 모습으로 단장하고 있어요. 곧 새로운 모습으로 찾아올게요!">
+            <button class="btn primary" id="maint-save" style="width:100%; margin-top:6px;">저장</button>
         </div>
-        <label class="f-label">배너 문구</label>
-        <input type="text" id="maint-msg" value="🚧 홈페이지를 더 좋은 모습으로 단장하고 있어요. 곧 새로운 모습으로 찾아올게요!">
-        <button class="btn primary" id="maint-save" style="width:100%; margin-top:6px;">저장</button>
     </div>
 
-    <div class="panel">
-        <h3>⭐ 대표 프로젝트 (홈 배너 + 대표 프로젝트 섹션)</h3>
-        <label class="f-label">라벨 (예: GAMES, WORKS, AI LAB · 개발 중)</label>
-        <input type="text" id="fp-eyebrow" placeholder="예: GAMES">
-        <label class="f-label">제목</label>
-        <input type="text" id="fp-title" placeholder="예: Dungeon RPG">
-        <label class="f-label">설명</label>
-        <textarea id="fp-desc" rows="2" placeholder="한 줄 설명"></textarea>
-        <label class="f-label">링크 (파일 경로)</label>
-        <input type="text" id="fp-href" placeholder="예: games/dungeon-rpg/index.html">
-        <label class="f-label">아이콘</label>
-        <div class="icon-pick" id="fp-icon-pick"></div>
-        <button class="btn primary" id="fp-add-btn" style="width:100%; margin-top:6px;">추가하기 (비공개로 생성됨)</button>
-        <div id="fp-list" style="margin-top:16px;"></div>
-    </div>
-
-    <div class="panel">
-        <h3>📰 최근 업데이트</h3>
-        <label class="f-label">내용</label>
-        <input type="text" id="up-text" placeholder="예: AI 실험실에 새 빌더 추가">
-        <label class="f-label">날짜</label>
-        <input type="text" id="up-date" placeholder="예: 2026.07.16">
-        <label class="f-label">NEW 배지</label>
-        <select id="up-badge">
-            <option value="NEW">표시함</option>
-            <option value="">표시 안 함</option>
-        </select>
-        <button class="btn primary" id="up-add-btn" style="width:100%; margin-top:6px;">추가하기 (비공개로 생성됨)</button>
-        <div id="up-list" style="margin-top:16px;"></div>
-    </div>
-
-    <div class="panel">
-        <h3>🗺️ 앞으로의 계획</h3>
-        <label class="f-label">진행 상태</label>
-        <select id="rm-status">
-            <option value="진행 중">진행 중</option>
-            <option value="기획 중">기획 중</option>
-            <option value="예정">예정</option>
-        </select>
-        <label class="f-label">제목</label>
-        <input type="text" id="rm-title" placeholder="예: Campus OS">
-        <label class="f-label">설명</label>
-        <textarea id="rm-desc" rows="2" placeholder="짧은 설명"></textarea>
-        <button class="btn primary" id="rm-add-btn" style="width:100%; margin-top:6px;">추가하기 (비공개로 생성됨)</button>
-        <div id="rm-list" style="margin-top:16px;"></div>
-    </div>
-
-    <div class="panel">
-        <h3>➕ 새 항목 추가</h3>
-        <label class="f-label">카테고리</label>
-        <select id="f-category">
-            <option value="games">게임</option>
-            <option value="works">작업물</option>
-            <option value="etc">기타</option>
-            <option value="ai-lab">AI 실험실</option>
-        </select>
-        <div id="f-sub-wrap">
-            <label class="f-label">하위 분류</label>
-            <select id="f-subcategory">
-                <option value="solo">혼자 플레이</option>
-                <option value="multi">함께 플레이 (2인 이상)</option>
+    <div class="panel" data-panel="up">
+        <div class="panel-header"><h3>📰 최근 업데이트</h3><span class="panel-chev">▾</span></div>
+        <div class="panel-body">
+            <p style="font-size:11.5px; color:var(--muted); margin:-4px 0 14px; line-height:1.6;">
+                게임/작업물/기타/AI실험실/대표프로젝트를 <b style="color:var(--gold);">공개로 전환하면 자동으로</b> 여기 기록되고 홈에 반영돼요.
+                아래는 그 외에 직접 한 줄 남기고 싶을 때만 쓰면 돼요.
+            </p>
+            <label class="f-label">내용</label>
+            <input type="text" id="up-text" placeholder="예: 홈 화면 리디자인 진행 중">
+            <label class="f-label">날짜</label>
+            <input type="text" id="up-date" placeholder="예: 2026.07.16">
+            <label class="f-label">NEW 배지</label>
+            <select id="up-badge">
+                <option value="NEW">표시함</option>
+                <option value="">표시 안 함</option>
             </select>
+            <button class="btn primary" id="up-add-btn" style="width:100%; margin-top:6px;">직접 추가하기 (바로 공개됨)</button>
+            <div id="up-list" style="margin-top:16px;"></div>
         </div>
-        <label class="f-label">제목</label>
-        <input type="text" id="f-title" placeholder="예: 벽돌깨기">
-        <label class="f-label">설명</label>
-        <textarea id="f-desc" rows="2" placeholder="카드에 보일 짧은 설명"></textarea>
-        <label class="f-label">링크 (파일 경로)</label>
-        <input type="text" id="f-href" placeholder="예: games/breakout/index.html">
-        <label class="f-label">아이콘</label>
-        <div class="icon-pick" id="icon-pick"></div>
-        <label class="f-label">상태 표시</label>
-        <select id="f-tag">
-            <option value="playable">PLAYABLE / READY</option>
-            <option value="wip">제작중</option>
-        </select>
-        <button class="btn primary" id="add-btn" style="width:100%; margin-top:6px;">추가하기 (비공개로 생성됨)</button>
     </div>
 
-    <div class="panel">
-        <h3>📋 전체 항목</h3>
-        <div id="item-list"></div>
+    <div class="panel" data-panel="rm">
+        <div class="panel-header"><h3>🗺️ 앞으로의 계획</h3><span class="panel-chev">▾</span></div>
+        <div class="panel-body">
+            <label class="f-label">진행 상태</label>
+            <select id="rm-status">
+                <option value="진행 중">진행 중</option>
+                <option value="기획 중">기획 중</option>
+                <option value="예정">예정</option>
+            </select>
+            <label class="f-label">제목</label>
+            <input type="text" id="rm-title" placeholder="예: Campus OS">
+            <label class="f-label">설명</label>
+            <textarea id="rm-desc" rows="2" placeholder="짧은 설명"></textarea>
+            <button class="btn primary" id="rm-add-btn" style="width:100%; margin-top:6px;">추가하기 (비공개로 생성됨)</button>
+            <div id="rm-list" style="margin-top:16px;"></div>
+        </div>
+    </div>
+
+    <div class="panel" data-panel="additem">
+        <div class="panel-header"><h3>➕ 새 항목 추가 (게임/작업물/기타/AI실험실)</h3><span class="panel-chev">▾</span></div>
+        <div class="panel-body">
+            <label class="f-label">카테고리</label>
+            <select id="f-category">
+                <option value="games">게임</option>
+                <option value="works">작업물</option>
+                <option value="etc">기타</option>
+                <option value="ai-lab">AI 실험실</option>
+            </select>
+            <div id="f-sub-wrap">
+                <label class="f-label">하위 분류</label>
+                <select id="f-subcategory">
+                    <option value="solo">혼자 플레이</option>
+                    <option value="multi">함께 플레이 (2인 이상)</option>
+                </select>
+            </div>
+            <label class="f-label">제목</label>
+            <input type="text" id="f-title" placeholder="예: 벽돌깨기">
+            <label class="f-label">설명</label>
+            <textarea id="f-desc" rows="2" placeholder="카드에 보일 짧은 설명"></textarea>
+            <label class="f-label">링크 (파일 경로)</label>
+            <input type="text" id="f-href" placeholder="예: games/breakout/index.html">
+            <label class="f-label">아이콘</label>
+            <div class="icon-pick" id="icon-pick"></div>
+            <label class="f-label">상태 표시</label>
+            <select id="f-tag">
+                <option value="playable">PLAYABLE / READY</option>
+                <option value="wip">제작중</option>
+            </select>
+            <button class="btn primary" id="add-btn" style="width:100%; margin-top:6px;">추가하기 (비공개로 생성됨)</button>
+        </div>
+    </div>
+
+    <div class="panel" data-panel="itemlist">
+        <div class="panel-header"><h3>📋 전체 항목 (게임/작업물/기타/AI실험실)</h3><span class="panel-chev">▾</span></div>
+        <div class="panel-body">
+            <p style="font-size:11.5px; color:var(--muted); margin:-4px 0 14px; line-height:1.6;">
+                별표(⭐)를 누르면 그 항목이 <b style="color:var(--gold);">홈 화면 대표 프로젝트</b>로 지정돼요. 따로 내용을 다시 입력할 필요 없이, 이미 있는 제목/설명/링크/아이콘을 그대로 가져다 써요.
+            </p>
+            <div id="item-list"></div>
+        </div>
     </div>
 </div>
 
@@ -221,6 +231,12 @@ function iconSvg(key, color, size){
     const inner = (ICON_PATHS[key] || ICON_PATHS.box).replace(/C/g, color);
     return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
 }
+
+document.querySelectorAll('.panel-header').forEach(header => {
+    header.addEventListener('click', () => {
+        header.closest('.panel').classList.toggle('open');
+    });
+});
 
 function toast(msg){
     const t = document.getElementById('toast');
@@ -274,6 +290,16 @@ document.getElementById('add-btn').addEventListener('click', () => {
 const CAT_LABEL = { games:'게임', works:'작업물', etc:'기타', 'ai-lab':'AI 실험실' };
 const SUB_LABEL = { solo:'혼자', multi:'함께' };
 
+function todayStr(){
+    const d = new Date();
+    return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+}
+function logUpdate(text){
+    // 공개 전환 시 자동으로 "최근 업데이트"에 기록 (바로 공개 상태로 생성됨)
+    upCol.add({ text, date: todayStr(), badge: 'NEW', published: true, order: Date.now(), createdAt: Date.now() })
+        .catch(() => {});
+}
+
 function renderItemList(items){
     const listEl = document.getElementById('item-list');
     if (items.length === 0) { listEl.innerHTML = '<p style="color:var(--muted); font-size:12.5px;">아직 항목이 없어요.</p>'; return; }
@@ -291,10 +317,13 @@ function renderItemList(items){
             <div class="item-row ${it.published ? '' : 'unpub'}" data-id="${it.id}">
                 <div class="item-icon">${iconSvg(it.icon, color, 22)}</div>
                 <div class="item-info">
-                    <div>${subBadge}<span class="item-badge">${it.tag==='wip'?'제작중':'PLAYABLE'}</span><span class="item-title">${escHtml(it.title)}</span></div>
+                    <div>${it.featured?'<span class="item-badge" style="color:#e8b93f; border-color:var(--border-lit);">⭐ 대표</span>':''}${subBadge}<span class="item-badge">${it.tag==='wip'?'제작중':'PLAYABLE'}</span><span class="item-title">${escHtml(it.title)}</span></div>
                     <div class="item-desc">${escHtml(it.desc||'')}</div>
                 </div>
                 <div class="item-actions">
+                    <button class="icon-btn" data-action="star" title="대표 프로젝트로 지정" style="color:${it.featured ? '#e8b93f' : 'var(--muted)'};">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="${it.featured ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.9L21 9.6l-4.8 4.2 1.4 6.6L12 17l-5.6 3.4 1.4-6.6L3 9.6l6.4-.7z"/></svg>
+                    </button>
                     <div class="toggle-track ${it.published?'on':''}" data-action="toggle" title="공개/비공개"><div class="toggle-knob"></div></div>
                     <button class="icon-btn" data-action="edit" title="수정">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1-4L16 5l3 3L8 19l-4 1Z"/></svg>
@@ -319,7 +348,13 @@ document.getElementById('item-list').addEventListener('click', e => {
     if (!item) return;
 
     if (e.target.closest('[data-action="toggle"]')) {
-        col.doc(id).update({ published: !item.published });
+        const willPublish = !item.published;
+        col.doc(id).update({ published: willPublish });
+        if (willPublish) logUpdate(`새로운 ${CAT_LABEL[item.category] || '콘텐츠'} 공개: "${item.title}"`);
+    } else if (e.target.closest('[data-action="star"]')) {
+        const willFeature = !item.featured;
+        col.doc(id).update({ featured: willFeature, featuredOrder: willFeature ? Date.now() : (item.featuredOrder || 0) });
+        if (willFeature) logUpdate(`"${item.title}"이(가) 대표 프로젝트로 지정됐어요`);
     } else if (e.target.closest('[data-action="delete"]')) {
         if (confirm(`"${item.title}" 항목을 삭제할까요? 되돌릴 수 없어요.`)) {
             col.doc(id).delete();
@@ -405,7 +440,6 @@ document.getElementById('gate-submit').addEventListener('click', () => {
     document.getElementById('main-wrap').style.display = 'block';
     subscribeItems();
     subscribeConfig();
-    subscribeFp();
     subscribeUp();
     subscribeRm();
 });
@@ -421,92 +455,6 @@ const EDIT_ICONS = `
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>
     </button>`;
 
-/* ===== ⭐ 대표 프로젝트 ===== */
-const fpCol = db.collection('featuredProjects');
-let fpSelectedIcon = 'sword';
-let fpItems = [];
-
-function renderFpIconPicker(){
-    document.getElementById('fp-icon-pick').innerHTML = Object.keys(ICON_PATHS).map(key => `
-        <div class="icon-opt ${key===fpSelectedIcon?'sel':''}" data-icon="${key}">${iconSvg(key, '#e8b93f', 20)}</div>
-    `).join('');
-}
-document.getElementById('fp-icon-pick').addEventListener('click', e => {
-    const opt = e.target.closest('.icon-opt');
-    if (!opt) return;
-    fpSelectedIcon = opt.dataset.icon;
-    renderFpIconPicker();
-});
-document.getElementById('fp-add-btn').addEventListener('click', () => {
-    const eyebrow = document.getElementById('fp-eyebrow').value.trim();
-    const title = document.getElementById('fp-title').value.trim();
-    const desc = document.getElementById('fp-desc').value.trim();
-    const href = document.getElementById('fp-href').value.trim();
-    if (!title || !href) { toast('제목과 링크는 꼭 입력해주세요'); return; }
-    fpCol.add({ eyebrow, title, desc, href, icon: fpSelectedIcon, published: false, order: Date.now(), createdAt: Date.now() })
-        .then(() => {
-            toast('✅ 추가했어요 (비공개 상태)');
-            ['fp-eyebrow','fp-title','fp-desc','fp-href'].forEach(id => document.getElementById(id).value = '');
-        }).catch(() => toast('추가 실패'));
-});
-function renderFpList(){
-    const wrap = document.getElementById('fp-list');
-    if (fpItems.length === 0) { wrap.innerHTML = '<p style="color:var(--muted); font-size:12px;">아직 항목이 없어요.</p>'; return; }
-    wrap.innerHTML = [...fpItems].sort((a,b)=>(a.order||0)-(b.order||0)).map(it => `
-        <div class="item-row ${it.published?'':'unpub'}" data-id="${it.id}">
-            <div class="item-icon">${iconSvg(it.icon,'#e8b93f',22)}</div>
-            <div class="item-info">
-                <div><span class="item-badge">${escHtml(it.eyebrow||'')}</span><span class="item-title">${escHtml(it.title)}</span></div>
-                <div class="item-desc">${escHtml(it.desc||'')}</div>
-            </div>
-            <div class="item-actions">
-                <div class="toggle-track ${it.published?'on':''}" data-action="toggle" title="공개/비공개"><div class="toggle-knob"></div></div>
-                ${EDIT_ICONS}
-            </div>
-        </div>`).join('');
-}
-document.getElementById('fp-list').addEventListener('click', e => {
-    const row = e.target.closest('.item-row'); if (!row) return;
-    const item = fpItems.find(it => it.id === row.dataset.id); if (!item) return;
-    if (e.target.closest('[data-action="toggle"]')) { fpCol.doc(item.id).update({ published: !item.published }); }
-    else if (e.target.closest('[data-action="delete"]')) { if (confirm(`"${item.title}" 삭제할까요?`)) fpCol.doc(item.id).delete(); }
-    else if (e.target.closest('[data-action="edit"]')) { openFpEdit(row, item); }
-});
-function openFpEdit(row, item){
-    const existing = row.nextElementSibling;
-    if (existing && existing.classList.contains('edit-panel')) { existing.remove(); return; }
-    const panel = document.createElement('div');
-    panel.className = 'edit-panel';
-    panel.innerHTML = `
-        <label class="f-label">라벨</label>
-        <input type="text" class="e-eyebrow" value="${escHtml(item.eyebrow||'')}">
-        <label class="f-label">제목</label>
-        <input type="text" class="e-title" value="${escHtml(item.title)}">
-        <label class="f-label">설명</label>
-        <textarea class="e-desc" rows="2">${escHtml(item.desc||'')}</textarea>
-        <label class="f-label">링크</label>
-        <input type="text" class="e-href" value="${escHtml(item.href)}">
-        <label class="f-label">정렬 순서(작을수록 앞)</label>
-        <input type="number" class="e-order" value="${item.order||0}">
-        <button class="btn primary e-save">저장</button>`;
-    row.after(panel);
-    panel.querySelector('.e-save').addEventListener('click', () => {
-        fpCol.doc(item.id).update({
-            eyebrow: panel.querySelector('.e-eyebrow').value.trim(),
-            title: panel.querySelector('.e-title').value.trim(),
-            desc: panel.querySelector('.e-desc').value.trim(),
-            href: panel.querySelector('.e-href').value.trim(),
-            order: Number(panel.querySelector('.e-order').value) || 0
-        }).then(() => toast('저장했어요'));
-    });
-}
-function subscribeFp(){
-    fpCol.onSnapshot(snap => {
-        fpItems = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
-        renderFpList();
-    }, () => toast('데이터 연결 오류'));
-}
-
 /* ===== 📰 최근 업데이트 ===== */
 const upCol = db.collection('updates');
 let upItems = [];
@@ -515,9 +463,9 @@ document.getElementById('up-add-btn').addEventListener('click', () => {
     const date = document.getElementById('up-date').value.trim();
     const badge = document.getElementById('up-badge').value;
     if (!text || !date) { toast('내용과 날짜는 꼭 입력해주세요'); return; }
-    upCol.add({ text, date, badge, published: false, order: Date.now(), createdAt: Date.now() })
+    upCol.add({ text, date, badge, published: true, order: Date.now(), createdAt: Date.now() })
         .then(() => {
-            toast('✅ 추가했어요 (비공개 상태)');
+            toast('✅ 추가했어요 (바로 공개됨)');
             document.getElementById('up-text').value = '';
             document.getElementById('up-date').value = '';
         }).catch(() => toast('추가 실패'));
@@ -609,7 +557,11 @@ function renderRmList(){
 document.getElementById('rm-list').addEventListener('click', e => {
     const row = e.target.closest('.item-row'); if (!row) return;
     const item = rmItems.find(it => it.id === row.dataset.id); if (!item) return;
-    if (e.target.closest('[data-action="toggle"]')) { rmCol.doc(item.id).update({ published: !item.published }); }
+    if (e.target.closest('[data-action="toggle"]')) {
+        const willPublish = !item.published;
+        rmCol.doc(item.id).update({ published: willPublish });
+        if (willPublish) logUpdate(`새 계획 추가: "${item.title}" (${item.status})`);
+    }
     else if (e.target.closest('[data-action="delete"]')) { if (confirm(`"${item.title}" 삭제할까요?`)) rmCol.doc(item.id).delete(); }
     else if (e.target.closest('[data-action="edit"]')) { openRmEdit(row, item); }
 });
@@ -651,7 +603,6 @@ function subscribeRm(){
     }, () => toast('데이터 연결 오류'));
 }
 
-renderFpIconPicker();
 renderIconPicker();
 </script>
 </body>
