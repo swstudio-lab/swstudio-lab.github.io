@@ -451,7 +451,7 @@ function tooltipFormatCfg(){
 const RECIPES = {
   sales: { label:'판매', emoji:'📈',
     dict:{ date:['date','일자','날짜','판매일','주문일','orderdate'], region:['region','지역','지점','지사','branch','area'],
-      manager:['manager','rep','담당자','영업담당','담당'], product:['product','item','상품','제품','품목','sku'],
+      manager:['manager','rep','담당자','영업담당','담당'], product:['product','item','상품','상품명','제품','제품명','품목','품목명','sku'],
       sales:['sales','amount','revenue','price','매출','매출액','금액'], qty:['qty','quantity','수량','개수','ea'] },
     fieldLabels:{date:'날짜',region:'지역',manager:'담당자',product:'상품',sales:'매출',qty:'수량'},
     kpis:[ {id:'totalSales',label:'총매출',field:'sales',calc:'sum',default:true}, {id:'totalQty',label:'총수량',field:'qty',calc:'sum',default:true},
@@ -526,8 +526,8 @@ const RECIPES = {
     table:['question','score','respondent'], searchField:'question', searchLabel:'문항', keyword:'comment' },
 
   hr: { label:'인사', emoji:'👥',
-    dict:{ name:['name','이름','성명'], dept:['department','부서','소속'], position:['position','title','직급','직위'],
-      joinDate:['joindate','hiredate','입사일'], endDate:['enddate','resigndate','퇴사일'] },
+    dict:{ name:['name','이름','성명'], dept:['department','부서','소속','소속부서','부서명'], position:['position','title','직급','직위'],
+      joinDate:['joindate','hiredate','입사일','입사년월일','입사일자'], endDate:['enddate','resigndate','퇴사일','퇴사년월일','퇴사일자'] },
     fieldLabels:{name:'이름',dept:'부서',position:'직급',joinDate:'입사일',endDate:'퇴사일'},
     kpis:[ {id:'totalHead',label:'총인원',field:null,calc:'count',default:true}, {id:'newHire',label:'신규입사(최근연도)',field:'joinDate',calc:'countLatestYear',default:true},
       {id:'leaver',label:'퇴사',field:'endDate',calc:'countNotEmpty',default:true}, {id:'deptCount',label:'부서 수',field:'dept',calc:'countDistinct',default:true},
@@ -870,6 +870,14 @@ function formatDateCell(d){
   const day = String(d.getDate()).padStart(2,'0');
   return `${y}-${m}-${day}`;
 }
+// "2024.02.01", "2024/02/01" 처럼 점/슬래시로 구분된 날짜도 표준(YYYY-MM-DD)으로 통일
+// (안 그러면 new Date()로 파싱할 때 브라우저마다 다르게 해석되거나 실패할 수 있음)
+function normalizeDateString(v){
+  const m = String(v).trim().match(/^(\d{4})[.\/](\d{1,2})[.\/](\d{1,2})$/);
+  if(!m) return v;
+  const [, y, mo, d] = m;
+  return `${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`;
+}
 
 // 여러 시트 중 실제 표 데이터가 가장 많아 보이는 시트를 고름 (표지/설명 시트 등을 피함)
 function pickBestSheet(wb){
@@ -945,6 +953,7 @@ function handleFile(file){
         headerCols.forEach(hc=>{
           let v = rowArr[hc.idx];
           if(v instanceof Date) v = formatDateCell(v);
+          else if(typeof v === 'string') v = normalizeDateString(v);
           obj[hc.name] = (v===undefined || v===null) ? '' : v;
         });
         json.push(obj);
@@ -1098,7 +1107,12 @@ document.getElementById('templateBtn').addEventListener('click', ()=>{
 /* =========================================================
    컬럼 매칭 로직
 ========================================================= */
-function normalize(s){ return String(s).toLowerCase().replace(/[\s_\-()]/g,''); }
+function normalize(s){
+  return String(s)
+    .replace(/\([^)]*\)/g, '')   // "매출 (원)" -> "매출 " 처럼 괄호 안 내용을 통째로 제거 (단위 표기 대비)
+    .toLowerCase()
+    .replace(/[\s_\-()]/g,'');
+}
 function matchColumns(headers, dict){
   const matched = {}; const usedHeaders = new Set();
   Object.keys(dict).forEach(field=>{
@@ -1267,9 +1281,16 @@ function checkRowHtml(id, name, desc){
    계산 유틸
 ========================================================= */
 function toNum(v){ const n = parseFloat(String(v).replace(/,/g,'')); return isNaN(n)?0:n; }
+function isValidNum(v){
+  if(v===undefined || v===null || String(v).trim()==='') return false;
+  return !isNaN(parseFloat(String(v).replace(/,/g,'')));
+}
 function calcAgg(rows, field, calc){
   if(calc==='count') return rows.length;
-  const nums = rows.map(r=>toNum(r[field]));
+  // "무응답" 같은 텍스트나 빈 칸은 0이 아니라 "값이 없는 것"으로 취급해서 평균/최대/최소 계산에서 아예 제외함
+  // (섞여있으면 평균이 실제보다 낮게 나오는 심각한 오류로 이어지기 때문)
+  const validRows = rows.filter(r => isValidNum(r[field]));
+  const nums = validRows.map(r=>toNum(r[field]));
   if(calc==='sum') return nums.reduce((a,b)=>a+b,0);
   if(calc==='avg') return nums.length? nums.reduce((a,b)=>a+b,0)/nums.length : 0;
   if(calc==='max') return nums.length? Math.max(...nums) : 0;
@@ -1283,6 +1304,7 @@ function fmtNum(n){
 }
 function kpiValue(recipe, k, rows, fm){
   const f = k.field ? fm[k.field] : null;
+  if(k.field && !f) return '–'; // 컬럼 매칭이 안 된 상태라 계산할 수 없음 (0이 아니라 "값 없음"으로 표시)
   if(k.calc==='execRate'){
     const req = calcAgg(rows, fm.requested, 'sum'); const fin = calcAgg(rows, fm.final, 'sum');
     return req? (fin/req*100).toFixed(1) + '%' : '–';
