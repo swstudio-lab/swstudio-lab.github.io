@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>컬럼명 인식 가이드 · DataLoom</title>
+<link rel="icon" type="image/svg+xml" href="../../assets/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../../assets/favicon-32.png">
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/style.css">
+<style>
+    .reveal{ opacity:0; transform:translateY(12px); animation:revealIn .5s ease forwards; }
+    @keyframes revealIn{ to{ opacity:1; transform:translateY(0); } }
+    .guide-wrap{ max-width:720px; margin:0 auto; padding:0 20px 100px; }
+    .guide-note{
+        background:rgba(232,185,63,0.06); border:1px solid var(--border-lit); border-radius:12px;
+        padding:16px 20px; margin-bottom:32px; font-size:13px; color:var(--muted); line-height:1.75;
+    }
+    .guide-note b{ color:var(--gold); }
+    .cat-block{
+        background:linear-gradient(180deg, var(--surface2), var(--surface));
+        border:1px solid var(--border); border-radius:14px; padding:22px 22px 8px; margin-bottom:20px;
+    }
+    .cat-title{ font-size:15px; font-weight:700; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+    .cat-title .emoji{ font-size:18px; }
+    table.dict-table{ width:100%; border-collapse:collapse; margin-bottom:14px; }
+    table.dict-table th{
+        text-align:left; font-size:11px; color:var(--gold); font-weight:700;
+        padding:8px 10px; border-bottom:1px solid var(--border-lit);
+    }
+    table.dict-table td{
+        font-size:12.5px; color:var(--text); padding:9px 10px; border-bottom:1px solid var(--border);
+        vertical-align:top;
+    }
+    table.dict-table td.aliases{ color:var(--muted); }
+    table.dict-table tr:last-child td{ border-bottom:none; }
+    .fallback-note{ font-size:12px; color:var(--muted); padding:12px 4px 16px; line-height:1.7; }
+</style>
+</head>
+<body>
+
+<nav class="topnav pixel">
+    <a href="../../index.html">홈</a>
+    <a href="../../ai-lab.html">AI 실험실</a>
+    <a href="../../works.html">작업물</a>
+    <div class="nav-drop">
+        <a href="../../games.html">게임</a>
+        <button class="nav-drop-caret" aria-label="게임 하위메뉴 열기">▾</button>
+        <div class="nav-drop-menu">
+            <a href="../../games.html?mode=solo">🕹️ 혼자 플레이</a>
+            <a href="../../games.html?mode=multi">👥 함께 플레이</a>
+        </div>
+    </div>
+    <a href="../../etc.html">기타</a>
+</nav>
+
+<header class="hero reveal">
+    <div class="eyebrow pixel">GUIDE</div>
+    <h1>컬럼명 인식 <span>가이드</span></h1>
+    <p>업로드한 엑셀/CSV의 컬럼명이 아래 목록에 있으면 자동으로 인식돼요. 없으면 업로드 후 직접 매칭할 수 있어요.</p>
+    <div class="hero-rule"></div>
+</header>
+
+<div class="guide-wrap">
+    <div class="guide-note reveal">
+        💡 컬럼명은 <b>대소문자, 띄어쓰기, 한글/영문 상관없이</b> 인식해요. 목록에 없는 이름이 있어도 걱정 마세요 — 업로드 후 "이 컬럼은 뭔가요?"라고 물어보고, 직접 표준 항목에 연결할 수 있어요.
+        <br><br>
+        🟡 <b>(선택)</b>이라고 표시된 항목은 없어도 전혀 문제없어요. 파일에 없으면 조용히 건너뛰고, 있으면 그 항목을 활용하는 위젯이 "분석 위젯 추가" 목록에 자동으로 열려요.
+    </div>
+
+    <div class="cat-block reveal">
+        <div class="cat-title"><span class="emoji">📈</span>판매</div>
+        <table class="dict-table">
+            <tr><th>표준 항목</th><th>인식하는 컬럼명 예시</th></tr>
+            <tr><td>날짜</td><td class="aliases">Date, date, 일자, 날짜, 판매일, 주문일, order_date</td></tr>
+            <tr><td>지역</td><td class="aliases">Region, region, 지역, 지점, 지사, Branch, Area</td></tr>
+            <tr><td>담당자</td><td class="aliases">Manager, Rep, 담당자, 영업담당, 담당</td></tr>
+            <tr><td>상품</td><td class="aliases">Product, Item, 상품, 제품, 품목, SKU</td></tr>
+            <tr><td>매출</td><td class="aliases">Sales, Amount, Revenue, Price, 매출, 매출액, 금액</td></tr>
+            <tr><td>수량</td><td class="aliases">Qty, Quantity, 수량, 개수, EA</td></tr>
+        </table>
+    </div>
+
+    <div class="cat-block reveal">
+        <div class="cat-title"><span class="emoji">💰</span>예산</div>
+        <table class="dict-table">
+            <tr><th>표준 항목</th><th>인식하는 컬럼명 예시</th></tr>
+            <tr><td>부서명</td><td class="aliases">Department, Dept, 부서, 부서명, Team, 팀명</td></tr>
+            <tr><td>신청액</td><td class="aliases">Requested, 신청액, 신청금액, Request</td></tr>
+            <tr><td>배정액</td><td class="aliases">Adjusted, Adjustment, 조정액, 조정금액, 배정액, 배정금액</td></tr>
+            <tr><td>집행액</td><td class="aliases">Final, Approved, 최종액, 확정액, 반영액, 집행액, 집행금액</td></tr>
+            <tr><td>날짜 <i style="color:var(--muted);">(선택)</i></td><td class="aliases">Date, 일자, 날짜, 집행일, 지출일 — 있으면 "월별 집행" 차트가 열려요</td></tr>
+            <tr><td>비목 <i style="color:var(--muted);">(선택)</i></td><td class="aliases">Budget Type, 비목, 비목명, 항목, 예산항목 — 있으면 "비목별 집행" 차트가 열려요</td></tr>
+        </table>
+    </div>
+
+    <div class="cat-block reveal">
+        <div class="cat-title"><span class="emoji">🎓</span>교육</div>
+        <table class="dict-table">
+            <tr><th>표준 항목</th><th>인식하는 컬럼명 예시</th></tr>
+            <tr><td>프로그램명</td><td class="aliases">Program, Course, 프로그램, 과정명, 교육명</td></tr>
+            <tr><td>신청인원</td><td class="aliases">Applicants, Enrolled, 신청, 신청인원</td></tr>
+            <tr><td>수료인원</td><td class="aliases">Completed, Graduates, 수료, 수료인원</td></tr>
+            <tr><td>날짜 <i style="color:var(--muted);">(선택)</i></td><td class="aliases">Date, 일자, 날짜, 운영일, 시작일 — 있으면 "월별 운영" 차트가 열려요</td></tr>
+            <tr><td>기관 <i style="color:var(--muted);">(선택)</i></td><td class="aliases">Institution, Organization, 기관, 기관명, 소속기관 — 있으면 "기관별 참여" 차트가 열려요</td></tr>
+            <tr><td>출석률 <i style="color:var(--muted);">(선택)</i></td><td class="aliases">Attendance, Attendance Rate, 출석률, 평균출석률 — 있으면 "평균 출석률" KPI가 열려요</td></tr>
+        </table>
+    </div>
+
+    <div class="cat-block reveal">
+        <div class="cat-title"><span class="emoji">💬</span>만족도</div>
+        <table class="dict-table">
+            <tr><th>표준 항목</th><th>인식하는 컬럼명 예시</th></tr>
+            <tr><td>문항</td><td class="aliases">Question, Item, 문항, 질문</td></tr>
+            <tr><td>점수</td><td class="aliases">Score, Rating, 점수, 평점</td></tr>
+            <tr><td>응답자</td><td class="aliases">Respondent, ID, 응답자</td></tr>
+            <tr><td>자유의견</td><td class="aliases">Comment, Opinion, Feedback, 의견, 자유의견 (키워드 분석에 사용돼요)</td></tr>
+        </table>
+    </div>
+
+    <div class="cat-block reveal">
+        <div class="cat-title"><span class="emoji">👥</span>인사</div>
+        <table class="dict-table">
+            <tr><th>표준 항목</th><th>인식하는 컬럼명 예시</th></tr>
+            <tr><td>이름</td><td class="aliases">Name, 이름, 성명</td></tr>
+            <tr><td>부서</td><td class="aliases">Department, 부서, 소속</td></tr>
+            <tr><td>직급</td><td class="aliases">Position, Title, 직급, 직위</td></tr>
+            <tr><td>입사일</td><td class="aliases">Join Date, Hire Date, 입사일</td></tr>
+            <tr><td>퇴사일</td><td class="aliases">End Date, Resign Date, 퇴사일 (입/퇴사 KPI 계산에 사용돼요)</td></tr>
+        </table>
+    </div>
+
+    <div class="cat-block reveal">
+        <div class="cat-title"><span class="emoji">📋</span>자유입력</div>
+        <div class="fallback-note">정해진 사전이 없어요. 숫자로 인식되는 컬럼은 전부 KPI 후보로, 날짜로 인식되는 컬럼은 시간축 차트 후보로 자동 처리돼요. 어떤 파일을 올려도 기본적으로 작동하는 카테고리예요.</div>
+    </div>
+</div>
+
+<footer>
+    made with care · updated as things get made
+</footer>
+
+<script src="../../assets/nav.js"></script>
+<script src="../../assets/maintenance.js"></script>
+<script src="../../assets/analytics-config.js"></script>
+<script src="../../assets/ga4.js"></script>
+<script src="../../assets/visitor-counter.js"></script>
+</body>
+</html>

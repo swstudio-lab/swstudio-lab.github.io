@@ -1,0 +1,2117 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DataLoom — 엑셀 대시보드</title>
+<link rel="icon" type="image/svg+xml" href="../../assets/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../../assets/favicon-32.png">
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/vendor/gridstack.min.css">
+<style>
+  :root{
+    --bg:#0b0b0e; --panel:#15151a; --panel-2:#1c1c22; --line:#2a2a32;
+    --gold:#e0a94a; --gold-dim:#8a6b30; --teal:#5fc7bd; --ink:#efece4; --muted:#8d8d96; --danger:#d9705f;
+    --mono:'JetBrains Mono','Courier New',monospace; --display:'Space Grotesk','Pretendard',sans-serif; --body:'Noto Sans KR',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:radial-gradient(circle at 20% -10%, rgba(224,169,74,0.08), transparent 40%), var(--bg);
+    color:var(--ink); font-family:var(--body); min-height:100vh; padding:32px 16px 80px;
+  }
+  .wrap{max-width:1400px;margin:0 auto;}
+  .top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:36px;border-bottom:1px solid var(--line);padding-bottom:18px;}
+  .brand{font-family:var(--display);font-size:14px;letter-spacing:0.12em;color:var(--gold);text-transform:uppercase;}
+  .progress-track{display:flex;gap:6px;}
+  .dot{width:20px;height:3px;border-radius:2px;background:var(--line);transition:background .3s ease;}
+  .dot.done{background:var(--gold-dim);} .dot.active{background:var(--gold);}
+
+  .step{display:none;animation:fadeUp .4s ease both;}
+  .step:not([data-step="4"]){max-width:640px; margin:0 auto;}
+  .step.visible{display:block;}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+  .step-eyebrow{font-family:var(--mono);font-size:12px;color:var(--teal);letter-spacing:0.08em;margin-bottom:6px;}
+  .step-title{font-family:var(--display);font-size:24px;font-weight:600;margin:0 0 8px;}
+  .step-desc{color:var(--muted);font-size:13.5px;line-height:1.6;margin:0 0 22px;}
+
+  /* intro */
+  .intro-points{display:flex;flex-direction:column;margin-bottom:24px;}
+  .intro-point{display:flex;gap:12px;padding:13px 0;border-bottom:1px solid var(--line);}
+  .intro-point:last-child{border-bottom:none;}
+  .intro-point-mark{font-family:var(--mono);font-size:12px;color:var(--gold);flex-shrink:0;}
+  .intro-point-text{font-size:13px;line-height:1.6;color:var(--muted);}
+  .intro-point-text b{color:var(--ink);}
+
+  /* upload */
+  .drop-zone{
+    border:2px dashed var(--line);border-radius:14px;padding:40px 20px;text-align:center;
+    cursor:pointer;transition:border-color .15s ease, background .15s ease;
+  }
+  .drop-zone:hover, .drop-zone.dragover{border-color:var(--gold-dim);background:rgba(224,169,74,0.04);}
+  .drop-zone input{display:none;}
+  .drop-icon{font-size:32px;margin-bottom:10px;}
+  .drop-text{font-size:13.5px;color:var(--muted);}
+  .drop-text b{color:var(--gold);}
+  .file-badge{
+    margin-top:16px;background:var(--panel);border:1px solid var(--gold-dim);border-radius:10px;
+    padding:12px 16px;font-size:12.5px;display:none;align-items:center;justify-content:space-between;
+  }
+  .file-badge.show{display:flex;}
+  .sample-btn{
+    margin-top:14px;width:100%;background:none;border:1px solid var(--line);color:var(--muted);
+    padding:11px;border-radius:10px;font-size:12.5px;cursor:pointer;font-family:inherit;
+  }
+  .sample-btn:hover{border-color:var(--gold-dim);color:var(--gold);}
+  .template-box{
+    background:rgba(232,185,63,0.06);border:1px solid var(--gold-dim);border-radius:12px;padding:16px 18px;
+  }
+  .template-box-text{font-size:12.5px;color:var(--muted);line-height:1.6;}
+  .template-box-text b{color:var(--gold);}
+
+  .room-load-box{
+    margin-top:28px;padding-top:20px;border-top:1px solid var(--line);
+  }
+  .room-load-box input{
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;color:var(--ink);
+    padding:10px 12px;font-size:13px;font-family:var(--mono);letter-spacing:0.04em;
+  }
+  .my-dash-row{
+    display:flex; align-items:center; gap:8px; padding:9px 10px; background:var(--panel);
+    border:1px solid var(--line); border-radius:8px; margin-bottom:6px; font-size:12px;
+  }
+  .my-dash-label{ flex:1; outline:none; border-radius:4px; padding:1px 4px; }
+  .my-dash-label:focus{ background:rgba(224,169,74,0.1); }
+  .my-dash-code{ font-family:var(--mono); color:var(--muted); font-size:10.5px; letter-spacing:0.03em; }
+  .room-status{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    background:rgba(232,185,63,0.07);border:1px solid var(--gold-dim);border-radius:10px;
+    padding:10px 14px;margin-bottom:14px;font-size:12px;
+  }
+  .room-status-text b{font-family:var(--mono);color:var(--gold);letter-spacing:0.05em;}
+  .share-modal-overlay{
+    display:none;position:fixed;inset:0;background:rgba(8,7,5,0.8);z-index:100;
+    align-items:center;justify-content:center;padding:20px;
+  }
+  .share-modal-overlay.show{display:flex;}
+  .share-modal{
+    background:var(--panel);border:1px solid var(--gold-dim);border-radius:16px;
+    padding:28px 24px;max-width:340px;width:100%;text-align:center;
+  }
+  .share-modal-code{
+    font-family:var(--mono);font-size:28px;font-weight:700;color:var(--gold);
+    letter-spacing:0.1em;margin:16px 0;padding:14px;background:var(--panel-2);border-radius:10px;
+  }
+
+  @media print{
+    body{ background:#fff; color:#111; padding:0; }
+    .top, .dash-toolbar, .room-status, .eye-btn, #addWidgetChecklist, .add-widget-btn, .no-print,
+    .step-eyebrow, .step-desc, .share-modal-overlay{ display:none !important; }
+    .widget, .kpi-card{ break-inside:avoid; border:1px solid #ccc; background:#fff; color:#111; }
+    .widget-title, .kpi-value, .step-title{ color:#111 !important; }
+    .kpi-value{ color:#8a6b30 !important; }
+  }
+
+  /* category grid */
+  .cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .cat-opt{
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 14px;
+    cursor:pointer;text-align:center;transition:border-color .15s ease, background .15s ease;
+  }
+  .cat-opt:hover{border-color:var(--gold-dim);}
+  .cat-opt.selected{border-color:var(--gold);background:var(--panel-2);}
+  .cat-emoji{font-size:26px;margin-bottom:8px;}
+  .cat-name{font-size:13px;font-weight:600;}
+
+  /* matching */
+  .match-row{
+    display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--panel);
+    border:1px solid var(--line);border-radius:10px;margin-bottom:8px;font-size:12.5px;
+  }
+  .match-row.ok{border-color:rgba(95,199,189,0.35);}
+  .match-row.warn{border-color:rgba(224,169,74,0.4);}
+  .match-field{color:var(--muted);width:64px;flex-shrink:0;}
+  .match-arrow{color:var(--line);}
+  .match-header{color:var(--ink);font-weight:600;flex:1;}
+  .match-select{
+    background:var(--panel-2);color:var(--ink);border:1px solid var(--gold-dim);border-radius:6px;
+    padding:5px 8px;font-size:12px;font-family:inherit;
+  }
+  .match-tag{font-family:var(--mono);font-size:10px;padding:2px 6px;border-radius:4px;flex-shrink:0;}
+  .match-tag.ok{background:rgba(95,199,189,0.15);color:var(--teal);}
+  .match-tag.warn{background:rgba(224,169,74,0.15);color:var(--gold);}
+
+  /* widget checklist */
+  .widget-group{margin-bottom:18px;}
+  .widget-group-title{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.05em;margin-bottom:8px;}
+  .check-row{display:flex;align-items:flex-start;gap:12px;padding:11px 4px;border-bottom:1px solid var(--line);cursor:pointer;}
+  .check-row:last-child{border-bottom:none;}
+  .box{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--line);flex-shrink:0;margin-top:2px;display:flex;align-items:center;justify-content:center;transition:all .15s ease;}
+  .box.on{background:var(--gold);border-color:var(--gold);}
+  .box.on::after{content:"✓";color:#0b0b0e;font-size:11px;font-weight:700;}
+  .check-name{font-weight:600;font-size:13.5px;}
+  .check-desc{font-size:11.5px;color:var(--muted);margin-top:2px;}
+
+  /* nav */
+  .nav{display:flex;justify-content:space-between;margin-top:28px;}
+  button{font-family:var(--body);border:none;border-radius:10px;padding:12px 20px;font-size:13.5px;font-weight:600;cursor:pointer;}
+  .btn-primary{background:var(--gold);color:#0b0b0e;}
+  .btn-primary:disabled{opacity:0.3;cursor:not-allowed;}
+  .btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--line);}
+
+  /* dashboard */
+  .dash-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;}
+  .dataset-section{ margin-bottom:8px; }
+  .dataset-section-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 2px; margin-bottom:8px; border-bottom:1px solid var(--gold-dim);
+  }
+  .dataset-section-title{
+    font-family:var(--display); font-size:15px; font-weight:600; color:var(--gold);
+    outline:none; border-radius:4px; padding:1px 4px;
+  }
+  .dataset-section-title:focus{ background:rgba(224,169,74,0.1); }
+  .ds-remove-btn{
+    background:none; border:1px solid var(--line); color:var(--muted); font-size:11px;
+    padding:5px 10px; border-radius:8px; cursor:pointer; font-family:inherit;
+  }
+  .ds-remove-btn:hover{ border-color:var(--danger); color:var(--danger); }
+  .dataset-divider{ height:1px; background:var(--line); margin:28px 0; }
+  .budget-warning{
+    background:rgba(217,112,95,0.1); border:1px solid var(--danger); color:#f0a293;
+    border-radius:10px; padding:10px 14px; margin-bottom:14px; font-size:12.5px; line-height:1.6;
+  }
+
+  /* GridStack 다크 테마 오버라이드 */
+  .grid-stack{ background:transparent; }
+  .grid-stack-item-content{
+    background:transparent !important; inset:0 4px !important; overflow:visible !important;
+  }
+  .grid-stack-item .widget, .grid-stack-item .kpi-card{
+    height:100%; margin-bottom:0 !important; box-sizing:border-box; display:flex; flex-direction:column;
+  }
+  .grid-stack-item .widget-body{ flex:1; overflow:auto; }
+  .grid-stack-item .chart-canvas-wrap{ height:100%; min-height:120px; }
+  .grid-stack-item .table-scroll{ height:100%; }
+  .grid-stack-placeholder > .placeholder-content{
+    background:rgba(224,169,74,0.08) !important; border:1.5px dashed var(--gold-dim) !important; border-radius:14px;
+  }
+  .grid-stack-item.ui-draggable-dragging .widget,
+  .grid-stack-item.ui-resizable-resizing .widget{ box-shadow:0 8px 24px rgba(0,0,0,0.5); border-color:var(--gold-dim); }
+  .ui-resizable-se{
+    background:linear-gradient(135deg, transparent 50%, var(--gold-dim) 50%) !important;
+    opacity:0.6;
+  }
+  .grid-drag-handle{
+    cursor:grab; color:var(--muted); font-size:12px; padding:0 4px; user-select:none;
+  }
+  .grid-drag-handle:active{ cursor:grabbing; }
+  .dash-toolbar button{font-size:11.5px;padding:9px 14px;}
+  .widget{
+    background:linear-gradient(180deg, var(--panel-2), var(--panel));border:1px solid var(--line);
+    border-radius:14px;padding:18px 18px 16px;margin-bottom:14px;position:relative;
+    height:100%; box-sizing:border-box; display:flex; flex-direction:column;
+  }
+  .grid-stack-item.hidden-widget .widget{opacity:0.45;}
+  .grid-stack-item.hidden-widget .widget-body{display:none;}
+  .grid-stack-item.hidden-widget .kpi-value{display:none;}
+  .widget-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:6px;}
+  .widget-title{font-size:12px;color:var(--muted);font-family:var(--mono);letter-spacing:.03em;outline:none;border-radius:4px;padding:1px 4px;}
+  .widget-title:focus{background:rgba(224,169,74,0.1);}
+  .eye-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 4px;flex-shrink:0;}
+  .eye-btn:hover{color:var(--gold);}
+  .chart-type-switch{ display:flex; gap:2px; flex-shrink:0; }
+  .ctype-btn{
+    background:none; border:1px solid transparent; border-radius:5px; color:var(--muted);
+    font-size:11px; padding:2px 4px; cursor:pointer; opacity:0.55;
+  }
+  .ctype-btn:hover{ opacity:1; border-color:var(--line); }
+  .ctype-btn.on{ opacity:1; border-color:var(--gold-dim); background:rgba(224,169,74,0.1); }
+
+  .kpi-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;position:relative;}
+  .kpi-value{font-family:var(--display);font-size:22px;font-weight:700;color:var(--gold);margin-top:4px;}
+  .kpi-eye{position:absolute;top:8px;right:8px;}
+
+  .chart-canvas-wrap{height:220px;}
+
+  table.dash-table{width:100%;border-collapse:collapse;font-size:12px;}
+  table.dash-table th{
+    text-align:left;color:var(--gold);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--gold-dim);
+    font-size:11px;outline:none;
+  }
+  table.dash-table th:focus{background:rgba(224,169,74,0.1);}
+  table.dash-table td{padding:8px 10px;border-bottom:1px solid var(--line);color:var(--text,var(--ink));}
+  .table-scroll{overflow-x:auto;}
+
+  .search-box{display:flex;gap:8px;margin-bottom:12px;}
+  .search-box input{
+    flex:1;background:var(--panel);border:1px solid var(--line);border-radius:8px;color:var(--ink);
+    padding:10px 12px;font-size:13px;font-family:inherit;
+  }
+  .search-results{display:flex;flex-direction:column;gap:8px;}
+  .search-card{background:var(--panel);border:1px solid var(--gold-dim);border-radius:10px;padding:12px 14px;}
+  .search-card-title{font-weight:700;font-size:13px;margin-bottom:6px;color:var(--gold);}
+  .search-card-row{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:2px 0;}
+  .search-empty{font-size:12px;color:var(--muted);padding:10px 2px;}
+
+  .kw-list{display:flex;flex-wrap:wrap;gap:8px;}
+  .kw-chip{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:6px 12px;font-size:11.5px;color:var(--muted);}
+  .kw-chip b{color:var(--gold);margin-left:4px;}
+
+  .custom-form{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
+  .custom-form select, .custom-form input{
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;color:var(--ink);
+    padding:9px 10px;font-size:12px;font-family:inherit;
+  }
+  .custom-form input[type=text]{grid-column:1/-1;}
+  .add-widget-btn{width:100%;background:var(--panel-2);border:1px dashed var(--gold-dim);color:var(--gold);
+    padding:12px;border-radius:10px;font-size:12.5px;cursor:pointer;font-family:inherit;}
+
+  a.guide-link{color:var(--teal);font-size:11.5px;text-decoration:none;}
+  a.guide-link:hover{text-decoration:underline;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="top">
+    <div class="brand">DATALOOM</div>
+    <div class="progress-track" id="progressTrack"></div>
+  </div>
+
+  <!-- STEP 0: 인트로 -->
+  <section class="step" data-step="0">
+    <div class="step-eyebrow">시작하기 전에</div>
+    <h2 class="step-title">엑셀 데이터로<br>대시보드 만들기</h2>
+    <p class="step-desc">파일을 올리면 컬럼을 자동으로 읽고, 어울리는 KPI·차트를 미리 구성해드려요. 그 다음엔 원하는 대로 고치면 돼요.</p>
+    <div class="intro-points">
+      <div class="intro-point"><div class="intro-point-mark">01</div><div class="intro-point-text"><b>컬럼명을 자동으로 인식해요</b> — Date, 매출, Region 같은 흔한 이름들을 알아서 매칭해요. <a class="guide-link" href="guide.html" target="_blank">인식 목록 보기 →</a></div></div>
+      <div class="intro-point"><div class="intro-point-mark">02</div><div class="intro-point-text"><b>필요한 것만 골라서 켜요</b> — KPI, 차트, 표 중 원하는 것만 선택해서 대시보드를 구성해요.</div></div>
+      <div class="intro-point"><div class="intro-point-mark">03</div><div class="intro-point-text"><b>완성 후에도 자유롭게 편집해요</b> — 위젯을 끌어서 옮기고 크기를 조절하고, 이름 변경·숨기기·삭제, 차트 종류 전환까지 다 가능해요.</div></div>
+      <div class="intro-point"><div class="intro-point-mark">04</div><div class="intro-point-text"><b>여러 데이터를 한 대시보드에</b> — 예산·교육·인사처럼 서로 다른 데이터를 계속 추가해서 하나로 모을 수 있어요.</div></div>
+      <div class="intro-point"><div class="intro-point-mark">05</div><div class="intro-point-text"><b>코드로 암호화해서 저장·공유</b> — 코드를 아는 사람만 열람·공동 편집할 수 있고, 텍스트·엑셀·인쇄로도 내보낼 수 있어요.</div></div>
+    </div>
+    <div class="callout" style="font-size:12px;color:var(--muted);background:rgba(232,185,63,0.06);border:1px solid var(--gold-dim);border-radius:10px;padding:12px 16px;margin-bottom:22px;line-height:1.7;">
+      💡 지금은 실시간 AI 호출 없이, 미리 정해둔 규칙(컬럼 사전 + 계산식)으로 만들어져요. 파일 안 업로드하고 <b style="color:var(--gold);">샘플 데이터</b>로도 체험해볼 수 있어요.
+    </div>
+    <div class="nav"><span></span><button class="btn-primary" onclick="goStep(1)">시작하기 →</button></div>
+    <div class="room-load-box">
+      <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px;">이미 만들어둔 대시보드가 있나요?</div>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="loadRoomCode" placeholder="공유 코드 입력 (예: 7QZK2X9M)" style="flex:1;text-transform:uppercase;">
+        <button class="btn-ghost" id="loadRoomBtn" style="flex:0 0 auto;">불러오기</button>
+      </div>
+      <div id="myDashboardsList" style="display:none;"></div>
+    </div>
+  </section>
+
+  <!-- STEP 1: 카테고리 (업로드보다 먼저 골라야 샘플 데이터도 맞게 만들어짐) -->
+  <section class="step" data-step="1">
+    <div class="step-eyebrow">STEP 1 / 4</div>
+    <h2 class="step-title">이 자료는 어떤 종류인가요?</h2>
+    <p class="step-desc">고른 종류에 맞는 KPI·차트 구성을 추천해드려요.</p>
+    <div class="cat-grid" id="catGrid"></div>
+    <div class="nav"><button class="btn-ghost" onclick="goStepBackFrom1()">이전</button><button class="btn-primary" id="next2" disabled onclick="goStep(2)">다음 →</button></div>
+  </section>
+
+  <!-- STEP 2: 업로드 -->
+  <section class="step" data-step="2">
+    <div class="step-eyebrow">STEP 2 / 4</div>
+    <h2 class="step-title">파일을 올려주세요</h2>
+    <p class="step-desc">직접 만든 파일을 올리면 컬럼명이 달라서 오류가 날 수 있어요. <b style="color:var(--ink);">먼저 입력 양식을 받아서 그 틀에 값만 채워 올리시는 걸 추천해요.</b></p>
+    <div class="template-box" id="templateBox">
+      <div class="template-box-text">📐 <b id="templateCatLabel">이 카테고리</b> 입력 양식 — 컬럼명은 그대로 두고 값만 채워서 올려주세요</div>
+      <button class="btn-primary" id="templateBtn" style="width:100%;margin-top:10px;">📥 입력 양식 다운로드</button>
+    </div>
+    <div class="drop-zone" id="dropZone" style="margin-top:18px;">
+      <div class="drop-icon">📄</div>
+      <div class="drop-text"><b>클릭해서 파일 선택</b> 또는 여기로 끌어다 놓기</div>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+    </div>
+    <div class="file-badge" id="fileBadge">
+      <span id="fileBadgeText"></span>
+      <button class="btn-ghost" style="padding:5px 10px;font-size:11px;" onclick="clearFile()">지우기</button>
+    </div>
+    <button class="sample-btn" id="sampleBtn">🎲 그냥 샘플 데이터로 체험하기</button>
+    <div class="nav"><button class="btn-ghost" onclick="goStep(1)">이전</button><button class="btn-primary" id="next1" disabled onclick="prepareStep3();goStep(3)">다음 →</button></div>
+  </section>
+
+  <!-- STEP 3: 매칭 + 위젯 선택 -->
+  <section class="step" data-step="3">
+    <div class="step-eyebrow">STEP 3 / 4</div>
+    <h2 class="step-title">컬럼 확인 &amp; 위젯 선택</h2>
+    <p class="step-desc">자동으로 인식한 컬럼이에요. 잘못됐으면 직접 바꿀 수 있어요.</p>
+    <div id="matchList"></div>
+    <p class="step-desc" style="margin-top:24px;">이제 대시보드에 넣을 항목을 골라주세요 (기본으로 추천 항목이 체크되어 있어요).</p>
+    <div id="widgetChecklist"></div>
+    <div class="nav"><button class="btn-ghost" onclick="goStep(2)">이전</button><button class="btn-primary" onclick="safeBuildDashboard()">대시보드 만들기 →</button></div>
+  </section>
+
+  <!-- STEP 4: 대시보드 -->
+  <section class="step" data-step="4">
+    <div class="step-eyebrow">완성</div>
+    <h2 class="step-title">대시보드</h2>
+    <p class="step-desc">⠿을 끌어서 옮기거나 모서리로 크기를 조절하세요. 제목 클릭으로 이름 변경, 👁로 숨기기, 🗑로 삭제, 차트는 종류도 바로 바꿀 수 있어요.</p>
+
+    <div class="room-status" id="roomStatus" style="display:none;">
+      <div class="room-status-text">🔗 코드로 공유 중 · <b id="roomCodeDisplay"></b> <span id="presenceCount" style="margin-left:8px;color:var(--teal);"></span></div>
+      <button class="btn-ghost" id="copyRoomCodeBtn" style="font-size:11px;padding:6px 10px;">코드 복사</button>
+    </div>
+
+    <div class="dash-toolbar">
+      <button class="btn-primary" id="addMoreDataBtn">➕ 데이터 추가</button>
+      <button class="btn-ghost" onclick="resetAll();goStep(0);">처음부터</button>
+      <button class="btn-primary" id="shareBtn">💾 저장하고 공유하기</button>
+    </div>
+    <div class="dash-toolbar">
+      <button class="btn-ghost" id="exportTxtBtn">📄 텍스트로 저장</button>
+      <button class="btn-ghost" id="exportXlsxBtn">📊 엑셀로 저장</button>
+      <button class="btn-ghost" id="printBtn">🖨️ 인쇄</button>
+    </div>
+
+    <div id="dashArea"></div>
+  </section>
+</div>
+
+<div class="share-modal-overlay" id="shareModal">
+  <div class="share-modal">
+    <div style="font-size:26px;">🔒</div>
+    <h3 style="margin:10px 0 6px;">암호화해서 저장했어요</h3>
+    <p style="font-size:12.5px;color:var(--muted);line-height:1.6;margin:0;">이 코드로 암호화됐어요. 이 코드를 아는 사람만 열어서 같이 수정할 수 있어요.</p>
+    <div class="share-modal-code" id="shareModalCode">--------</div>
+    <p style="font-size:11px;color:var(--danger);line-height:1.6;margin:0 0 4px;">⚠️ 이 코드를 잃어버리면 <b>아무도(저희도) 복구할 수 없어요.</b> 꼭 따로 저장해두세요.</p>
+    <button class="btn-primary" id="copyShareCodeBtn" style="width:100%;">코드 복사하기</button>
+    <button class="btn-ghost" id="closeShareModalBtn" style="width:100%;margin-top:8px;">닫기</button>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="../../assets/vendor/xlsx.full.min.js"></script>
+<script src="../../assets/vendor/chart.umd.js"></script>
+<script src="../../assets/vendor/chartjs-plugin-datalabels.min.js"></script>
+<script src="../../assets/vendor/exceljs.min.js"></script>
+<script src="../../assets/vendor/gridstack-all.js"></script>
+<script src="../../assets/vendor/chartjs-plugin-datalabels.min.js"></script>
+<script>
+/* =========================================================
+   라이브러리 로드 체크 — 폴더 구조 없이 파일 하나만 열었을 때 대비
+========================================================= */
+if(typeof XLSX === 'undefined' || typeof Chart === 'undefined' || typeof ExcelJS === 'undefined' || typeof GridStack === 'undefined' || typeof ChartDataLabels === 'undefined'){
+  document.querySelector('.wrap').innerHTML = `
+    <div style="background:#1c1c22;border:1px solid #d9705f;border-radius:14px;padding:28px 24px;text-align:center;">
+      <div style="font-size:28px;margin-bottom:12px;">⚠️</div>
+      <h2 style="margin:0 0 10px;">필요한 파일을 못 찾았어요</h2>
+      <p style="color:#8d8d96;font-size:13px;line-height:1.7;margin:0 0 4px;">
+        이 페이지는 <code>assets/vendor/</code> 폴더 안의 파일들이 옆에 같이 있어야 작동해요.<br>
+        zip 파일 안의 <b style="color:#e0a94a;">index.html 하나만 열으신 것 같아요.</b>
+      </p>
+      <p style="color:#8d8d96;font-size:13px;line-height:1.7;">
+        zip을 <b style="color:#e0a94a;">통째로 압축 풀어서</b>, 풀린 폴더 안에서<br>
+        <code>site-final/works/dataloom/index.html</code> 경로 그대로 열어주세요.
+      </p>
+    </div>`;
+  throw new Error('vendor 라이브러리 로드 실패 (폴더 구조 없이 열었을 가능성)');
+}
+
+// 차트 위에 값이 항상 보이도록 하는 플러그인 (없어도 차트 자체는 정상 작동함)
+if(typeof ChartDataLabels !== 'undefined'){
+  Chart.register(ChartDataLabels);
+}
+
+/* =========================================================
+   레시피 데이터 — 카테고리별 컬럼사전 + KPI + 차트 + 표
+========================================================= */
+Chart.register(ChartDataLabels);
+function datalabelsFor(chartType, isHorizontal, entryCount){
+  const threshold = chartType === 'doughnut' ? 8 : 10;
+  const tooMany = (entryCount || 0) > threshold;
+  if(chartType === 'doughnut'){
+    return { display: !tooMany, color:'#1c1208', font:{size:10, weight:'bold'},
+      formatter:(v)=> typeof v==='number' ? fmtNum(v) : v };
+  }
+  if(chartType === 'line'){
+    return { display: !tooMany, color:'#e8b93f', font:{size:9,weight:'bold'}, align:'top', offset:4,
+      formatter:(v)=> typeof v==='number' ? fmtNum(v) : v };
+  }
+  return { display: !tooMany, color:'#efece4', font:{size:9,weight:'bold'}, anchor:'end', align: isHorizontal?'right':'top', offset:2,
+    formatter:(v)=> typeof v==='number' ? fmtNum(v) : v };
+}
+function tooltipFormatCfg(){
+  return { callbacks: { label:(ctx)=>{
+    const raw = ctx.parsed?.y ?? ctx.parsed?.x ?? ctx.parsed ?? ctx.raw;
+    const val = typeof raw === 'number' ? fmtNum(raw) : raw;
+    return `${ctx.dataset.label || ctx.label}: ${val}`;
+  } } };
+}
+
+const RECIPES = {
+  sales: { label:'판매', emoji:'📈',
+    dict:{ date:['date','일자','날짜','판매일','주문일','orderdate'], region:['region','지역','지점','지사','branch','area'],
+      manager:['manager','rep','담당자','영업담당','담당'], product:['product','item','상품','제품','품목','sku'],
+      sales:['sales','amount','revenue','price','매출','매출액','금액'], qty:['qty','quantity','수량','개수','ea'] },
+    fieldLabels:{date:'날짜',region:'지역',manager:'담당자',product:'상품',sales:'매출',qty:'수량'},
+    kpis:[ {id:'totalSales',label:'총매출',field:'sales',calc:'sum',default:true}, {id:'totalQty',label:'총수량',field:'qty',calc:'sum',default:true},
+      {id:'avgSales',label:'평균매출',field:'sales',calc:'avg',default:true}, {id:'countRows',label:'주문건수',field:null,calc:'count',default:true},
+      {id:'maxOrder',label:'최고 매출 건',field:'sales',calc:'max',default:false},
+      {id:'minOrder',label:'최저 매출 건',field:'sales',calc:'min',default:false},
+      {id:'topManager',label:'최고 실적 담당자',field:'sales',groupBy:'manager',calc:'maxGroupLabel',default:false} ],
+    charts:[ {id:'monthly',label:'월별 매출 추이',type:'line',groupBy:'date_month',valueField:'sales',valueCalc:'sum',default:true},
+      {id:'byRegion',label:'지역별 매출',type:'bar',groupBy:'region',valueField:'sales',valueCalc:'sum',default:true},
+      {id:'topProduct',label:'상품별 TOP5',type:'bar',groupBy:'product',valueField:'sales',valueCalc:'sum',topN:5,default:true},
+      {id:'byManager',label:'담당자별 매출',type:'bar',groupBy:'manager',valueField:'sales',valueCalc:'sum',default:false},
+      {id:'qtyByRegion',label:'지역별 판매수량',type:'bar',groupBy:'region',valueField:'qty',valueCalc:'sum',default:false} ],
+    table:['date','region','manager','product','sales','qty'], searchField:'region', searchLabel:'지역/상품' },
+
+  budget: { label:'예산', emoji:'💰',
+    dict:{ dept:['department','dept','부서','부서명','team','팀명'], requested:['requested','신청액','신청금액','request'],
+      adjusted:['adjusted','adjustment','조정액','조정금액','배정액','배정금액'], final:['final','approved','최종액','확정액','반영액','집행액','집행금액'],
+      date:['date','일자','날짜','집행일','지출일','executiondate'],
+      budgetType:['budgettype','비목','비목명','항목','category','type','예산항목'] },
+    fieldLabels:{dept:'부서명',requested:'신청액',adjusted:'배정액',final:'집행액',date:'날짜',budgetType:'비목'},
+    kpis:[ {id:'totalBudget',label:'총예산',field:'requested',calc:'sum',default:true}, {id:'totalReq',label:'총집행액',field:'final',calc:'sum',default:true},
+      {id:'execRate',label:'집행률',field:null,calc:'execRate',default:true}, {id:'balance',label:'잔액',field:null,calc:'balance',default:true},
+      {id:'avgExecRate',label:'평균 집행률(부서당)',field:null,calc:'avgExecRatePerRow',default:false},
+      {id:'topDept',label:'최고 집행 부서',field:'final',groupBy:'dept',calc:'maxGroupLabel',default:false},
+      {id:'bottomDept',label:'최저 집행 부서',field:'final',groupBy:'dept',calc:'minGroupLabel',default:false},
+      {id:'avgFinal',label:'평균 집행액',field:'final',calc:'avg',default:false},
+      {id:'execDoneDept',label:'집행 완료 부서',field:null,calc:'countExecDone',default:false},
+      {id:'noExecDept',label:'미집행 부서',field:null,calc:'countNoExec',default:false},
+      {id:'overExecDept',label:'초과 집행 부서',field:null,calc:'countOverExec',default:false},
+      {id:'reqToAllocRate',label:'신청 대비 배정률',field:null,calc:'ratioReqAlloc',default:false},
+      {id:'allocToExecRate',label:'배정 대비 집행률',field:null,calc:'ratioAllocExec',default:false} ],
+    charts:[ {id:'byDept',label:'부서별 집행 현황',type:'doughnut',groupBy:'dept',valueField:'final',valueCalc:'sum',default:true},
+      {id:'reqVsFinal',label:'신청액 대비 최종액',type:'compareBar',groupBy:'dept',compareFields:['requested','final'],compareLabels:['신청액','집행액'],default:true},
+      {id:'byDeptRequested',label:'부서별 신청액',type:'bar',groupBy:'dept',valueField:'requested',valueCalc:'sum',default:false},
+      {id:'byDeptAdjusted',label:'부서별 배정액',type:'bar',groupBy:'dept',valueField:'adjusted',valueCalc:'sum',default:false},
+      {id:'monthlyExec',label:'월별 집행',type:'line',groupBy:'date_month',valueField:'final',valueCalc:'sum',requiresField:'date',default:false},
+      {id:'byBudgetType',label:'비목별 집행',type:'doughnut',groupBy:'budgetType',valueField:'final',valueCalc:'sum',requiresField:'budgetType',default:false} ],
+    table:['dept','requested','adjusted','final'], searchField:'dept', searchLabel:'부서명', overBudgetCheck:true, optionalFields:['date','budgetType'] },
+
+  education: { label:'교육', emoji:'🎓',
+    dict:{ program:['program','course','프로그램','프로그램명','과정명','과정','교육명'], applied:['applicants','enrolled','신청','신청인원'],
+      completed:['completed','graduates','수료','수료인원'],
+      date:['date','일자','날짜','운영일','시작일'],
+      institution:['institution','organization','기관','기관명','소속기관'],
+      attendance:['attendance','attendancerate','출석률','평균출석률'] },
+    fieldLabels:{program:'프로그램명',applied:'신청인원',completed:'수료인원',date:'날짜',institution:'기관',attendance:'출석률'},
+    kpis:[ {id:'totalApplied',label:'신청인원',field:'applied',calc:'sum',default:true}, {id:'totalCompleted',label:'수료인원',field:'completed',calc:'sum',default:true},
+      {id:'completeRate',label:'수료율',field:null,calc:'completeRate',default:true}, {id:'countProgram',label:'프로그램 수',field:null,calc:'count',default:true},
+      {id:'topProgram',label:'최고 신청 프로그램',field:'applied',groupBy:'program',calc:'maxGroupLabel',default:false},
+      {id:'avgComplete',label:'평균 수료 인원',field:'completed',calc:'avg',default:false},
+      {id:'joinedCount',label:'참여인원',field:'applied',calc:'sum',default:false},
+      {id:'avgAttendance',label:'평균 출석률',field:'attendance',calc:'avg',requiresField:'attendance',default:false} ],
+    charts:[ {id:'byProgram',label:'프로그램별 신청인원',type:'bar',groupBy:'program',valueField:'applied',valueCalc:'sum',default:true},
+      {id:'completeByProgram',label:'프로그램별 수료율',type:'bar',groupBy:'program',valueField:'completed',valueCalc:'sum',default:true},
+      {id:'programCompareChart',label:'신청 대비 수료 비교',type:'compareBar',groupBy:'program',compareFields:['applied','completed'],compareLabels:['신청','수료'],default:false},
+      {id:'monthlyOps',label:'월별 운영',type:'line',groupBy:'date_month',valueField:null,valueCalc:'count',requiresField:'date',default:false},
+      {id:'byInstitution',label:'기관별 참여',type:'bar',groupBy:'institution',valueField:'applied',valueCalc:'sum',requiresField:'institution',default:false} ],
+    table:['program','applied','completed'], searchField:'program', searchLabel:'프로그램명', optionalFields:['date','institution','attendance'] },
+
+  satisfaction: { label:'만족도', emoji:'💬',
+    dict:{ question:['question','item','문항','질문'], score:['score','rating','점수','평점'],
+      respondent:['respondent','id','응답자'], comment:['comment','opinion','feedback','의견','자유의견'] },
+    fieldLabels:{question:'문항',score:'점수',respondent:'응답자',comment:'자유의견'},
+    kpis:[ {id:'avgScore',label:'평균점수',field:'score',calc:'avg',default:true}, {id:'countResp',label:'응답수',field:null,calc:'count',default:true},
+      {id:'maxScoreQ',label:'최고 점수 문항',field:'score',groupBy:'question',calc:'maxGroupLabel',default:false},
+      {id:'minScoreQ',label:'최저 점수 문항',field:'score',groupBy:'question',calc:'minGroupLabel',default:false},
+      {id:'maxScoreVal',label:'최고점',field:'score',calc:'max',default:false},
+      {id:'minScoreVal',label:'최저점',field:'score',calc:'min',default:false} ],
+    charts:[ {id:'byQuestion',label:'문항별 평균점수',type:'bar',groupBy:'question',valueField:'score',valueCalc:'avg',default:true},
+      {id:'respondentCount',label:'문항별 응답수',type:'bar',groupBy:'question',valueField:null,valueCalc:'count',default:false},
+      {id:'scoreDistribution',label:'만족도 분포',type:'bar',special:'scoreBuckets',valueField:'score',default:false} ],
+    table:['question','score','respondent'], searchField:'question', searchLabel:'문항', keyword:'comment' },
+
+  hr: { label:'인사', emoji:'👥',
+    dict:{ name:['name','이름','성명'], dept:['department','부서','소속'], position:['position','title','직급','직위'],
+      joinDate:['joindate','hiredate','입사일'], endDate:['enddate','resigndate','퇴사일'] },
+    fieldLabels:{name:'이름',dept:'부서',position:'직급',joinDate:'입사일',endDate:'퇴사일'},
+    kpis:[ {id:'totalHead',label:'총인원',field:null,calc:'count',default:true}, {id:'newHire',label:'신규입사(최근연도)',field:'joinDate',calc:'countLatestYear',default:true},
+      {id:'leaver',label:'퇴사',field:'endDate',calc:'countNotEmpty',default:true}, {id:'deptCount',label:'부서 수',field:'dept',calc:'countDistinct',default:true},
+      {id:'positionCount',label:'직급 종류 수',field:'position',calc:'countDistinct',default:false},
+      {id:'avgTenure',label:'평균 근속',field:null,calc:'avgTenureYears',default:false} ],
+    charts:[ {id:'byDept',label:'부서별 인원',type:'doughnut',groupBy:'dept',valueField:null,valueCalc:'count',default:true},
+      {id:'byPosition',label:'직급별 인원',type:'bar',groupBy:'position',valueField:null,valueCalc:'count',default:false},
+      {id:'joinLeaveByYear',label:'입퇴사 현황',type:'bar',special:'joinLeave',default:false} ],
+    table:['name','dept','position','joinDate','endDate'], searchField:'name', searchLabel:'이름/부서' },
+
+  freeform: { label:'자유입력', emoji:'📋', dict:{}, fieldLabels:{},
+    kpis:[], charts:[], table:[], searchField:null, searchLabel:'' }
+};
+const RECIPE_ORDER = ['sales','budget','education','satisfaction','hr','freeform'];
+
+/* 사용자 정의 위젯 — 표시 형태마다 의미 있는 집계 방식만 고를 수 있게 제한 */
+const CALC_LABEL = { sum:'합계', avg:'평균', max:'최대', min:'최소', count:'건수' };
+const CALC_OPTIONS_BY_KIND = {
+  card:     [['sum','합계'],['avg','평균'],['max','최대'],['min','최소'],['count','건수']],
+  doughnut: [['sum','합계'],['count','건수']],
+  bar:      [['sum','합계'],['avg','평균'],['max','최대'],['min','최소']],
+  line:     [['sum','합계'],['avg','평균']]
+};
+
+/* =========================================================
+   상태
+========================================================= */
+let state = { step:0, category:null, headers:[], rows:[], matched:{}, unmatched:[], fieldMap:{}, draftChecked:new Set(), datasets:[], checkedWidgets:new Set(), labelOverrides:{}, layout:{}, chartTypeOverrides:{}, roomCode:null };
+let hiddenWidgets = new Set();
+let chartInstances = {};
+
+/* =========================================================
+   Firebase — 코드 기반 저장/실시간 공동작업
+   (로그인 없이, 코드를 아는 사람만 열람·수정 가능. 목록 조회는 막아둬서
+    코드를 모르면 어떤 대시보드가 존재하는지조차 알 수 없음)
+========================================================= */
+let db = null;
+let roomUnsub = null;
+let syncDebounceTimer = null;
+
+try{
+  const firebaseConfig = {
+    apiKey: "AIzaSyB0LRiIpNwdcCkS4Y5Dz4pP9zcLoadO2Xk",
+    authDomain: "taskflow-7cb3b.firebaseapp.com",
+    projectId: "taskflow-7cb3b",
+    storageBucket: "taskflow-7cb3b.firebasestorage.app",
+    messagingSenderId: "811223035419",
+    appId: "1:811223035419:web:08b972916827147bc2d2be"
+  };
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+}catch(e){ console.warn('Firebase 연결 실패 — 저장/공유 기능은 비활성화됨:', e); }
+
+function genRoomCode(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for(let i=0;i<8;i++) code += chars[Math.floor(Math.random()*chars.length)];
+  return code;
+}
+
+/* =========================================================
+   코드를 열쇠로 쓰는 클라이언트 측 암호화 (AES-GCM)
+   서버(Firestore)에는 암호문만 저장돼서, 콘솔에서 직접 열어봐도 읽을 수 없음.
+   코드를 잃어버리면 복호화가 원천적으로 불가능함 (백도어 없음).
+========================================================= */
+function b64FromBuf(buf){
+  return btoa(String.fromCharCode(...new Uint8Array(buf)));
+}
+function bufFromB64(b64){
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i] = bin.charCodeAt(i);
+  return arr.buffer;
+}
+async function deriveAesKey(code){
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(code));
+  return crypto.subtle.importKey('raw', hash, {name:'AES-GCM'}, false, ['encrypt','decrypt']);
+}
+async function encryptForRoom(code, obj){
+  const key = await deriveAesKey(code);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const plaintext = new TextEncoder().encode(JSON.stringify(obj));
+  const ciphertext = await crypto.subtle.encrypt({name:'AES-GCM', iv}, key, plaintext);
+  return { enc:true, iv: b64FromBuf(iv), data: b64FromBuf(ciphertext), updatedAt: Date.now() };
+}
+async function decryptFromRoom(code, doc){
+  if(!doc || !doc.enc) return doc; // 암호화 안 된 예전 문서 대비 (하위 호환)
+  const key = await deriveAesKey(code);
+  const iv = new Uint8Array(bufFromB64(doc.iv));
+  const plaintextBuf = await crypto.subtle.decrypt({name:'AES-GCM', iv}, key, bufFromB64(doc.data));
+  return JSON.parse(new TextDecoder().decode(plaintextBuf));
+}
+
+function snapshotState(){
+  return {
+    datasets: state.datasets,
+    checkedWidgets: [...state.checkedWidgets],
+    hiddenWidgets: [...hiddenWidgets],
+    labelOverrides: state.labelOverrides,
+    layout: state.layout,
+    chartTypeOverrides: state.chartTypeOverrides
+  };
+}
+function applyRoomData(d){
+  if(Array.isArray(d.datasets)){
+    state.datasets = d.datasets.map(ds => ({ ...ds, customWidgets: ds.customWidgets || [] }));
+    state.checkedWidgets = new Set(d.checkedWidgets || []);
+    hiddenWidgets = new Set(d.hiddenWidgets || []);
+  } else if(d.category){
+    // 예전(데이터셋 1개짜리) 저장 형식 호환 — 자동으로 데이터셋 배열로 변환
+    // (입력값 d는 절대 직접 수정하지 않음 — 같은 데이터로 여러 번 호출돼도 항상 같은 결과가 나오게)
+    const legacyId = 'ds' + (++datasetCounter);
+    state.datasets = [{ id: legacyId, category: d.category, label: RECIPES[d.category]?.label || d.category, headers: d.headers||[], rows: d.rows||[], fieldMap: d.fieldMap||{}, customWidgets: [] }];
+    const remappedChecked = new Set();
+    (d.checkedWidgets||[]).forEach(id => remappedChecked.add(legacyId + '::' + id));
+    const remappedHidden = new Set();
+    (d.hiddenWidgets||[]).forEach(id => remappedHidden.add(legacyId + '::' + id));
+    state.checkedWidgets = remappedChecked;
+    hiddenWidgets = remappedHidden;
+  } else {
+    state.datasets = [];
+    state.checkedWidgets = new Set();
+    hiddenWidgets = new Set();
+  }
+  state.labelOverrides = d.labelOverrides || {};
+  state.layout = d.layout || {};
+  state.chartTypeOverrides = d.chartTypeOverrides || {};
+}
+
+async function saveStateToRoom(code){
+  if(!db) throw new Error('저장소 연결이 안 돼있어요');
+  const payload = await encryptForRoom(code, snapshotState());
+  return db.collection('dashboardRooms').doc(code).set(payload, {merge:true});
+}
+
+/* =========================================================
+   실시간 접속자 수 (presence) — 실제 콘텐츠는 암호화된 채로 두고,
+   "지금 몇 명이 보고 있는지"만 별도의 암호화 안 된 필드로 관리함.
+   (숫자만 노출되고, 예산/인사 등 실제 데이터는 여전히 암호문으로만 오감)
+========================================================= */
+const clientId = 'c' + Math.random().toString(36).slice(2, 10);
+let presenceTimer = null;
+const PRESENCE_STALE_MS = 20000; // 20초 넘게 신호 없으면 나간 걸로 간주
+
+function startPresenceHeartbeat(code){
+  stopPresenceHeartbeat();
+  const beat = () => {
+    if(!db) return;
+    db.collection('dashboardRooms').doc(code).set({ presence: { [clientId]: Date.now() } }, {merge:true}).catch(()=>{});
+  };
+  beat();
+  presenceTimer = setInterval(beat, 8000);
+}
+function stopPresenceHeartbeat(){
+  if(presenceTimer){ clearInterval(presenceTimer); presenceTimer = null; }
+}
+function countActivePresence(presenceMap){
+  if(!presenceMap) return 0;
+  const now = Date.now();
+  return Object.values(presenceMap).filter(t => (now - t) < PRESENCE_STALE_MS).length;
+}
+
+/* =========================================================
+   내 대시보드 목록 — 서버가 아니라 이 브라우저(localStorage)에만 저장됨.
+   코드 목록을 서버에서 조회 가능하게 만들면 "코드 모르면 못 본다"는
+   원칙이 깨지기 때문에, 일부러 로컬에만 남겨둠.
+========================================================= */
+const MY_DASHBOARDS_KEY = 'dataloom_my_dashboards';
+function getMyDashboards(){
+  try{ return JSON.parse(localStorage.getItem(MY_DASHBOARDS_KEY) || '[]'); }catch(e){ return []; }
+}
+function saveMyDashboards(list){
+  try{ localStorage.setItem(MY_DASHBOARDS_KEY, JSON.stringify(list)); }catch(e){}
+}
+function addToMyDashboards(code, label){
+  const list = getMyDashboards().filter(d => d.code !== code);
+  list.unshift({ code, label, savedAt: Date.now() });
+  saveMyDashboards(list.slice(0, 30));
+  renderMyDashboardsList();
+}
+function removeFromMyDashboards(code){
+  saveMyDashboards(getMyDashboards().filter(d => d.code !== code));
+  renderMyDashboardsList();
+}
+function renameMyDashboard(code, newLabel){
+  const list = getMyDashboards();
+  const item = list.find(d => d.code === code);
+  if(item){ item.label = newLabel; saveMyDashboards(list); }
+}
+function autoLabelForDatasets(){
+  return state.datasets.map(ds => state.labelOverrides['dsname::'+ds.id] || ds.label).join(' + ') || 'DataLoom 대시보드';
+}
+function renderMyDashboardsList(){
+  const wrap = document.getElementById('myDashboardsList');
+  if(!wrap) return;
+  const list = getMyDashboards();
+  if(!list.length){ wrap.innerHTML = ''; wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  wrap.innerHTML = `<div style="font-size:11.5px;color:var(--muted);margin:18px 0 8px;">📌 내 대시보드 (이 브라우저에만 저장돼요)</div>` +
+    list.map(d => `
+      <div class="my-dash-row" data-code="${d.code}">
+        <span class="my-dash-label" contenteditable="true" spellcheck="false" data-rename-code="${d.code}">${d.label}</span>
+        <span class="my-dash-code">${d.code}</span>
+        <button class="btn-ghost my-dash-open" data-open-code="${d.code}" style="padding:5px 10px;font-size:11px;">열기</button>
+        <button class="btn-ghost my-dash-remove" data-remove-code="${d.code}" style="padding:5px 8px;font-size:11px;">✕</button>
+      </div>`).join('');
+  wrap.querySelectorAll('[data-open-code]').forEach(btn=>{
+    btn.addEventListener('click', ()=> loadRoomByCode(btn.dataset.openCode));
+  });
+  wrap.querySelectorAll('[data-remove-code]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(confirm('목록에서만 지울까요? (실제 대시보드는 그대로 남아있어요)')) removeFromMyDashboards(btn.dataset.removeCode);
+    });
+  });
+  wrap.querySelectorAll('[data-rename-code]').forEach(el=>{
+    el.addEventListener('blur', ()=>{
+      const text = el.textContent.trim();
+      if(text) renameMyDashboard(el.dataset.renameCode, text);
+    });
+  });
+}
+
+function subscribeRoom(code){
+  if(!db) return;
+  if(roomUnsub) roomUnsub();
+  roomUnsub = db.collection('dashboardRooms').doc(code).onSnapshot(async doc=>{
+    if(!doc.exists) return;
+    const raw = doc.data();
+    updatePresenceUI(countActivePresence(raw.presence));
+    try{
+      const d = await decryptFromRoom(code, raw);
+      applyRoomData(d);
+      if(state.step===4) renderDashboard();
+    }catch(e){ console.warn('복호화 실패 (코드 불일치 가능성):', e); }
+  }, err=>{ console.warn('실시간 동기화 오류:', err); });
+  startPresenceHeartbeat(code);
+}
+
+function syncRoomIfConnected(){
+  if(!state.roomCode) return;
+  clearTimeout(syncDebounceTimer);
+  syncDebounceTimer = setTimeout(()=>{
+    saveStateToRoom(state.roomCode).catch(err=>console.warn('동기화 실패:', err));
+  }, 350);
+}
+
+function createAndShareRoom(){
+  if(!db){ alert('지금은 저장 기능을 쓸 수 없어요 (연결 문제). 잠시 후 다시 시도해주세요.'); return; }
+  const code = genRoomCode();
+  saveStateToRoom(code).then(()=>{
+    state.roomCode = code;
+    subscribeRoom(code);
+    updateRoomStatusUI();
+    addToMyDashboards(code, autoLabelForDatasets());
+    document.getElementById('shareModalCode').textContent = code;
+    document.getElementById('shareModal').classList.add('show');
+  }).catch(err=>{
+    alert('저장 중 문제가 생겼어요: ' + err.message + '\n(데이터가 너무 크면 저장이 안 될 수 있어요)');
+  });
+}
+
+function loadRoomByCode(codeRaw){
+  const code = codeRaw.trim().toUpperCase();
+  if(!code){ alert('코드를 입력해주세요.'); return; }
+  if(!db){ alert('지금은 불러오기 기능을 쓸 수 없어요 (연결 문제).'); return; }
+  db.collection('dashboardRooms').doc(code).get().then(async doc=>{
+    if(!doc.exists){ alert('그 코드로 저장된 대시보드를 찾지 못했어요. 코드를 다시 확인해주세요.'); return; }
+    try{
+      const d = await decryptFromRoom(code, doc.data());
+      applyRoomData(d);
+      state.roomCode = code;
+      subscribeRoom(code);
+      renderDashboard();
+      goStep(4);
+      updateRoomStatusUI();
+      addToMyDashboards(code, autoLabelForDatasets());
+    }catch(e){
+      alert('이 코드로는 열 수 없어요. 코드가 정확한지 다시 확인해주세요.');
+    }
+  }).catch(err=>{
+    alert('불러오는 중 문제가 생겼어요: ' + err.message);
+  });
+}
+
+function updatePresenceUI(count){
+  const el = document.getElementById('presenceCount');
+  if(!el) return;
+  if(count <= 1){ el.textContent = ''; el.style.display = 'none'; }
+  else { el.textContent = `👥 지금 ${count}명이 보고 있어요`; el.style.display = 'inline'; }
+}
+
+function updateRoomStatusUI(){
+  const box = document.getElementById('roomStatus');
+  if(state.roomCode){
+    box.style.display = 'flex';
+    document.getElementById('roomCodeDisplay').textContent = state.roomCode;
+  } else {
+    box.style.display = 'none';
+    updatePresenceUI(0);
+  }
+}
+
+/* =========================================================
+   진행바 / 스텝 전환
+========================================================= */
+function renderProgress(){
+  const track = document.getElementById('progressTrack');
+  track.style.visibility = state.step === 0 ? 'hidden' : 'visible';
+  track.innerHTML = '';
+  for(let i=1;i<=4;i++){
+    const d = document.createElement('div');
+    d.className = 'dot' + (i < state.step ? ' done' : i === state.step ? ' active' : '');
+    track.appendChild(d);
+  }
+}
+function goStep(n){
+  state.step = n;
+  document.querySelectorAll('.step').forEach(s=>s.classList.toggle('visible', Number(s.dataset.step)===n));
+  renderProgress();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* =========================================================
+   STEP 1 — 업로드
+========================================================= */
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+dropZone.addEventListener('click', ()=>fileInput.click());
+dropZone.addEventListener('dragover', e=>{e.preventDefault();dropZone.classList.add('dragover');});
+dropZone.addEventListener('dragleave', ()=>dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e=>{
+  e.preventDefault(); dropZone.classList.remove('dragover');
+  if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e=>{ if(e.target.files.length) handleFile(e.target.files[0]); });
+
+function formatDateCell(d){
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
+// 여러 시트 중 실제 표 데이터가 가장 많아 보이는 시트를 고름 (표지/설명 시트 등을 피함)
+function pickBestSheet(wb){
+  let best = wb.SheetNames[0], bestScore = -1;
+  wb.SheetNames.forEach(name=>{
+    const sheet = wb.Sheets[name];
+    if(!sheet['!ref']) return;
+    const range = XLSX.utils.decode_range(sheet['!ref']);
+    const score = (range.e.r - range.s.r + 1) * (range.e.c - range.s.c + 1);
+    if(score > bestScore){ bestScore = score; best = name; }
+  });
+  return best;
+}
+
+// 표 제목/빈 줄 때문에 헤더가 1행이 아닐 수 있어서, 앞쪽 몇 줄 중 "진짜 헤더 같은 줄"을 찾음
+function findHeaderRowIndex(aoa){
+  const maxScan = Math.min(10, aoa.length);
+  let bestIdx = 0, bestScore = -1;
+  for(let i=0;i<maxScan;i++){
+    const row = aoa[i] || [];
+    const nonEmpty = row.filter(c=>c!==undefined && c!==null && String(c).trim()!=='').length;
+    if(nonEmpty < 2) continue;
+    let matchCount = 0;
+    for(let j=i+1;j<Math.min(i+6, aoa.length);j++){
+      const nextNonEmpty = (aoa[j]||[]).filter(c=>c!==undefined && c!==null && String(c).trim()!=='').length;
+      if(nextNonEmpty >= nonEmpty*0.6) matchCount++;
+    }
+    const score = nonEmpty + matchCount*2;
+    if(score > bestScore){ bestScore = score; bestIdx = i; }
+  }
+  return bestIdx;
+}
+
+// 병합된 셀(예: 부서명이 여러 행에 걸쳐 하나로 합쳐진 경우) 값을 모든 칸에 채워 넣음
+function fillMergedCells(sheet, aoa){
+  (sheet['!merges']||[]).forEach(m=>{
+    const val = aoa[m.s.r] ? aoa[m.s.r][m.s.c] : undefined;
+    if(val===undefined || val===null || String(val).trim()==='') return;
+    for(let r=m.s.r; r<=m.e.r; r++){
+      for(let c=m.s.c; c<=m.e.c; c++){
+        if(!aoa[r]) aoa[r] = [];
+        if(aoa[r][c]===undefined || aoa[r][c]===null || String(aoa[r][c]).trim()==='') aoa[r][c] = val;
+      }
+    }
+  });
+}
+
+function isBlankRow(row){
+  return Object.values(row).every(v=>v===undefined || v===null || String(v).trim()==='');
+}
+function isTotalRow(row, firstHeader){
+  return /^(합계|총계|소계|계|total|sum)$/i.test(String(row[firstHeader]??'').trim());
+}
+
+function handleFile(file){
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
+      const sheetName = pickBestSheet(wb);
+      const sheet = wb.Sheets[sheetName];
+      const aoa = XLSX.utils.sheet_to_json(sheet, {header:1, defval:''});
+      fillMergedCells(sheet, aoa);
+      const headerRowIdx = findHeaderRowIndex(aoa);
+      const headerCols = [];
+      (aoa[headerRowIdx]||[]).forEach((h,idx)=>{ if(String(h??'').trim()!=='') headerCols.push({idx, name:String(h).trim()}); });
+      if(headerCols.length === 0){ alert('컬럼 이름(헤더)을 찾지 못했어요. 파일을 확인해주세요.'); return; }
+
+      let json = [];
+      for(let r=headerRowIdx+1; r<aoa.length; r++){
+        const rowArr = aoa[r] || [];
+        const obj = {};
+        headerCols.forEach(hc=>{
+          let v = rowArr[hc.idx];
+          if(v instanceof Date) v = formatDateCell(v);
+          obj[hc.name] = (v===undefined || v===null) ? '' : v;
+        });
+        json.push(obj);
+      }
+      // 완전히 빈 줄, "합계/총계" 같은 집계 줄은 실제 데이터가 아니므로 제외
+      json = json.filter(row => !isBlankRow(row) && !isTotalRow(row, headerCols[0].name));
+
+      if(json.length === 0){ alert('빈 파일이거나 읽을 데이터가 없어요.'); return; }
+      state.headers = headerCols.map(h=>h.name);
+      state.rows = json;
+      const sheetNote = wb.SheetNames.length > 1 ? ` · 시트 "${sheetName}"` : '';
+      showFileBadge(file.name + sheetNote, json.length);
+      document.getElementById('next1').disabled = false;
+    }catch(err){
+      alert('파일을 읽는 중 문제가 생겼어요. xlsx/xls/csv 파일이 맞는지 확인해주세요.');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+function showFileBadge(name, rowCount){
+  const badge = document.getElementById('fileBadge');
+  document.getElementById('fileBadgeText').textContent = `📄 ${name} · ${rowCount}행 불러옴`;
+  badge.classList.add('show');
+}
+function clearFile(){
+  state.headers=[]; state.rows=[]; fileInput.value='';
+  document.getElementById('fileBadge').classList.remove('show');
+  document.getElementById('next1').disabled = true;
+}
+
+document.getElementById('sampleBtn').addEventListener('click', ()=>{
+  const cat = state.category || 'sales';
+  const sample = generateSample(cat);
+  state.headers = sample.headers; state.rows = sample.rows;
+  showFileBadge('샘플 데이터', sample.rows.length);
+  document.getElementById('next1').disabled = false;
+  prepareStep3(); goStep(3); // 샘플은 바로 다음 단계로
+});
+
+function generateSample(catKey){
+  if(catKey==='budget'){
+    const depts=['부서A','부서B','부서C','부서D','부서E'];
+    const types=['인건비','운영비','사업비'];
+    const rows = depts.map((d,i)=>{
+      const requested = Math.round((Math.random()*80+20))*1000000;
+      const adjusted = Math.round(requested*(0.5+Math.random()*0.3));
+      const final = Math.round(adjusted*(0.7+Math.random()*0.3));
+      const month = String((i%12)+1).padStart(2,'0');
+      return {'부서명':d,'신청액':requested,'배정액':adjusted,'집행액':final,'날짜':`2026-${month}-10`,'비목':types[i%3]};
+    });
+    return {headers:['부서명','신청액','배정액','집행액','날짜','비목'], rows};
+  }
+  if(catKey==='education'){
+    const progs=['프로그램A','프로그램B','프로그램C','프로그램D'];
+    const insts=['기관A','기관B'];
+    const rows = progs.map((p,i)=>{
+      const applied = Math.round(Math.random()*40+10);
+      const completed = Math.round(applied*(0.5+Math.random()*0.4));
+      const month = String((i%12)+1).padStart(2,'0');
+      const attendance = Math.round((0.7+Math.random()*0.25)*1000)/10;
+      return {'프로그램명':p,'신청인원':applied,'수료인원':completed,'날짜':`2026-${month}-05`,'기관':insts[i%2],'출석률':attendance};
+    });
+    return {headers:['프로그램명','신청인원','수료인원','날짜','기관','출석률'], rows};
+  }
+  if(catKey==='satisfaction'){
+    const questions=['문항1','문항2','문항3','문항4'];
+    const comments=['좋았어요 만족합니다','시간이 부족했어요','내용이 유익했습니다','다음에도 참여하고 싶어요','설명이 조금 어려웠어요','전반적으로 만족합니다'];
+    const rows=[];
+    questions.forEach(q=>{
+      for(let i=0;i<6;i++){
+        rows.push({'문항':q,'점수':Math.round((Math.random()*2+3)*10)/10,'응답자':'응답자'+(i+1),'자유의견':comments[Math.floor(Math.random()*comments.length)]});
+      }
+    });
+    return {headers:['문항','점수','응답자','자유의견'], rows};
+  }
+  if(catKey==='hr'){
+    const depts=['부서A','부서B','부서C'];
+    const years=['2023','2024','2025','2026'];
+    const rows=[];
+    for(let i=1;i<=12;i++){
+      const joinYear = years[i%years.length];
+      rows.push({'이름':'이름'+i,'부서':depts[i%3],'직급':['사원','대리','과장'][i%3],'입사일':`${joinYear}-0${(i%9)+1}-01`,'퇴사일': i%5===0?`2026-0${(i%9)+1}-01`:''});
+    }
+    return {headers:['이름','부서','직급','입사일','퇴사일'], rows};
+  }
+  if(catKey==='freeform'){
+    const groups=['구분A','구분B','구분C'];
+    const rows=[];
+    for(let i=0;i<20;i++){
+      const month = String((i%12)+1).padStart(2,'0');
+      rows.push({'날짜':`2026-${month}-10`,'구분':groups[i%3],'항목':'항목'+((i%5)+1),'값':Math.round(Math.random()*900+100)});
+    }
+    return {headers:['날짜','구분','항목','값'], rows};
+  }
+  // sales (기본)
+  const regions=['지역A','지역B','지역C']; const products=['상품A','상품B','상품C','상품D'];
+  const rows=[];
+  for(let i=0;i<24;i++){
+    const month = String((i%12)+1).padStart(2,'0');
+    rows.push({'날짜':`2026-${month}-15`,'지역':regions[i%3],'담당자':'담당자'+((i%4)+1),'상품':products[i%4],
+      '매출':Math.round(Math.random()*3000000+500000),'수량':Math.round(Math.random()*50+5)});
+  }
+  return {headers:['날짜','지역','담당자','상품','매출','수량'], rows};
+}
+
+/* =========================================================
+   STEP 2 — 카테고리 선택
+========================================================= */
+const catGrid = document.getElementById('catGrid');
+catGrid.innerHTML = RECIPE_ORDER.map(key=>{
+  const r = RECIPES[key];
+  return `<div class="cat-opt" data-cat="${key}"><div class="cat-emoji">${r.emoji}</div><div class="cat-name">${r.label}</div></div>`;
+}).join('');
+catGrid.addEventListener('click', e=>{
+  const opt = e.target.closest('.cat-opt'); if(!opt) return;
+  const changed = state.category !== opt.dataset.cat;
+  state.category = opt.dataset.cat;
+  catGrid.querySelectorAll('.cat-opt').forEach(o=>o.classList.toggle('selected', o===opt));
+  document.getElementById('next2').disabled = false;
+  updateTemplateLabel();
+  if(changed) clearFile(); // 카테고리가 바뀌면 이전에 불러온 데이터는 무효화 (안 그러면 엉뚱한 사전이랑 매칭됨)
+});
+
+/* =========================================================
+   입력 양식(템플릿) 다운로드
+========================================================= */
+const TEMPLATES = {
+  sales:      { headers:['날짜','지역','담당자','상품','매출','수량'], example:['2026-01-15','지역A','담당자1','상품A',1200000,15] },
+  budget:     { headers:['부서명','신청액','배정액','집행액','날짜','비목'], example:['부서A',30000000,25000000,20000000,'2026-01-15','비목A'] },
+  education:  { headers:['프로그램명','신청인원','수료인원','날짜','기관','출석률'], example:['프로그램A',30,25,'2026-01-15','기관A',85.5] },
+  satisfaction:{ headers:['문항','점수','응답자','자유의견'], example:['문항1',4.5,'응답자1','만족스러웠습니다'] },
+  hr:         { headers:['이름','부서','직급','입사일','퇴사일'], example:['이름1','부서A','사원','2023-01-01',''] },
+  freeform:   { headers:['날짜','구분','항목','값'], example:['2026-01-15','구분A','항목1',1000] }
+};
+function updateTemplateLabel(){
+  const recipe = RECIPES[state.category];
+  if(recipe) document.getElementById('templateCatLabel').textContent = recipe.label;
+}
+document.getElementById('templateBtn').addEventListener('click', ()=>{
+  const cat = state.category || 'sales';
+  const t = TEMPLATES[cat];
+  const recipe = RECIPES[cat];
+  const aoa = [ t.headers, t.example, ['(이 줄은 지우고 실제 데이터로 채워주세요)'] ];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = t.headers.map(()=>({wch:14}));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '입력양식');
+  XLSX.writeFile(wb, `${recipe.label}_입력양식.xlsx`);
+});
+
+/* =========================================================
+   컬럼 매칭 로직
+========================================================= */
+function normalize(s){ return String(s).toLowerCase().replace(/[\s_\-()]/g,''); }
+function matchColumns(headers, dict){
+  const matched = {}; const usedHeaders = new Set();
+  Object.keys(dict).forEach(field=>{
+    const aliases = dict[field].map(normalize);
+    const found = headers.find(h=> !usedHeaders.has(h) && aliases.includes(normalize(h)));
+    if(found){ matched[field]=found; usedHeaders.add(found); }
+  });
+  const missingFields = Object.keys(dict).filter(f=>!matched[f]);
+  return {matched, missingFields};
+}
+
+/* =========================================================
+   STEP 3 — 매칭 확인 + 위젯 선택
+========================================================= */
+function autoBuildFreeformRecipe(){
+  const headers = state.headers; const rows = state.rows;
+  const isNumericCol = h=>{
+    const nonEmpty = rows.filter(r=>String(r[h] ?? '').trim()!=='');
+    if(!nonEmpty.length) return false;
+    const numCount = nonEmpty.filter(r=>{
+      const v = String(r[h]).trim().replace(/,/g,'');
+      return /^-?\d+(\.\d+)?$/.test(v); // 문자열 전체가 숫자여야 함 (2026-01-10 같은 날짜는 제외)
+    }).length;
+    return numCount/nonEmpty.length > 0.8;
+  };
+  const isDateCol = h=>{
+    const nonEmpty = rows.filter(r=>String(r[h] ?? '').trim()!=='');
+    if(!nonEmpty.length) return false;
+    const dateCount = nonEmpty.filter(r=>/^\d{4}[-./]\d{1,2}([-./]\d{1,2})?$/.test(String(r[h]).trim())).length;
+    return dateCount/nonEmpty.length > 0.6;
+  };
+  const numericCols = headers.filter(isNumericCol);
+  const dateCols = headers.filter(h=>!numericCols.includes(h) && isDateCol(h));
+  const catCols = headers.filter(h=>!numericCols.includes(h) && !dateCols.includes(h));
+
+  const fieldLabels = {}; headers.forEach(h=>fieldLabels[h]=h);
+  const kpis = numericCols.slice(0,4).map((h,i)=>({id:'num'+i, label:h+' 합계', field:h, calc:'sum'}));
+  kpis.push({id:'rowCount', label:'전체 행 수', field:null, calc:'count'});
+
+  const charts = [];
+  if(catCols[0] && numericCols[0]){
+    charts.push({id:'catChart', label:`${catCols[0]}별 ${numericCols[0]}`, type:'bar', groupBy:catCols[0], valueField:numericCols[0], valueCalc:'sum'});
+  }
+  if(dateCols[0] && numericCols[0]){
+    charts.push({id:'dateChart', label:`${dateCols[0]}에 따른 ${numericCols[0]} 추이`, type:'line', groupBy:dateCols[0], valueField:numericCols[0], valueCalc:'sum'});
+  }
+  if(catCols[1] && numericCols[1]){
+    charts.push({id:'catChart2', label:`${catCols[1]}별 ${numericCols[1]}`, type:'bar', groupBy:catCols[1], valueField:numericCols[1], valueCalc:'sum'});
+  }
+
+  const recipe = RECIPES.freeform;
+  recipe.dict = {};
+  recipe.fieldLabels = fieldLabels;
+  recipe.kpis = kpis;
+  recipe.charts = charts;
+  recipe.table = headers;
+  recipe.searchField = catCols[0] || null;
+  recipe.searchLabel = catCols[0] || '';
+  recipe.keyword = null;
+
+  // 자유입력은 헤더 이름을 그대로 필드키로 씀 (매칭 불필요, 그대로 1:1 매핑)
+  state.fieldMap = {}; headers.forEach(h=>state.fieldMap[h]=h);
+
+  return {numericCols, dateCols, catCols};
+}
+
+function prepareStep3(){
+  const recipe = RECIPES[state.category];
+  const matchListEl = document.getElementById('matchList');
+
+  if(state.category === 'freeform'){
+    const detected = autoBuildFreeformRecipe();
+    matchListEl.innerHTML = `<p style="font-size:12.5px;color:var(--muted);line-height:1.7;">
+      자동으로 감지했어요 — 숫자 컬럼: <b style="color:var(--gold);">${detected.numericCols.join(', ')||'없음'}</b>,
+      날짜 컬럼: <b style="color:var(--gold);">${detected.dateCols.join(', ')||'없음'}</b>,
+      나머지는 분류 컬럼으로 활용했어요.
+    </p>`;
+  } else {
+    const {matched, missingFields} = matchColumns(state.headers, recipe.dict);
+    state.fieldMap = Object.assign({}, matched);
+    const optionalFields = recipe.optionalFields || [];
+    let html = '';
+    let hiddenOptionalCount = 0;
+    Object.keys(recipe.dict).forEach(field=>{
+      const label = recipe.fieldLabels[field] || field;
+      const isOptional = optionalFields.includes(field);
+      if(matched[field]){
+        html += `<div class="match-row ok" data-field="${field}">
+          <div class="match-field">${label}</div><div class="match-arrow">←</div>
+          <div class="match-header">${matched[field]}</div><div class="match-tag ok">${isOptional?'선택사항 · 자동 인식':'자동 인식'}</div>
+        </div>`;
+      } else if(isOptional){
+        // 선택 필드는 데이터에 없어도 정상이라, 굳이 "확인 필요"로 겁줄 필요 없음 — 조용히 넘어감
+        hiddenOptionalCount++;
+      } else {
+        const options = state.headers.map(h=>`<option value="${h}">${h}</option>`).join('');
+        html += `<div class="match-row warn" data-field="${field}">
+          <div class="match-field">${label}</div><div class="match-arrow">←</div>
+          <select class="match-select" onchange="state.fieldMap['${field}']=this.value">
+            <option value="">직접 선택...</option>${options}
+          </select>
+          <div class="match-tag warn">확인 필요</div>
+        </div>`;
+      }
+    });
+    if(hiddenOptionalCount > 0){
+      html += `<p style="font-size:11.5px;color:var(--muted);margin-top:10px;line-height:1.6;">💡 이 데이터엔 없는 선택 항목이 ${hiddenOptionalCount}개 있어요. 없어도 괜찮고, 있으면 위젯이 몇 개 더 열려요.</p>`;
+    }
+    matchListEl.innerHTML = html;
+  }
+
+  // 위젯 체크리스트 (기본 전체 추천 체크) — 이번에 새로 추가하는 데이터셋용 임시 선택값
+  state.draftChecked = new Set([
+    ...recipe.kpis.filter(k=>k.default!==false).map(k=>'kpi:'+k.id),
+    ...recipe.charts.filter(c=>c.default!==false).map(c=>'chart:'+c.id),
+    'table:main'
+  ]);
+  if(recipe.searchField) state.draftChecked.add('search:main');
+  if(recipe.keyword) state.draftChecked.add('keyword:main');
+  renderWidgetChecklist();
+}
+
+function renderWidgetChecklist(){
+  const recipe = RECIPES[state.category];
+  const wrap = document.getElementById('widgetChecklist');
+  const defaultKpis = recipe.kpis.filter(k=>k.default!==false);
+  const defaultCharts = recipe.charts.filter(c=>c.default!==false);
+  const extraCount = recipe.kpis.filter(k=>k.default===false).length + recipe.charts.filter(c=>c.default===false).length;
+  let html = '';
+  if(defaultKpis.length){
+    html += `<div class="widget-group"><div class="widget-group-title">KPI 카드</div>`;
+    defaultKpis.forEach(k=>{ html += checkRowHtml('kpi:'+k.id, k.label, ''); });
+    html += `</div>`;
+  }
+  if(defaultCharts.length){
+    html += `<div class="widget-group"><div class="widget-group-title">차트</div>`;
+    defaultCharts.forEach(c=>{ html += checkRowHtml('chart:'+c.id, c.label, c.type==='doughnut'?'도넛 차트':c.type==='line'?'꺾은선 차트':c.type==='compareBar'?'비교 막대 차트':'막대 차트'); });
+    html += `</div>`;
+  }
+  html += `<div class="widget-group"><div class="widget-group-title">그 외</div>`;
+  html += checkRowHtml('table:main', '원본 표', '업로드한 데이터를 표로');
+  if(recipe.searchField) html += checkRowHtml('search:main', '검색 조회', recipe.searchLabel + '(으)로 검색해서 바로 확인');
+  if(recipe.keyword) html += checkRowHtml('keyword:main', '자주 나온 키워드', '자유의견 단어 빈도 분석');
+  html += `</div>`;
+  if(extraCount > 0){
+    html += `<p style="font-size:11.5px;color:var(--muted);margin-top:6px;">💡 이 정도로 우선 시작하고, 대시보드 화면에서 <b style="color:var(--gold);">"분석 위젯 추가"</b>로 ${extraCount}개를 더 붙일 수 있어요.</p>`;
+  }
+  wrap.innerHTML = html;
+  wrap.querySelectorAll('.check-row').forEach(row=>{
+    row.addEventListener('click', ()=>{
+      const id = row.dataset.id;
+      if(state.draftChecked.has(id)) state.draftChecked.delete(id); else state.draftChecked.add(id);
+      renderWidgetChecklist();
+    });
+  });
+}
+function checkRowHtml(id, name, desc){
+  const on = state.draftChecked.has(id);
+  return `<div class="check-row" data-id="${id}">
+    <div class="box ${on?'on':''}"></div>
+    <div><div class="check-name">${name}</div>${desc?`<div class="check-desc">${desc}</div>`:''}</div>
+  </div>`;
+}
+
+/* =========================================================
+   계산 유틸
+========================================================= */
+function toNum(v){ const n = parseFloat(String(v).replace(/,/g,'')); return isNaN(n)?0:n; }
+function calcAgg(rows, field, calc){
+  if(calc==='count') return rows.length;
+  const nums = rows.map(r=>toNum(r[field]));
+  if(calc==='sum') return nums.reduce((a,b)=>a+b,0);
+  if(calc==='avg') return nums.length? nums.reduce((a,b)=>a+b,0)/nums.length : 0;
+  if(calc==='max') return nums.length? Math.max(...nums) : 0;
+  if(calc==='min') return nums.length? Math.min(...nums) : 0;
+  return 0;
+}
+function fmtNum(n){
+  if(Math.abs(n) >= 1000) return Math.round(n).toLocaleString();
+  if(Number.isInteger(n)) return n.toLocaleString();
+  return n.toFixed(1);
+}
+function kpiValue(recipe, k, rows, fm){
+  const f = k.field ? fm[k.field] : null;
+  if(k.calc==='execRate'){
+    const req = calcAgg(rows, fm.requested, 'sum'); const fin = calcAgg(rows, fm.final, 'sum');
+    return req? (fin/req*100).toFixed(1) + '%' : '–';
+  }
+  if(k.calc==='balance'){
+    const req = calcAgg(rows, fm.requested, 'sum'); const fin = calcAgg(rows, fm.final, 'sum');
+    return fmtNum(req - fin);
+  }
+  if(k.calc==='completeRate'){
+    const app = calcAgg(rows, fm.applied, 'sum'); const comp = calcAgg(rows, fm.completed, 'sum');
+    return app? (comp/app*100).toFixed(1) + '%' : '–';
+  }
+  if(k.calc==='countNotEmpty') return rows.filter(r=>String(r[f]||'').trim()!=='').length;
+  if(k.calc==='countLatestYear'){
+    const years = rows.map(r=>String(r[f]||'').slice(0,4)).filter(y=>/^\d{4}$/.test(y));
+    if(!years.length) return 0;
+    const latest = years.sort().slice(-1)[0];
+    return rows.filter(r=>String(r[f]||'').slice(0,4)===latest).length;
+  }
+  if(k.calc==='countDistinct') return new Set(rows.map(r=>r[f])).size;
+  if(k.calc==='count') return rows.length;
+  if(k.calc==='maxGroupLabel' || k.calc==='minGroupLabel'){
+    const gf = fm[k.groupBy] || k.groupBy;
+    const entries = groupAgg(rows, gf, f, 'sum', null, fm, false);
+    if(!entries.length) return '–';
+    const sorted = [...entries].sort((a,b)=>b.value-a.value);
+    return k.calc==='maxGroupLabel' ? sorted[0].label : sorted[sorted.length-1].label;
+  }
+  if(k.calc==='avgExecRatePerRow'){
+    const reqF = fm.requested, finF = fm.final;
+    const ratios = rows.map(r=>{ const req=toNum(r[reqF]); const fin=toNum(r[finF]); return req ? fin/req*100 : null; }).filter(v=>v!==null);
+    if(!ratios.length) return '–';
+    return (ratios.reduce((a,b)=>a+b,0)/ratios.length).toFixed(1) + '%';
+  }
+  if(k.calc==='countExecDone'){
+    const adjF = fm.adjusted, finF = fm.final;
+    return rows.filter(r=>{ const adj=toNum(r[adjF]); const fin=toNum(r[finF]); return adj>0 && fin >= adj*0.95; }).length;
+  }
+  if(k.calc==='countNoExec'){
+    return rows.filter(r=> toNum(r[fm.final]) === 0).length;
+  }
+  if(k.calc==='countOverExec'){
+    const adjF = fm.adjusted, finF = fm.final;
+    return rows.filter(r=>{ const adj=toNum(r[adjF]); const fin=toNum(r[finF]); return fin > adj; }).length;
+  }
+  if(k.calc==='ratioReqAlloc'){
+    const req = calcAgg(rows, fm.requested, 'sum'); const alloc = calcAgg(rows, fm.adjusted, 'sum');
+    return req? (alloc/req*100).toFixed(1) + '%' : '–';
+  }
+  if(k.calc==='ratioAllocExec'){
+    const alloc = calcAgg(rows, fm.adjusted, 'sum'); const fin = calcAgg(rows, fm.final, 'sum');
+    return alloc? (fin/alloc*100).toFixed(1) + '%' : '–';
+  }
+  if(k.calc==='avgTenureYears'){
+    const jf = fm.joinDate, ef = fm.endDate;
+    const now = new Date();
+    const yrs = rows.map(r=>{
+      const j = new Date(r[jf]); if(isNaN(j)) return null;
+      const eRaw = ef ? r[ef] : '';
+      const e = (eRaw && String(eRaw).trim()) ? new Date(eRaw) : now;
+      if(isNaN(e)) return null;
+      return (e - j) / (365.25*24*3600*1000);
+    }).filter(v=>v!==null && v>=0);
+    if(!yrs.length) return '–';
+    return (yrs.reduce((a,b)=>a+b,0)/yrs.length).toFixed(1) + '년';
+  }
+  return fmtNum(calcAgg(rows, f, k.calc));
+}
+function groupAgg(rows, groupField, valueField, calc, topN, fm, isMonth){
+  const groups = {};
+  rows.forEach(r=>{
+    let key = isMonth ? String(r[groupField]||'').slice(0,7) : r[groupField];
+    if(key===undefined || key==='') key='(미지정)';
+    if(!groups[key]) groups[key]=[];
+    groups[key].push(r);
+  });
+  let entries = Object.keys(groups).map(k=>({
+    label:k, value: valueField ? calcAgg(groups[k], valueField, calc) : groups[k].length
+  }));
+  const looksLikeDate = entries.length>0 && entries.every(e=>/^\d{4}[-./]\d{1,2}/.test(String(e.label)));
+  entries.sort((a,b)=> (isMonth || looksLikeDate) ? (a.label>b.label?1:-1) : b.value-a.value);
+  if(topN) entries = entries.slice(0, topN);
+  return entries;
+}
+
+/* =========================================================
+   STEP 4 — 대시보드 빌드 & 렌더
+========================================================= */
+let datasetCounter = 0;
+function buildDashboard(){
+  const recipe = RECIPES[state.category];
+  const dsId = 'ds' + (++datasetCounter);
+  const dataset = {
+    id: dsId,
+    category: state.category,
+    label: recipe.label,
+    headers: state.headers,
+    rows: state.rows,
+    fieldMap: state.fieldMap,
+    customWidgets: []
+  };
+  state.datasets.push(dataset);
+  state.draftChecked.forEach(id => state.checkedWidgets.add(dsId + '::' + id));
+
+  // 초안(draft) 비우기 — 다음 "+ 데이터 추가"를 위해
+  state.category = null; state.headers = []; state.rows = []; state.fieldMap = {}; state.draftChecked = new Set();
+
+  renderDashboard();
+}
+function safeBuildDashboard(){
+  try{
+    buildDashboard();
+    goStep(4);
+  }catch(err){
+    console.error('대시보드 생성 오류:', err);
+    alert('대시보드를 만드는 중 문제가 생겼어요.\n\n에러 내용: ' + err.message + '\n\n이 메시지를 캡처해서 알려주시면 바로 고쳐드릴게요.');
+  }
+}
+function goStepBackFrom1(){
+  goStep(state.datasets.length > 0 ? 4 : 0);
+}
+function addMoreData(){
+  state.category = null; state.headers = []; state.rows = []; state.fieldMap = {}; state.draftChecked = new Set();
+  clearFile();
+  catGrid.querySelectorAll('.cat-opt').forEach(o=>o.classList.remove('selected'));
+  document.getElementById('next2').disabled = true;
+  goStep(1);
+}
+function removeDataset(dsId){
+  if(!confirm('이 데이터셋과 여기서 만든 위젯들을 전부 지울까요?')) return;
+  state.datasets = state.datasets.filter(d=>d.id!==dsId);
+  [...state.checkedWidgets].forEach(id=>{ if(id.startsWith(dsId+'::')) state.checkedWidgets.delete(id); });
+  [...hiddenWidgets].forEach(id=>{ if(id.startsWith(dsId+'::')) hiddenWidgets.delete(id); });
+  Object.keys(state.labelOverrides).forEach(id=>{ if(id.startsWith(dsId+'::')) delete state.labelOverrides[id]; });
+  renderDashboard();
+  syncRoomIfConnected();
+}
+
+function widgetHeadHtml(fullId, title, isChart){
+  const displayTitle = state.labelOverrides[fullId] || title;
+  const cur = state.chartTypeOverrides[fullId];
+  const switcher = isChart ? `
+    <span class="chart-type-switch">
+      <button class="ctype-btn ${cur==='doughnut'?'on':''}" data-ctype-id="${fullId}" data-ctype-val="doughnut" title="도넛으로">🍩</button>
+      <button class="ctype-btn ${cur==='bar'?'on':''}" data-ctype-id="${fullId}" data-ctype-val="bar" title="세로 막대로">📊</button>
+      <button class="ctype-btn ${cur==='bar-h'?'on':''}" data-ctype-id="${fullId}" data-ctype-val="bar-h" title="가로 막대로">📶</button>
+      <button class="ctype-btn ${cur==='line'?'on':''}" data-ctype-id="${fullId}" data-ctype-val="line" title="꺾은선으로">📈</button>
+    </span>` : '';
+  return `<div class="widget-head">
+    <span class="grid-drag-handle" title="끌어서 옮기기">⠿</span>
+    <span class="widget-title" contenteditable="true" spellcheck="false" data-widget-id="${fullId}" style="flex:1;">${displayTitle}</span>
+    ${switcher}
+    <button class="eye-btn" data-toggle="${fullId}" title="숨기기/보이기">👁</button>
+    <button class="eye-btn" data-delete="${fullId}" title="완전히 삭제">🗑</button>
+  </div>`;
+}
+
+const WIDGET_DEFAULT_SIZE = { kpi:{w:3,h:2}, chart:{w:6,h:4}, table:{w:12,h:6}, search:{w:12,h:3}, keyword:{w:12,h:3} };
+
+function gridItemHtml(fullId, kind, headHtml, bodyHtml, hidden, extraClass){
+  const saved = state.layout[fullId];
+  const def = WIDGET_DEFAULT_SIZE[kind] || {w:6,h:4};
+  const w = (saved && saved.w) || def.w;
+  const h = (saved && saved.h) || def.h;
+  const posAttrs = (saved && typeof saved.x === 'number' && typeof saved.y === 'number') ? ` gs-x="${saved.x}" gs-y="${saved.y}"` : '';
+  return `<div class="grid-stack-item ${hidden?'hidden-widget':''}" gs-id="${fullId}" gs-w="${w}" gs-h="${h}"${posAttrs}>
+    <div class="grid-stack-item-content">
+      <div class="widget ${extraClass||''}" data-widget="${fullId}">
+        ${headHtml}
+        <div class="widget-body">${bodyHtml}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderDatasetSection(ds){
+  const recipe = RECIPES[ds.category];
+  const dsId = ds.id;
+  const dsNameId = 'dsname::' + dsId;
+  const dsLabel = state.labelOverrides[dsNameId] || ds.label;
+
+  let gridItems = '';
+
+  const searchId = dsId+'::search:main';
+  if(state.checkedWidgets.has(searchId) && recipe.searchField){
+    gridItems += gridItemHtml(searchId, 'search',
+      widgetHeadHtml(searchId, `🔍 검색 조회 (${recipe.searchLabel})`),
+      `<div class="search-box"><input type="text" class="ds-search-input" data-ds="${dsId}" placeholder="검색어를 입력하세요..."></div>
+       <div class="search-results" id="searchResults-${dsId}"><div class="search-empty">검색어를 입력하면 결과가 여기 나와요.</div></div>`,
+      hiddenWidgets.has(searchId));
+  }
+
+  recipe.kpis.forEach(k=>{
+    const id = dsId+'::kpi:'+k.id;
+    if(!state.checkedWidgets.has(id)) return;
+    const val = kpiValue(recipe, k, ds.rows, ds.fieldMap);
+    const displayLabel = state.labelOverrides[id] || k.label;
+    const head = `<div class="widget-head">
+        <span class="grid-drag-handle" title="끌어서 옮기기">⠿</span>
+        <span class="widget-title" contenteditable="true" spellcheck="false" data-widget-id="${id}" style="flex:1;font-size:11px;">${displayLabel}</span>
+        <button class="eye-btn" data-toggle="${id}">👁</button>
+        <button class="eye-btn" data-delete="${id}" title="완전히 삭제">🗑</button>
+      </div>`;
+    gridItems += gridItemHtml(id, 'kpi', head, `<div class="kpi-value">${val}</div>`, hiddenWidgets.has(id), 'kpi-card');
+  });
+
+  recipe.charts.forEach(c=>{
+    const id = dsId+'::chart:'+c.id;
+    if(!state.checkedWidgets.has(id)) return;
+    gridItems += gridItemHtml(id, 'chart', widgetHeadHtml(id, c.label, c.type !== 'compareBar' && !c.special),
+      `<div class="chart-canvas-wrap"><canvas id="canvas-${dsId}-${c.id}"></canvas></div>`,
+      hiddenWidgets.has(id));
+  });
+
+  const tableId = dsId+'::table:main';
+  if(state.checkedWidgets.has(tableId) && recipe.table.length){
+    gridItems += gridItemHtml(tableId, 'table', widgetHeadHtml(tableId, '📋 원본 표'),
+      `<div class="table-scroll"><table class="dash-table" id="mainTable-${dsId}"></table></div>`,
+      hiddenWidgets.has(tableId));
+  }
+
+  const kwId = dsId+'::keyword:main';
+  if(state.checkedWidgets.has(kwId) && recipe.keyword){
+    gridItems += gridItemHtml(kwId, 'keyword', widgetHeadHtml(kwId, '🗣️ 자주 나온 키워드'),
+      `<div class="kw-list" id="kwList-${dsId}"></div>`,
+      hiddenWidgets.has(kwId));
+  }
+
+  // 사용자 정의 위젯 (이미 추가된 것들)
+  (ds.customWidgets || []).forEach((cw, idx)=>{
+    const id = dsId+'::custom:'+idx;
+    if(!state.checkedWidgets.has(id)) return;
+    const bodyHtml = cw.kind==='card'
+      ? `<div class="kpi-value">${fmtNum(calcAgg(ds.rows, cw.field, cw.calc))}</div>`
+      : `<div class="chart-canvas-wrap"><canvas id="canvas-${dsId}-custom-${idx}"></canvas></div>`;
+    gridItems += gridItemHtml(id, cw.kind==='card'?'kpi':'chart', widgetHeadHtml(id, cw.title, cw.kind!=='card'), bodyHtml, hiddenWidgets.has(id), cw.kind==='card'?'kpi-card':'');
+  });
+
+  let overBudgetWarning = '';
+  if(recipe.overBudgetCheck && ds.fieldMap.requested && ds.fieldMap.final){
+    const totalReq = calcAgg(ds.rows, ds.fieldMap.requested, 'sum');
+    const totalFin = calcAgg(ds.rows, ds.fieldMap.final, 'sum');
+    if(totalFin > totalReq){
+      overBudgetWarning = `<div class="budget-warning">⚠️ 총집행액(${fmtNum(totalFin)})이 총예산(${fmtNum(totalReq)})을 초과했어요. 데이터를 확인해주세요.</div>`;
+    }
+  }
+
+  let html = `<div class="dataset-section">
+    <div class="dataset-section-head">
+      <span class="dataset-section-title" contenteditable="true" spellcheck="false" data-widget-id="${dsNameId}">📄 ${dsLabel}</span>
+      <button class="ds-remove-btn no-print" data-remove-ds="${dsId}" title="이 데이터셋 삭제">🗑 삭제</button>
+    </div>
+    ${overBudgetWarning}
+    <div class="grid-stack" data-ds="${dsId}">${gridItems}</div>`;
+
+  const addableKpis = recipe.kpis.filter(k=>!state.checkedWidgets.has(dsId+'::kpi:'+k.id) && (!k.requiresField || ds.fieldMap[k.requiresField]));
+  const addableCharts = recipe.charts.filter(c=>!state.checkedWidgets.has(dsId+'::chart:'+c.id) && (!c.requiresField || ds.fieldMap[c.requiresField]));
+  if(addableKpis.length || addableCharts.length){
+    html += `<div class="widget no-print" style="margin-top:14px;">
+      <div class="widget-title" style="margin-bottom:10px;">➕ "${dsLabel}"에 분석 위젯 추가</div>
+      <p style="font-size:11.5px;color:var(--muted);margin:0 0 12px;line-height:1.6;">같은 데이터를 다른 방식으로 더 살펴볼 수 있어요.</p>
+      <div class="add-widget-checklist" data-ds="${dsId}">
+        ${addableKpis.map(k=>`
+          <div class="check-row" data-add-id="kpi:${k.id}">
+            <div class="box"></div><div><div class="check-name">${k.label}</div><div class="check-desc">KPI 카드</div></div>
+          </div>`).join('')}
+        ${addableCharts.map(c=>`
+          <div class="check-row" data-add-id="chart:${c.id}">
+            <div class="box"></div><div><div class="check-name">${c.label}</div><div class="check-desc">${c.type==='doughnut'?'도넛 차트':c.type==='line'?'꺾은선 차트':c.type==='compareBar'?'비교 막대 차트':'막대 차트'}</div></div>
+          </div>`).join('')}
+      </div>
+      <button class="add-widget-btn" data-add-btn-ds="${dsId}" style="margin-top:8px;">선택한 위젯 추가하기</button>
+    </div>`;
+  }
+
+  // 사용자 정의 위젯 만들기 폼
+  html += `<div class="widget no-print" style="margin-top:14px;">
+    <div class="widget-title" style="margin-bottom:10px;">🎨 사용자 정의 위젯</div>
+    <p style="font-size:11.5px;color:var(--muted);margin:0 0 12px;line-height:1.6;">추천 목록에 없는 조합을 직접 만들 수 있어요. 이상한 조합(예: 문자값 평균 내기)이 안 나오게, 표시 형태마다 고를 수 있는 계산 방식을 제한해뒀어요.</p>
+    <div class="custom-form">
+      <select class="cw-kind" data-ds="${dsId}">
+        <option value="card">KPI 카드</option>
+        <option value="doughnut">도넛 차트</option>
+        <option value="bar">막대 차트</option>
+        <option value="line">꺾은선 차트</option>
+      </select>
+      <select class="cw-field" data-ds="${dsId}">${ds.headers.map(h=>`<option value="${h}">${h}</option>`).join('')}</select>
+      <select class="cw-calc" data-ds="${dsId}"></select>
+      <select class="cw-groupby" data-ds="${dsId}"><option value="">그룹 없음</option>${ds.headers.map(h=>`<option value="${h}">${h} 기준으로 묶기</option>`).join('')}</select>
+      <input type="text" class="cw-title" data-ds="${dsId}" placeholder="위젯 제목" style="grid-column:1/-1;background:var(--panel);border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:9px 10px;font-size:12px;font-family:inherit;">
+    </div>
+    <button class="add-widget-btn cw-submit" data-ds="${dsId}" style="margin-top:8px;">사용자 정의 위젯 추가</button>
+  </div>`;
+
+  html += `</div>`;
+  return html;
+}
+
+let gridInstances = {};
+function renderDashboard(){
+  Object.values(chartInstances).forEach(c=>c && c.destroy && c.destroy());
+  chartInstances = {};
+  Object.values(gridInstances).forEach(g=>{ try{ g.destroy(false); }catch(e){} });
+  gridInstances = {};
+  const area = document.getElementById('dashArea');
+
+  if(state.datasets.length === 0){
+    area.innerHTML = `<div class="widget" style="text-align:center; color:var(--muted); font-size:13px; padding:30px;">아직 데이터셋이 없어요.</div>`;
+    return;
+  }
+
+  area.innerHTML = state.datasets.map(ds => renderDatasetSection(ds)).join('<div class="dataset-divider"></div>');
+
+  // 그리드 초기화 (데이터셋별로 독립된 그리드)
+  state.datasets.forEach(ds=>{
+    const gridEl = area.querySelector(`.grid-stack[data-ds="${ds.id}"]`);
+    if(!gridEl) return;
+    const grid = GridStack.init({
+      column: 12, cellHeight: 64, margin: 8, float: true,
+      handle: '.grid-drag-handle', animate: true, disableOneColumnMode: false
+    }, gridEl);
+    gridInstances[ds.id] = grid;
+    grid.on('change', (event, items)=>{
+      (items || []).forEach(item=>{
+        if(!item.id) return;
+        state.layout[item.id] = { x:item.x, y:item.y, w:item.w, h:item.h };
+      });
+      Object.values(chartInstances).forEach(c=>c && c.resize && c.resize());
+      syncRoomIfConnected();
+    });
+  });
+
+  // 숨기기 토글
+  area.querySelectorAll('[data-toggle]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.dataset.toggle;
+      if(hiddenWidgets.has(id)) hiddenWidgets.delete(id); else hiddenWidgets.add(id);
+      renderDashboard();
+      syncRoomIfConnected();
+    });
+  });
+
+  // 위젯 완전 삭제 (숨기기와 달리 목록에서 아예 빠지고, "분석 위젯 추가"에서 다시 고를 수 있음)
+  area.querySelectorAll('[data-delete]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.dataset.delete;
+      state.checkedWidgets.delete(id);
+      hiddenWidgets.delete(id);
+      delete state.labelOverrides[id];
+      delete state.layout[id];
+      delete state.chartTypeOverrides[id];
+      renderDashboard();
+      syncRoomIfConnected();
+    });
+  });
+
+  // 차트 종류 수동 전환
+  area.querySelectorAll('[data-ctype-id]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.dataset.ctypeId;
+      const val = btn.dataset.ctypeVal;
+      if(state.chartTypeOverrides[id] === val) delete state.chartTypeOverrides[id]; // 다시 누르면 자동判단으로 복귀
+      else state.chartTypeOverrides[id] = val;
+      renderDashboard();
+      syncRoomIfConnected();
+    });
+  });
+
+  // 데이터셋 삭제
+  area.querySelectorAll('[data-remove-ds]').forEach(btn=>{
+    btn.addEventListener('click', ()=> removeDataset(btn.dataset.removeDs));
+  });
+
+  // 라벨(제목) 수정
+  function bindLabelEdit(el){
+    el.addEventListener('blur', ()=>{
+      const id = el.dataset.widgetId;
+      const text = el.textContent.trim();
+      if(text){ state.labelOverrides[id] = text; } else { delete state.labelOverrides[id]; }
+      syncRoomIfConnected();
+    });
+  }
+  area.querySelectorAll('[data-widget-id]').forEach(bindLabelEdit);
+
+  const chartColors = ['#e0a94a','#5fc7bd','#d9705f','#8a6b30','#efece4','#7c9fd9','#c77dff','#70e0a0','#f2a65a','#5a8fd6'];
+  const MUTED_GRAY = '#5a5a63'; // "기타" 조각용 색
+
+  function capEntries(entries, maxSlices, otherLabel){
+    if(entries.length <= maxSlices) return entries;
+    const sorted = [...entries].sort((a,b)=>b.value-a.value);
+    const top = sorted.slice(0, maxSlices-1);
+    const restSum = sorted.slice(maxSlices-1).reduce((a,e)=>a+e.value,0);
+    return [...top, {label: otherLabel, value: restSum, isOther:true}];
+  }
+
+  // 데이터 개수에 따라 자동으로 어울리는 차트 종류를 고름 (사용자가 직접 바꾸면 그 선택을 계속 기억함)
+  function pickChartType(fullId, entryCount, originalType){
+    const override = state.chartTypeOverrides[fullId];
+    if(override) return override;
+    if(originalType === 'line') return 'line';         // 시간 데이터는 항상 꺾은선
+    if(entryCount <= 5) return 'doughnut';               // 5개 이하 → 도넛
+    if(entryCount <= 15) return 'bar';                    // 6~15개 → 세로 막대
+    return 'bar-h';                                       // 15개 초과 → 가로 막대
+  }
+
+  state.datasets.forEach(ds=>{
+    const recipe = RECIPES[ds.category];
+    const fm = ds.fieldMap;
+    const rows = ds.rows;
+    const dsId = ds.id;
+
+    // 검색
+    const searchInput = document.querySelector(`.ds-search-input[data-ds="${dsId}"]`);
+    if(searchInput){
+      searchInput.addEventListener('input', ()=>{
+        const q = searchInput.value.trim().toLowerCase();
+        const resEl = document.getElementById('searchResults-'+dsId);
+        if(!q){ resEl.innerHTML = `<div class="search-empty">검색어를 입력하면 결과가 여기 나와요.</div>`; return; }
+        const keyField = fm[recipe.searchField] || recipe.searchField;
+        const matches = rows.filter(r=> String(r[keyField]||'').toLowerCase().includes(q));
+        if(!matches.length){ resEl.innerHTML = `<div class="search-empty">일치하는 결과가 없어요.</div>`; return; }
+        resEl.innerHTML = matches.slice(0,10).map(r=>{
+          const title = r[keyField];
+          const otherKeys = Object.keys(r).filter(k=>k!==keyField);
+          return `<div class="search-card"><div class="search-card-title">${title}</div>${
+            otherKeys.map(k=>`<div class="search-card-row"><span>${k}</span><span>${typeof r[k]==='number' ? fmtNum(r[k]) : (r[k] ?? '')}</span></div>`).join('')
+          }</div>`;
+        }).join('');
+      });
+    }
+
+    // 표
+    const tableEl = document.getElementById('mainTable-'+dsId);
+    if(tableEl){
+      const cols = recipe.table.map(f=>({field:f, header: fm[f]||f, label: state.labelOverrides[dsId+'::col:'+f] || recipe.fieldLabels[f]||f}));
+      const cellHtml = v => (typeof v === 'number') ? fmtNum(v) : (v ?? '');
+      tableEl.innerHTML = `<thead><tr>${cols.map((c,i)=>`<th contenteditable="true" spellcheck="false" data-widget-id="${dsId}::col:${recipe.table[i]}">${c.label}</th>`).join('')}</tr></thead>
+        <tbody>${rows.slice(0,200).map(r=>`<tr>${cols.map(c=>`<td>${cellHtml(r[c.header])}</td>`).join('')}</tr>`).join('')}</tbody>`;
+      tableEl.querySelectorAll('[data-widget-id]').forEach(bindLabelEdit);
+    }
+
+    // 키워드
+    const kwEl = document.getElementById('kwList-'+dsId);
+    if(kwEl){
+      const keyField = fm[recipe.keyword] || recipe.keyword;
+      const stop = new Set(['그리고','그런데','너무','정말','대한','있는','했어요','했습니다','합니다','이번']);
+      const freq = {};
+      rows.forEach(r=>{
+        String(r[keyField]||'').split(/[\s,.!?~]+/).forEach(w=>{
+          w = w.trim(); if(w.length<2 || stop.has(w)) return;
+          freq[w] = (freq[w]||0)+1;
+        });
+      });
+      const top = Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,12);
+      kwEl.innerHTML = top.length
+        ? top.map(([w,c])=>`<div class="kw-chip">${w}<b>${c}</b></div>`).join('')
+        : `<div class="search-empty">분석할 의견 데이터가 부족해요.</div>`;
+    }
+
+    // 차트
+    recipe.charts.forEach(c=>{
+      const id = dsId+'::chart:'+c.id;
+      if(!state.checkedWidgets.has(id) || hiddenWidgets.has(id)) return;
+      const canvas = document.getElementById(`canvas-${dsId}-${c.id}`); if(!canvas) return;
+      const chartKey = dsId+'_'+c.id;
+
+      if(c.type === 'compareBar'){
+        const groupField = fm[c.groupBy] || c.groupBy;
+        const mappedFields = c.compareFields.map(f=>fm[f]||f);
+        const groups = {};
+        rows.forEach(r=>{
+          let key = r[groupField]; if(key===undefined || key==='') key='(미지정)';
+          if(!groups[key]) groups[key] = mappedFields.map(()=>0);
+          mappedFields.forEach((mf,i)=>{ groups[key][i] += toNum(r[mf]); });
+        });
+        const labels = Object.keys(groups);
+        chartInstances[chartKey] = new Chart(canvas.getContext('2d'), {
+          type:'bar',
+          data:{ labels, datasets: c.compareFields.map((f,i)=>({
+            label: c.compareLabels[i], data: labels.map(l=>groups[l][i]),
+            backgroundColor: chartColors[i], borderWidth:0
+          })) },
+          options:{ responsive:true, maintainAspectRatio:false,
+            plugins:{ legend:{ display:true, labels:{color:'#8d8d96',font:{size:10}} }, datalabels: datalabelsFor('bar', false, labels.length), tooltip: tooltipFormatCfg() },
+            scales:{ x:{ticks:{color:'#8d8d96',font:{size:10}},grid:{color:'#2a2a32'}}, y:{ticks:{color:'#8d8d96',font:{size:10}},grid:{color:'#2a2a32'}} } }
+        });
+        return;
+      }
+
+      // 만족도 분포 — 점수를 구간으로 나눠서 몇 명이 어느 구간에 속하는지
+      if(c.special === 'scoreBuckets'){
+        const scoreF = fm.score;
+        const buckets = ['1점대','2점대','3점대','4점대','5점'];
+        const counts = [0,0,0,0,0];
+        rows.forEach(r=>{
+          const v = toNum(r[scoreF]);
+          const bucketIdx = Math.max(0, Math.min(4, Math.floor(v) - 1));
+          counts[bucketIdx]++;
+        });
+        chartInstances[chartKey] = new Chart(canvas.getContext('2d'), {
+          type:'bar',
+          data:{ labels: buckets, datasets:[{ label:'응답수', data:counts, backgroundColor: chartColors[0], borderWidth:0 }] },
+          options:{ responsive:true, maintainAspectRatio:false,
+            plugins:{ legend:{ display:false }, datalabels: datalabelsFor('bar', false, buckets.length), tooltip: tooltipFormatCfg() },
+            scales:{ x:{ticks:{color:'#8d8d96',font:{size:10}},grid:{color:'#2a2a32'}}, y:{ticks:{color:'#8d8d96',font:{size:10}},grid:{color:'#2a2a32'}} } }
+        });
+        return;
+      }
+
+      // 입퇴사 현황 — 연도별 입사자수 vs 퇴사자수
+      if(c.special === 'joinLeave'){
+        const jf = fm.joinDate, ef = fm.endDate;
+        const joinByYear = {}, leaveByYear = {};
+        rows.forEach(r=>{
+          const jy = String(r[jf]||'').slice(0,4);
+          if(/^\d{4}$/.test(jy)) joinByYear[jy] = (joinByYear[jy]||0)+1;
+          const ey = ef ? String(r[ef]||'').slice(0,4) : '';
+          if(/^\d{4}$/.test(ey)) leaveByYear[ey] = (leaveByYear[ey]||0)+1;
+        });
+        const years = [...new Set([...Object.keys(joinByYear), ...Object.keys(leaveByYear)])].sort();
+        chartInstances[chartKey] = new Chart(canvas.getContext('2d'), {
+          type:'bar',
+          data:{ labels: years, datasets:[
+            { label:'입사', data: years.map(y=>joinByYear[y]||0), backgroundColor: chartColors[0], borderWidth:0 },
+            { label:'퇴사', data: years.map(y=>leaveByYear[y]||0), backgroundColor: chartColors[2], borderWidth:0 }
+          ] },
+          options:{ responsive:true, maintainAspectRatio:false,
+            plugins:{ legend:{ display:true, labels:{color:'#8d8d96',font:{size:10}} }, datalabels: datalabelsFor('bar', false, years.length), tooltip: tooltipFormatCfg() },
+            scales:{ x:{ticks:{color:'#8d8d96',font:{size:10}},grid:{color:'#2a2a32'}}, y:{ticks:{color:'#8d8d96',font:{size:10}},grid:{color:'#2a2a32'}} } }
+        });
+        return;
+      }
+
+      const groupField = fm[c.groupBy==='date_month' ? 'date' : c.groupBy] || c.groupBy;
+      const valueField = c.valueField ? (fm[c.valueField] || c.valueField) : null;
+      const rawEntries = groupAgg(rows, groupField, valueField, c.valueCalc, c.topN, fm, c.groupBy==='date_month');
+
+      // 데이터 개수/시간여부로 어울리는 차트 종류를 자동 판단 (사용자가 직접 바꾼 게 있으면 그걸 우선함)
+      const chosenType = c.topN ? c.type : pickChartType(id, rawEntries.length, c.type);
+      const isDoughnut = chosenType === 'doughnut';
+      const isHorizontal = chosenType === 'bar-h';
+      const chartJsType = isHorizontal ? 'bar' : chosenType;
+
+      let entries = rawEntries;
+      if(!c.topN && c.groupBy !== 'date_month'){
+        entries = isDoughnut ? capEntries(entries, 6, '기타') : capEntries(entries, 20, '기타 전체');
+      }
+
+      const bg = entries.map((e,i)=> e.isOther ? MUTED_GRAY : chartColors[i % chartColors.length]);
+      chartInstances[chartKey] = new Chart(canvas.getContext('2d'), {
+        type: chartJsType,
+        data: { labels: entries.map(e=>e.label), datasets:[{ label:c.label, data:entries.map(e=>e.value),
+          backgroundColor: isDoughnut ? bg : bg[0],
+          borderColor: bg[0], borderWidth: chosenType==='line'?2:0, tension:0.3 }] },
+        options: { responsive:true, maintainAspectRatio:false, indexAxis: isHorizontal ? 'y' : 'x',
+          plugins:{ legend:{ display: isDoughnut, labels:{color:'#8d8d96',font:{size:10}} }, datalabels: datalabelsFor(chosenType, isHorizontal, entries.length), tooltip: tooltipFormatCfg() },
+          scales: isDoughnut ? {} : { x:{ticks:{color:'#8d8d96',font:{size:10}},grid:{color:'#2a2a32'}}, y:{ticks:{color:'#8d8d96',font:{size:10}},grid:{color:'#2a2a32'}} } }
+      });
+    });
+
+    // 분석 위젯 추가 (데이터셋별)
+    const addChecklist = document.querySelector(`.add-widget-checklist[data-ds="${dsId}"]`);
+    if(addChecklist){
+      const selectedToAdd = new Set();
+      addChecklist.querySelectorAll('.check-row').forEach(row=>{
+        row.addEventListener('click', ()=>{
+          const id = row.dataset.addId;
+          const box = row.querySelector('.box');
+          if(selectedToAdd.has(id)){ selectedToAdd.delete(id); box.classList.remove('on'); }
+          else { selectedToAdd.add(id); box.classList.add('on'); }
+        });
+      });
+      const addBtn = document.querySelector(`[data-add-btn-ds="${dsId}"]`);
+      if(addBtn){
+        addBtn.addEventListener('click', ()=>{
+          if(selectedToAdd.size===0){ alert('추가할 위젯을 먼저 선택해주세요.'); return; }
+          selectedToAdd.forEach(id=>state.checkedWidgets.add(dsId+'::'+id));
+          renderDashboard();
+          syncRoomIfConnected();
+        });
+      }
+    }
+
+    // 사용자 정의 위젯 — 표시 형태에 따라 고를 수 있는 집계 방식을 제한
+    const cwKind = document.querySelector(`.cw-kind[data-ds="${dsId}"]`);
+    const cwCalc = document.querySelector(`.cw-calc[data-ds="${dsId}"]`);
+    const cwGroupWrap = document.querySelector(`.cw-groupby[data-ds="${dsId}"]`);
+    function refreshCwCalcOptions(){
+      if(!cwKind || !cwCalc) return;
+      const opts = CALC_OPTIONS_BY_KIND[cwKind.value] || [];
+      cwCalc.innerHTML = opts.map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
+      if(cwGroupWrap) cwGroupWrap.style.display = cwKind.value==='card' ? 'none' : '';
+    }
+    if(cwKind){
+      refreshCwCalcOptions();
+      cwKind.addEventListener('change', refreshCwCalcOptions);
+    }
+    const cwSubmit = document.querySelector(`.cw-submit[data-ds="${dsId}"]`);
+    if(cwSubmit){
+      cwSubmit.addEventListener('click', ()=>{
+        const kind = document.querySelector(`.cw-kind[data-ds="${dsId}"]`).value;
+        const field = document.querySelector(`.cw-field[data-ds="${dsId}"]`).value;
+        const calc = document.querySelector(`.cw-calc[data-ds="${dsId}"]`).value;
+        const groupBy = document.querySelector(`.cw-groupby[data-ds="${dsId}"]`).value;
+        const titleInput = document.querySelector(`.cw-title[data-ds="${dsId}"]`);
+        const title = titleInput.value.trim() || `${field} ${CALC_LABEL[calc]||calc}`;
+        if(kind !== 'card' && !groupBy){ alert('차트는 "그룹 기준" 컬럼을 선택해주세요.'); return; }
+        ds.customWidgets = ds.customWidgets || [];
+        const idx = ds.customWidgets.length;
+        ds.customWidgets.push({ kind, field, calc, groupBy, title });
+        state.checkedWidgets.add(dsId+'::custom:'+idx);
+        renderDashboard();
+        syncRoomIfConnected();
+      });
+    }
+
+    // 사용자 정의 위젯 차트 렌더링
+    (ds.customWidgets || []).forEach((cw, idx)=>{
+      const id = dsId+'::custom:'+idx;
+      if(cw.kind==='card' || !state.checkedWidgets.has(id) || hiddenWidgets.has(id)) return;
+      const canvas = document.getElementById(`canvas-${dsId}-custom-${idx}`); if(!canvas) return;
+      const entries = capEntries(groupAgg(rows, cw.groupBy, cw.field, cw.calc, null, {}, false), cw.kind==='doughnut'?6:20, '기타');
+      const bg = entries.map((e,i)=> e.isOther ? MUTED_GRAY : chartColors[i % chartColors.length]);
+      chartInstances[dsId+'_custom_'+idx] = new Chart(canvas.getContext('2d'), {
+        type: cw.kind,
+        data:{ labels: entries.map(e=>e.label), datasets:[{ label:cw.title, data:entries.map(e=>e.value),
+          backgroundColor: cw.kind==='doughnut'?bg:bg[0], borderColor: bg[0], borderWidth: cw.kind==='line'?2:0, tension:0.3 }] },
+        options:{ responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{ display: cw.kind==='doughnut', labels:{color:'#8d8d96',font:{size:10}} }, datalabels: datalabelsFor(cw.kind, false, entries.length), tooltip: tooltipFormatCfg() },
+          scales: cw.kind==='doughnut' ? {} : { x:{ticks:{color:'#8d8d96',font:{size:10}},grid:{color:'#2a2a32'}}, y:{ticks:{color:'#8d8d96',font:{size:10}},grid:{color:'#2a2a32'}} } }
+      });
+    });
+  });
+}
+
+function resetAll(){
+  state = { step:0, category:null, headers:[], rows:[], matched:{}, unmatched:[], fieldMap:{}, draftChecked:new Set(), datasets:[], checkedWidgets:new Set(), labelOverrides:{}, layout:{}, chartTypeOverrides:{}, roomCode:null };
+  hiddenWidgets = new Set();
+  Object.values(chartInstances).forEach(c=>c && c.destroy && c.destroy());
+  chartInstances = {};
+  Object.values(gridInstances).forEach(g=>{ try{ g.destroy(false); }catch(e){} });
+  gridInstances = {};
+  clearFile();
+  catGrid.querySelectorAll('.cat-opt').forEach(o=>o.classList.remove('selected'));
+  document.getElementById('next2').disabled = true;
+  if(roomUnsub){ roomUnsub(); roomUnsub = null; }
+  stopPresenceHeartbeat();
+  updateRoomStatusUI();
+}
+
+/* =========================================================
+   버튼 연결 — 저장/공유, 불러오기
+========================================================= */
+document.getElementById('loadRoomBtn').addEventListener('click', ()=>{
+  loadRoomByCode(document.getElementById('loadRoomCode').value);
+});
+document.getElementById('loadRoomCode').addEventListener('keydown', e=>{
+  if(e.key==='Enter') document.getElementById('loadRoomBtn').click();
+});
+document.getElementById('shareBtn').addEventListener('click', createAndShareRoom);
+document.getElementById('addMoreDataBtn').addEventListener('click', addMoreData);
+document.getElementById('closeShareModalBtn').addEventListener('click', ()=>{
+  document.getElementById('shareModal').classList.remove('show');
+});
+function copyRoomCode(){
+  const code = state.roomCode || '';
+  if(!code) return;
+  navigator.clipboard?.writeText(code).then(()=>{
+    alert('코드를 복사했어요: ' + code);
+  }).catch(()=>{ prompt('아래 코드를 복사하세요:', code); });
+}
+document.getElementById('copyShareCodeBtn').addEventListener('click', copyRoomCode);
+document.getElementById('copyRoomCodeBtn').addEventListener('click', copyRoomCode);
+
+/* =========================================================
+   내보내기 — 텍스트 / 엑셀(레이아웃 그대로) / 인쇄
+========================================================= */
+function buildExportSections(){
+  // 데이터셋별로 섹션을 만들어서 배열로 반환
+  return state.datasets.map(ds=>{
+    const recipe = RECIPES[ds.category];
+    const fm = ds.fieldMap;
+    const rows = ds.rows;
+    const dsId = ds.id;
+    const dsLabel = state.labelOverrides['dsname::'+dsId] || ds.label;
+    const sec = { dsLabel, kpis:[], charts:[], table:null };
+    recipe.kpis.forEach(k=>{
+      const id = dsId+'::kpi:'+k.id;
+      if(!state.checkedWidgets.has(id) || hiddenWidgets.has(id)) return;
+      sec.kpis.push({ label: state.labelOverrides[id]||k.label, value: kpiValue(recipe,k,rows,fm) });
+    });
+    recipe.charts.forEach(c=>{
+      const id = dsId+'::chart:'+c.id;
+      if(!state.checkedWidgets.has(id) || hiddenWidgets.has(id)) return;
+      const canvas = document.getElementById(`canvas-${dsId}-${c.id}`);
+      sec.charts.push({ label: state.labelOverrides[id]||c.label, canvas, chart: chartInstances[dsId+'_'+c.id] });
+    });
+    const tableId = dsId+'::table:main';
+    if(state.checkedWidgets.has(tableId) && !hiddenWidgets.has(tableId) && recipe.table.length){
+      const cols = recipe.table.map(f=>({field:f, header: fm[f]||f, label: state.labelOverrides[dsId+'::col:'+f] || recipe.fieldLabels[f]||f}));
+      sec.table = { cols, rows: rows.slice(0,500) };
+    }
+    return sec;
+  });
+}
+
+function exportAsText(){
+  const allSections = buildExportSections();
+  let text = `DataLoom 대시보드\n생성일: ${new Date().toLocaleString('ko-KR')}\n${'='.repeat(30)}\n\n`;
+  allSections.forEach(sections=>{
+    text += `\n### ${sections.dsLabel} ###\n\n`;
+    if(sections.kpis.length){
+      text += `[ KPI ]\n`;
+      sections.kpis.forEach(k=>{ text += `- ${k.label}: ${k.value}\n`; });
+      text += `\n`;
+    }
+    if(sections.charts.length){
+      text += `[ 차트 데이터 ]\n`;
+      sections.charts.forEach(c=>{
+        text += `- ${c.label}\n`;
+        if(c.chart){
+          c.chart.data.labels.forEach((label,i)=>{
+            const vals = c.chart.data.datasets.map(d=>`${d.label}: ${d.data[i]}`).join(', ');
+            text += `    ${label} — ${vals}\n`;
+          });
+        }
+      });
+      text += `\n`;
+    }
+    if(sections.table){
+      text += `[ 원본 데이터 ]\n`;
+      text += sections.table.cols.map(c=>c.label).join('\t') + '\n';
+      sections.table.rows.forEach(r=>{
+        text += sections.table.cols.map(c=>r[c.header] ?? '').join('\t') + '\n';
+      });
+    }
+  });
+  const blob = new Blob([text], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `DataLoom_대시보드.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function exportAsExcel(){
+  const allSections = buildExportSections();
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('대시보드');
+  ws.getColumn(1).width = 3;
+  for(let c=2;c<=10;c++) ws.getColumn(c).width = 14;
+
+  let row = 2;
+  ws.getCell(row,2).value = `DataLoom 대시보드`;
+  ws.getCell(row,2).font = { size:18, bold:true };
+  row += 2;
+
+  allSections.forEach(sections=>{
+    ws.getCell(row,2).value = sections.dsLabel;
+    ws.getCell(row,2).font = { size:14, bold:true, color:{argb:'FFE0A94A'} };
+    row += 2;
+
+    if(sections.kpis.length){
+      ws.getCell(row,2).value = 'KPI'; ws.getCell(row,2).font = { bold:true, color:{argb:'FF8A6B30'} };
+      row++;
+      sections.kpis.forEach(k=>{
+        ws.getCell(row,2).value = k.label;
+        ws.getCell(row,3).value = k.value;
+        ws.getCell(row,3).font = { bold:true };
+        row++;
+      });
+      row += 1;
+    }
+
+    for(const c of sections.charts){
+      if(!c.canvas) continue;
+      ws.getCell(row,2).value = c.label; ws.getCell(row,2).font = { bold:true, color:{argb:'FF8A6B30'} };
+      row++;
+      try{
+        const dataUrl = c.canvas.toDataURL('image/png');
+        const imgId = wb.addImage({ base64: dataUrl, extension:'png' });
+        ws.addImage(imgId, { tl:{col:1, row:row-1}, ext:{width:420, height:220} });
+        row += 13;
+      }catch(e){ console.warn('차트 이미지 삽입 실패:', e); }
+    }
+
+    if(sections.table){
+      ws.getCell(row,2).value = '원본 데이터'; ws.getCell(row,2).font = { bold:true, color:{argb:'FF8A6B30'} };
+      row++;
+      sections.table.cols.forEach((c,i)=>{
+        const cell = ws.getCell(row, 2+i);
+        cell.value = c.label;
+        cell.font = { bold:true, color:{argb:'FFFFFFFF'} };
+        cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FF2A2A32'} };
+      });
+      row++;
+      sections.table.rows.forEach(r=>{
+        sections.table.cols.forEach((c,i)=>{
+          const cell = ws.getCell(row, 2+i);
+          const v = r[c.header] ?? '';
+          cell.value = v;
+          if(typeof v === 'number') cell.numFmt = '#,##0';
+        });
+        row++;
+      });
+    }
+    row += 2; // 다음 데이터셋과 간격
+  });
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], {type:'application/octet-stream'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `DataLoom_대시보드.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('exportTxtBtn').addEventListener('click', exportAsText);
+document.getElementById('exportXlsxBtn').addEventListener('click', ()=>{
+  exportAsExcel().catch(err=>alert('엑셀 내보내기 중 문제가 생겼어요: '+err.message));
+});
+document.getElementById('printBtn').addEventListener('click', ()=>window.print());
+
+/* init */
+renderProgress();
+renderMyDashboardsList();
+goStep(0);
+window.addEventListener('beforeunload', stopPresenceHeartbeat);
+</script>
+</body>
+</html>
