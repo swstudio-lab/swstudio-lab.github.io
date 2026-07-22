@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>가위바위보 빌더 · 개발일지 · SW STUDIO LAB</title>
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="SW STUDIO LAB">
+<meta property="og:title" content="가위바위보 빌더 · 개발일지">
+<meta property="og:description" content="AI 실험실의 첫 콘텐츠를 만들며 했던 고민과 도구, 그리고 역할에 대한 기록.">
+<meta property="og:image" content="https://swstudio-lab.github.io/assets/og-image.png">
+<meta property="og:url" content="https://swstudio-lab.github.io/devlog/rps-builder.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="가위바위보 빌더 · 개발일지">
+<meta name="twitter:description" content="AI 실험실의 첫 콘텐츠를 만들며 했던 고민과 도구, 그리고 역할에 대한 기록.">
+<meta name="twitter:image" content="https://swstudio-lab.github.io/assets/og-image.png">
+<meta name="description" content="AI 실험실의 첫 콘텐츠를 만들며 했던 고민과 도구, 그리고 역할에 대한 기록.">
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+    .reveal{ opacity:0; transform:translateY(12px); animation:revealIn .5s ease forwards; }
+    @keyframes revealIn{ to{ opacity:1; transform:translateY(0); } }
+    .art-header{ max-width:680px; margin:0 auto; padding:56px 20px 20px; text-align:center; }
+    .art-date{ font-family:'Press Start 2P',monospace; font-size:10px; color:var(--gold); letter-spacing:0.08em; margin-bottom:16px; }
+    .art-header h1{ font-size:clamp(24px,4.4vw,34px); font-weight:900; margin:0 0 10px; line-height:1.35; }
+    .art-tags{ display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:14px; }
+    .art-tag{ font-size:10.5px; color:var(--muted); border:1px solid var(--border); border-radius:20px; padding:4px 12px; }
+    .art-body{ max-width:640px; margin:0 auto; padding:20px 20px 100px; }
+    .art-body h2{ font-size:18px; margin:40px 0 14px; color:var(--gold); }
+    .art-body h2:first-child{ margin-top:0; }
+    .art-body p{ font-size:14px; line-height:1.85; color:var(--text); margin:0 0 16px; }
+    .art-body p.muted{ color:var(--muted); }
+    .art-body ul{ margin:0 0 18px; padding-left:20px; }
+    .art-body li{ font-size:13.5px; line-height:1.8; color:var(--text); margin-bottom:8px; }
+    .art-body li b{ color:var(--gold); }
+    .callout{
+        background:rgba(232,185,63,0.06); border:1px solid var(--border-lit); border-radius:12px;
+        padding:16px 20px; margin:22px 0; font-size:13px; color:var(--muted); line-height:1.75;
+    }
+    .callout b{ color:var(--gold); }
+    .quote-box{
+        border-left:3px solid var(--border-lit); padding:4px 0 4px 18px; margin:22px 0;
+        font-size:13.5px; color:var(--muted); font-style:italic; line-height:1.8;
+    }
+    .divider-line{ max-width:640px; margin:36px auto; height:1px; background:var(--border); }
+    .art-nav{ max-width:640px; margin:0 auto; padding:0 20px 60px; text-align:center; }
+    .art-nav a{ font-size:12.5px; color:var(--gold); text-decoration:none; }
+</style>
+</head>
+<body>
+
+<nav class="topnav pixel">
+    <div class="nav-drop">
+        <a href="../index.html">홈</a>
+        <button class="nav-drop-caret" aria-label="홈 하위메뉴 열기">▾</button>
+        <div class="nav-drop-menu">
+            <a href="../about.html">💬 소개</a>
+            <a href="../devlog.html">📓 개발일지</a>
+        </div>
+    </div>
+    <a href="../ai-lab.html">AI 실험실</a>
+    <a href="../works.html">작업물</a>
+    <div class="nav-drop">
+        <a href="../games.html">게임</a>
+        <button class="nav-drop-caret" aria-label="게임 하위메뉴 열기">▾</button>
+        <div class="nav-drop-menu">
+            <a href="../games.html?mode=solo">🕹️ 혼자 플레이</a>
+            <a href="../games.html?mode=multi">👥 함께 플레이</a>
+        </div>
+    </div>
+    <a href="../etc.html">기타</a>
+</nav>
+
+<header class="art-header reveal">
+    <div class="art-date">DEVLOG · 2026.07.16</div>
+    <h1>AI가 다 해주는 게 아니라,<br>AI로 배우는 걸 만들고 싶었다</h1>
+    <div class="art-tags">
+        <span class="art-tag">AI 실험실</span>
+        <span class="art-tag">버그 수정</span>
+        <span class="art-tag">사용자 피드백</span>
+    </div>
+</header>
+
+<article class="art-body reveal" style="animation-delay:.05s;">
+
+<h2>왜 만들었나</h2>
+<p>AI를 실무에서 써보면서 느낀 게 있어요. 여전히 많은 사람들이 AI를 어렵게 생각한다는 거예요. 복잡한 프롬프트나 개발 지식이 없어도, 직접 만들어보고 결과를 눈으로 확인하면서 자연스럽게 배울 수 있는 공간을 만들고 싶었어요. 그래서 목표를 하나 확실히 정했어요 — <b style="color:var(--gold);">"AI가 다 해줍니다"가 아니라 "선택만 하면, 만들면서 배울 수 있어요"</b>.</p>
+
+<h2>완성본이 아니라 과정을 보여주는 흐름</h2>
+<p>그냥 체크박스 몇 개 누르면 완성된 게임이 뚝 나오는 도구는 만들고 싶지 않았어요. 그래서 "선택 → 만들어지는 과정을 보여주기 → 실제로 확인하기"라는 몇 단계짜리 흐름으로 나눴어요. 완성본만 툭 던져주는 게 아니라, 기능을 하나 켤 때마다 코드가 어떻게 달라지는지 눈으로 비교할 수 있게 하는 것도 나중에 추가했고요. 구체적인 단계 구성은 이 사이트의 AI 실험실에서 직접 체험해보시는 게 제일 정확해요.</p>
+
+<h2>"진짜 AI냐"는 질문에 미리 답해두기</h2>
+<p>지인들에게 보여주면서 자연스럽게 나온 궁금증이 있었어요 — 체크박스를 누를 때마다 정말 그 순간 AI가 코드를 만드는 건지, 아니면 이미 준비된 걸 보여주는 건지에 대한 거였어요. 좋은 질문이라고 생각했어요. 이 프로젝트의 정체성을 정확히 짚는 질문이었으니까요.</p>
+<p>그래서 애매하게 넘기지 않고 명확히 정리했어요. 지금은 체크박스 누를 때마다 실시간으로 AI를 부르는 게 아니라, 코드와 설명 자체를 AI와 함께 미리 만들어서 저장해둔 거예요. "AI가 실시간으로 반응하는 서비스"보다는 "AI로 함께 만든 콘텐츠를 체험하는 서비스"에 더 가까워요.</p>
+<p>이걸 계기로 아예 시작 화면에 이런 문구를 넣기로 했어요.</p>
+<div class="callout">💡 <b>이 콘텐츠는 이렇게 만들어졌어요</b> — 체크박스를 누를 때마다 AI를 실시간으로 호출해서 코드를 새로 만드는 건 아니에요. 코드와 설명을 AI와 함께 미리 기획·검증해서 준비해둔 것을, 사용자가 고른 조합대로 보여주는 방식이에요.</div>
+<p class="muted">궁금해할 만한 부분을 숨기기보다 먼저 밝혀두는 쪽을 택했어요. 나중에 진짜 실시간 AI 호출 버전을 만들 계획도 있는데, 그건 그때 가서 이 문구를 그 콘텐츠에 맞게 다시 쓰면 될 일이었어요.</p>
+
+<h2>실제로 써보고서야 보인 버그들</h2>
+<ul>
+    <li><b>기본값 문제</b> — 아무것도 체크 안 했는데 "점수판"이 이미 켜져 있던 버그. 기본값을 하나 켜두면 편할 거라 생각했는데, 오히려 "내가 선택 안 한 게 왜 나와?"라는 혼란을 줬어요. 결국 아무것도 기본으로 켜지 않는 쪽으로 바꿨어요.</li>
+    <li><b>애니메이션이 안 보이던 문제</b> — "애니메이션" 기능을 켜도 티가 안 난다는 피드백을 받았는데, 알고 보니 모든 버튼에 이미 비슷한 눌림 효과가 기본으로 깔려 있어서 차이가 안 느껴졌던 거였어요. 기본 효과를 없애고 기능 켰을 때만 확실히 티나게 바꿨어요.</li>
+    <li><b>미완성 연결 버그</b> — "3판 2선승제"를 골랐는데 실제로는 계속 무한정 플레이가 되는 버그가 있었어요. 설명 화면에는 그 로직을 예시로만 보여줬을 뿐, 정작 실제 게임 로직에는 연결을 안 해놨던 실수였어요.</li>
+</ul>
+<p>완성해놓은 것도 실제로 눌러보지 않으면 이런 문제들이 잘 안 보인다는 걸 다시 느꼈어요.</p>
+
+<h2>재미 요소도 나중에 추가됐다</h2>
+<p>기능적으로는 다 됐는데, 실제로 플레이해보니 결과가 너무 빨리 나와서 밋밋하다는 피드백을 받았어요. 그래서 버튼을 누르면 상대 손이 물음표로 흔들리다가, 잠깐 뒤 공개되고, 그 다음에 결과가 나오는 서스펜스 딜레이를 추가했어요. 기능은 다 갖췄어도 "체감"까지 신경 쓰는 게 다르다는 걸 배웠어요.</p>
+
+<h2>어떤 도구로, 무엇을 했나</h2>
+<p>AI 실험실이라는 이름 때문에 오해할 수도 있는데, 이 콘텐츠 자체를 만드는 과정도 AI(Claude)와 대화하면서 진행했어요. 정확히는 이런 구조예요.</p>
+<ul>
+    <li><b>제가 한 것</b> — 전체 흐름을 기획하고, 어떤 기능(점수판·연승기록·효과음 등)을 넣을지 정했어요. 코드를 어느 선까지 보호할지도 제가 판단했고요. 무엇보다 매 단계를 직접 눌러보면서 기본값 문제, 애니메이션이 안 보이는 문제, 무한 루프 버그를 하나씩 찾아냈어요 — 이런 건 코드를 읽어서가 아니라 실제로 써봐야 보이더라고요. Firebase 콘솔 설정과 GitHub 배포도 직접 했어요.</li>
+    <li><b>AI가 한 것</b> — 제가 설명한 흐름과 기능을 실제 HTML/CSS/JS 코드로 구현하고, 제가 찾은 버그의 원인을 분석해서 고쳤어요. 데이터를 어떻게 나눠서 저장할지 설계하는 것도 AI와 같이 정리했어요.</li>
+</ul>
+<p class="muted">그래서 "AI가 다 만든 게임"이라기보다, 기획·테스트·판단은 제가 하고 구현은 AI와 같이 한 결과물이라고 보는 게 정확해요. 이 콘텐츠가 "실시간 AI 호출이 아니다"라고 앞에서 밝힌 것도 같은 맥락이에요 — 뭘 어떻게 만들었는지 정직하게 보여주는 게, 이 사이트 전체가 지향하는 방향이거든요.</p>
+
+<h2>지금 상태</h2>
+<p>가위바위보 하나는 완성됐고, 미니 RPG나 퀴즈 게임처럼 다른 게임으로 확장할 수 있는 구조는 이미 만들어뒀어요. 다음 단계는 그 잠긴 슬롯들을 하나씩 채우는 것, 그리고 언젠가는 진짜 실시간으로 AI를 호출하는 버전도 만들어보는 거예요.</p>
+
+</article>
+
+<div class="divider-line"></div>
+<div class="art-nav reveal" style="animation-delay:.1s;">
+    <a href="../devlog.html">← 개발일지 목록으로</a>
+</div>
+
+<footer>
+    made with care · updated as things get made
+</footer>
+
+<script src="../assets/nav.js"></script>
+<script src="../assets/maintenance.js"></script>
+<script src="../assets/analytics-config.js"></script>
+<script src="../assets/ga4.js"></script>
+<script src="../assets/visitor-counter.js"></script>
+</body>
+</html>

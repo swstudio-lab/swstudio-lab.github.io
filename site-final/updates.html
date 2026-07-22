@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>업데이트 전체보기 · SW STUDIO LAB</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+    .updates-wrap{ max-width:680px; margin:0 auto; padding:0 20px 100px; }
+    .update-row{
+        display:flex; align-items:center; gap:16px; padding:16px 4px; border-bottom:1px solid var(--border);
+    }
+    .update-row:last-child{ border-bottom:none; }
+    .update-badge{
+        flex:0 0 auto; font-size:9px; letter-spacing:0.05em; padding:3px 7px; border-radius:4px;
+        background:rgba(232,185,63,0.15); color:var(--gold);
+    }
+    .update-badge.none{ visibility:hidden; }
+    .update-text{ flex:1; font-size:13.5px; }
+    .update-date{ flex:0 0 auto; font-size:11px; color:var(--muted); }
+    .section-loading{ text-align:center; color:var(--muted); font-size:12.5px; padding:20px; }
+</style>
+</head>
+<body>
+
+<nav class="topnav pixel">
+    <div class="nav-drop">
+        <a href="index.html">홈</a>
+        <button class="nav-drop-caret" aria-label="홈 하위메뉴 열기">▾</button>
+        <div class="nav-drop-menu">
+            <a href="about.html">💬 소개</a>
+            <a href="devlog.html">📓 개발일지</a>
+        </div>
+    </div>
+    <a href="ai-lab.html">AI 실험실</a>
+    <a href="works.html">작업물</a>
+    <div class="nav-drop">
+        <a href="games.html">게임</a>
+        <button class="nav-drop-caret" aria-label="게임 하위메뉴 열기">▾</button>
+        <div class="nav-drop-menu">
+            <a href="games.html?mode=solo">🕹️ 혼자 플레이</a>
+            <a href="games.html?mode=multi">👥 함께 플레이</a>
+        </div>
+    </div>
+    <a href="etc.html">기타</a>
+</nav>
+
+<header class="hero reveal">
+    <div class="eyebrow pixel">UPDATES</div>
+    <h1>업데이트 <span>전체보기</span></h1>
+    <p>지금까지의 변화들을 모아봤어요.</p>
+    <div class="hero-rule"></div>
+</header>
+
+<div class="updates-wrap">
+    <div id="updates-list"><div class="section-loading">불러오는 중...</div></div>
+</div>
+
+<footer>
+    made with care · updated as things get made
+</footer>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyB0LRiIpNwdcCkS4Y5Dz4pP9zcLoadO2Xk",
+    authDomain: "taskflow-7cb3b.firebaseapp.com",
+    projectId: "taskflow-7cb3b",
+    storageBucket: "taskflow-7cb3b.firebasestorage.app",
+    messagingSenderId: "811223035419",
+    appId: "1:811223035419:web:08b972916827147bc2d2be"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+function escHtml(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+db.collection('updates').onSnapshot(snap => {
+    const items = snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
+        .filter(it => it.published)
+        .sort((a,b) => (b.order||0) - (a.order||0));
+    const listEl = document.getElementById('updates-list');
+    if (items.length === 0){
+        listEl.innerHTML = `<div style="text-align:center; color:var(--muted); font-size:12.5px; padding:40px 20px;">아직 등록된 업데이트가 없어요.</div>`;
+        return;
+    }
+    listEl.innerHTML = items.map(u => `
+        <div class="update-row">
+            <span class="update-badge pixel ${u.badge?'':'none'}">${escHtml(u.badge||'NEW')}</span>
+            <span class="update-text">${escHtml(u.text)}</span>
+            <span class="update-date">${escHtml(u.date)}</span>
+        </div>
+    `).join('');
+}, () => {
+    document.getElementById('updates-list').innerHTML = `<div style="text-align:center; color:var(--muted); font-size:12.5px;">데이터를 불러오지 못했어요.</div>`;
+});
+</script>
+
+<script src="assets/nav.js"></script>
+<script src="assets/maintenance.js"></script>
+<script src="assets/analytics-config.js"></script>
+<script src="assets/ga4.js"></script>
+<script src="assets/visitor-counter.js"></script>
+</body>
+</html>

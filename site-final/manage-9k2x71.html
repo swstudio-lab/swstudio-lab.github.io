@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>관리 페이지</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<style>
+    .wrap{ max-width:820px; margin:0 auto; padding:40px 20px 100px; }
+    .gate-overlay{
+        position:fixed; inset:0; background:rgba(10,9,8,0.94); z-index:60;
+        display:flex; align-items:center; justify-content:center; padding:20px;
+    }
+    .gate-box{
+        background:linear-gradient(180deg, var(--surface2), var(--surface));
+        border:1px solid var(--border-lit); border-radius:14px; padding:32px 28px;
+        max-width:340px; width:100%; text-align:center;
+    }
+    .gate-box input{
+        width:100%; box-sizing:border-box; background:var(--bg); border:1px solid var(--border);
+        color:var(--text); border-radius:8px; padding:10px 12px; font-size:14px; margin-bottom:12px; text-align:center;
+        font-family:inherit;
+    }
+    .panel{
+        background:linear-gradient(180deg, var(--surface2), var(--surface));
+        border:1px solid var(--border); border-radius:12px; padding:0; margin-bottom:20px;
+        overflow:hidden;
+    }
+    .panel-header{
+        display:flex; align-items:center; justify-content:space-between;
+        padding:18px 20px; cursor:pointer; user-select:none;
+    }
+    .panel-header h3{ margin:0; font-size:14px; }
+    .panel-chev{ color:var(--muted); font-size:12px; transition:transform .2s ease; flex:0 0 auto; }
+    .panel.open .panel-chev{ transform:rotate(180deg); color:var(--gold); }
+    .panel-body{ display:none; padding:0 20px 20px; }
+    .panel.open .panel-body{ display:block; }
+    select, input[type="text"], input[type="number"], textarea{
+        width:100%; box-sizing:border-box; background:var(--surface); border:1px solid var(--border);
+        color:var(--text); border-radius:6px; padding:8px 10px; font-size:13px; font-family:inherit; margin-bottom:10px;
+    }
+    label.f-label{ font-size:11px; color:var(--muted); display:block; margin-bottom:4px; }
+    .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .btn{
+        background:var(--surface); border:1px solid var(--border); color:var(--text);
+        border-radius:6px; padding:8px 14px; font-size:12.5px; cursor:pointer; font-family:inherit;
+    }
+    .btn.primary{ border-color:var(--border-lit); color:var(--gold); }
+    .btn.danger:hover{ border-color:#8a3a2a; color:#e0876a; }
+    .icon-pick{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
+    .icon-opt{
+        width:38px; height:38px; border:1.5px solid var(--border); border-radius:8px;
+        display:flex; align-items:center; justify-content:center; cursor:pointer; background:var(--surface);
+    }
+    .icon-opt.sel{ border-color:var(--gold); background:rgba(232,185,63,0.1); }
+
+    .item-row{
+        display:flex; align-items:center; gap:12px; padding:12px; border:1px solid var(--border);
+        border-radius:10px; margin-bottom:10px;
+    }
+    .item-row.unpub{ opacity:0.55; border-style:dashed; }
+    .item-icon{ width:36px; height:36px; flex:0 0 auto; display:flex; align-items:center; justify-content:center; background:var(--surface); border-radius:8px; }
+    .item-info{ flex:1; min-width:0; }
+    .item-badge{ font-size:9.5px; color:var(--muted); background:var(--surface); border:1px solid var(--border); padding:2px 6px; border-radius:4px; margin-right:6px; }
+    .item-title{ font-size:13.5px; font-weight:700; }
+    .item-desc{ font-size:11px; color:var(--muted); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .item-actions{ display:flex; align-items:center; gap:8px; flex:0 0 auto; }
+    .toggle-track{ position:relative; width:40px; height:22px; background:var(--surface); border:1px solid var(--border); border-radius:12px; cursor:pointer; }
+    .toggle-track.on{ background:rgba(125,208,138,0.2); border-color:#7dd08a; }
+    .toggle-knob{ position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:var(--muted); transition:transform .15s ease, background .15s ease; }
+    .toggle-track.on .toggle-knob{ transform:translateX(18px); background:#7dd08a; }
+    .icon-btn{ background:none; border:none; color:var(--muted); cursor:pointer; padding:4px; }
+    .icon-btn:hover{ color:var(--gold); }
+    .cat-group-title{ font-size:12px; color:var(--gold); margin:22px 0 10px; letter-spacing:0.05em; }
+    .edit-panel{ border:1px dashed var(--border-lit); border-radius:10px; padding:12px; margin-top:10px; }
+</style>
+</head>
+<body>
+
+<div class="gate-overlay" id="gate-overlay">
+    <div class="gate-box">
+        <div class="eyebrow pixel">ADMIN</div>
+        <h2 style="margin:8px 0 14px;">관리자 로그인</h2>
+        <input type="email" id="gate-email" placeholder="이메일" autocomplete="username">
+        <input type="password" id="gate-pw" placeholder="비밀번호" autocomplete="current-password">
+        <button class="btn primary" id="gate-submit" style="width:100%;">로그인</button>
+        <div id="gate-error" style="color:#e0876a; font-size:11.5px; margin-top:10px; min-height:14px;"></div>
+    </div>
+</div>
+
+<div class="wrap" id="main-wrap" style="display:none;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+        <div>
+            <h1 style="font-size:22px; margin-bottom:6px;">🛠️ 콘텐츠 관리</h1>
+            <p style="color:var(--muted); font-size:12.5px; margin-bottom:24px;">헤더를 눌러 펼치고 접을 수 있어요. 공개로 전환하면 방문자 화면에 바로 반영돼요.</p>
+        </div>
+        <button class="btn" id="logout-btn" style="flex:0 0 auto; font-size:11.5px;">로그아웃</button>
+    </div>
+
+    <div style="display:flex; gap:8px; margin-bottom:24px; border-bottom:1px solid var(--border);">
+        <button class="mode-tab-btn active" id="mode-btn-content" style="background:none; border:none; border-bottom:2px solid var(--gold); color:var(--gold); font-size:13px; font-weight:700; padding:10px 4px; cursor:pointer; font-family:inherit;">🛠️ 콘텐츠 관리</button>
+        <button class="mode-tab-btn" id="mode-btn-stats" style="background:none; border:none; border-bottom:2px solid transparent; color:var(--muted); font-size:13px; font-weight:700; padding:10px 4px; cursor:pointer; font-family:inherit;">📊 통계 분석</button>
+    </div>
+
+    <div id="mode-content">
+    <div class="panel" data-panel="maint">
+        <div class="panel-header"><h3>🔧 사이트 상태</h3><span class="panel-chev">▾</span></div>
+        <div class="panel-body">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;">
+                <div>
+                    <div style="font-size:13.5px; font-weight:700;">점검 모드</div>
+                    <div style="font-size:11.5px; color:var(--muted); margin-top:2px;">켜면 방문자에게 상단 점검 안내 배너가 보여요.</div>
+                </div>
+                <div class="toggle-track" id="maint-toggle"><div class="toggle-knob"></div></div>
+            </div>
+            <label class="f-label">배너 문구</label>
+            <input type="text" id="maint-msg" value="🚧 홈페이지를 더 좋은 모습으로 단장하고 있어요. 곧 새로운 모습으로 찾아올게요!">
+            <button class="btn primary" id="maint-save" style="width:100%; margin-top:6px;">저장</button>
+
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:20px; padding-top:16px; border-top:1px solid var(--border);">
+                <div>
+                    <div style="font-size:13.5px; font-weight:700;">방문자 수 공개</div>
+                    <div style="font-size:11.5px; color:var(--muted); margin-top:2px;">꺼도 카운트는 계속되고, 화면에만 안 보여요.</div>
+                </div>
+                <div class="toggle-track" id="visitor-toggle"><div class="toggle-knob"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel" data-panel="up">
+        <div class="panel-header"><h3>📰 최근 업데이트</h3><span class="panel-chev">▾</span></div>
+        <div class="panel-body">
+            <p style="font-size:11.5px; color:var(--muted); margin:-4px 0 14px; line-height:1.6;">
+                게임/작업물/기타/AI실험실/대표프로젝트를 <b style="color:var(--gold);">공개로 전환하면 자동으로</b> 여기 기록되고 홈에 반영돼요.
+                아래는 그 외에 직접 한 줄 남기고 싶을 때만 쓰면 돼요.
+            </p>
+            <label class="f-label">내용</label>
+            <input type="text" id="up-text" placeholder="예: 홈 화면 리디자인 진행 중">
+            <label class="f-label">날짜</label>
+            <input type="text" id="up-date" placeholder="예: 2026.07.16">
+            <label class="f-label">NEW 배지</label>
+            <select id="up-badge">
+                <option value="NEW">표시함</option>
+                <option value="">표시 안 함</option>
+            </select>
+            <button class="btn primary" id="up-add-btn" style="width:100%; margin-top:6px;">직접 추가하기 (바로 공개됨)</button>
+            <div id="up-list" style="margin-top:16px;"></div>
+        </div>
+    </div>
+
+    <div class="panel" data-panel="rm">
+        <div class="panel-header"><h3>🗺️ 앞으로의 계획</h3><span class="panel-chev">▾</span></div>
+        <div class="panel-body">
+            <label class="f-label">진행 상태</label>
+            <select id="rm-status">
+                <option value="진행 중">진행 중</option>
+                <option value="기획 중">기획 중</option>
+                <option value="예정">예정</option>
+            </select>
+            <label class="f-label">제목</label>
+            <input type="text" id="rm-title" placeholder="예: Campus OS">
+            <label class="f-label">설명</label>
+            <textarea id="rm-desc" rows="2" placeholder="짧은 설명"></textarea>
+            <button class="btn primary" id="rm-add-btn" style="width:100%; margin-top:6px;">추가하기 (비공개로 생성됨)</button>
+            <div id="rm-list" style="margin-top:16px;"></div>
+        </div>
+    </div>
+
+    <div class="panel" data-panel="additem">
+        <div class="panel-header"><h3>➕ 새 항목 추가 (게임/작업물/기타/AI실험실)</h3><span class="panel-chev">▾</span></div>
+        <div class="panel-body">
+            <label class="f-label">카테고리</label>
+            <select id="f-category">
+                <option value="games">게임</option>
+                <option value="works">작업물</option>
+                <option value="etc">기타</option>
+                <option value="ai-lab">AI 실험실</option>
+            </select>
+            <div id="f-sub-wrap">
+                <label class="f-label">하위 분류</label>
+                <select id="f-subcategory">
+                    <option value="solo">혼자 플레이</option>
+                    <option value="multi">함께 플레이 (2인 이상)</option>
+                </select>
+            </div>
+            <label class="f-label">제목</label>
+            <input type="text" id="f-title" placeholder="예: 벽돌깨기">
+            <label class="f-label">설명</label>
+            <textarea id="f-desc" rows="2" placeholder="카드에 보일 짧은 설명"></textarea>
+            <label class="f-label">링크 (파일 경로)</label>
+            <input type="text" id="f-href" placeholder="예: games/breakout/index.html">
+            <label class="f-label">아이콘</label>
+            <div class="icon-pick" id="icon-pick"></div>
+            <label class="f-label">상태 표시</label>
+            <select id="f-tag">
+                <option value="playable">PLAYABLE / READY</option>
+                <option value="wip">제작중</option>
+            </select>
+            <button class="btn primary" id="add-btn" style="width:100%; margin-top:6px;">추가하기 (비공개로 생성됨)</button>
+        </div>
+    </div>
+
+    <div class="panel" data-panel="itemlist">
+        <div class="panel-header"><h3>📋 전체 항목 (게임/작업물/기타/AI실험실)</h3><span class="panel-chev">▾</span></div>
+        <div class="panel-body">
+            <p style="font-size:11.5px; color:var(--muted); margin:-4px 0 14px; line-height:1.6;">
+                별표(⭐)를 누르면 그 항목이 <b style="color:var(--gold);">홈 화면 대표 프로젝트</b>로 지정돼요. 따로 내용을 다시 입력할 필요 없이, 이미 있는 제목/설명/링크/아이콘을 그대로 가져다 써요.
+            </p>
+            <div id="item-list"></div>
+        </div>
+    </div>
+    </div><!-- /mode-content -->
+
+    <div id="mode-stats" style="display:none;">
+        <div class="panel" style="padding:24px;">
+            <h3 style="margin-bottom:4px;">📊 오늘의 방문자</h3>
+            <div id="stat-today" style="font-family:'Press Start 2P',monospace; font-size:32px; color:var(--gold); margin:14px 0 6px;">–</div>
+            <p style="font-size:11.5px; color:var(--muted); margin:0;">방문자 수는 사이트 자체 카운터 기준이에요 (같은 브라우저는 하루 1회만 집계).</p>
+        </div>
+
+        <div class="panel" style="padding:24px;">
+            <h3 style="margin-bottom:14px;">📅 최근 7일</h3>
+            <div id="stat-week" style="display:flex; align-items:flex-end; gap:8px; height:100px;"></div>
+        </div>
+
+        <div class="panel" style="padding:24px;">
+            <h3 style="margin-bottom:10px;">🔍 더 깊은 분석 (Google Analytics)</h3>
+            <p style="font-size:12.5px; color:var(--muted); line-height:1.7; margin:0 0 14px;">
+                어떤 페이지에서 오래 머무는지, 어디서 이탈하는지, AI 실험실에서 "제작 시작 → 완료" 비율이 얼마나 되는지 같은 깊은 분석은 여기서 직접 만들기보다 Google Analytics의 진짜 대시보드가 훨씬 정확해요.
+                이미 <code>create_start</code> · <code>service_generate_start</code> · <code>service_generate_complete</code> · <code>service_edit_request</code> 이벤트가 자동으로 쌓이고 있어요.
+            </p>
+            <a href="https://analytics.google.com/" target="_blank" rel="noopener" class="btn primary" style="display:inline-block; text-decoration:none;">Google Analytics 열기 →</a>
+        </div>
+    </div>
+
+</div>
+
+<div id="toast" style="position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--surface2); border:1px solid var(--border-lit); color:var(--gold); padding:10px 18px; border-radius:8px; font-size:12.5px; opacity:0; pointer-events:none; transition:opacity .2s ease, transform .2s ease;"></div>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyB0LRiIpNwdcCkS4Y5Dz4pP9zcLoadO2Xk",
+    authDomain: "taskflow-7cb3b.firebaseapp.com",
+    projectId: "taskflow-7cb3b",
+    storageBucket: "taskflow-7cb3b.firebasestorage.app",
+    messagingSenderId: "811223035419",
+    appId: "1:811223035419:web:08b972916827147bc2d2be"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const auth = firebase.auth();
+const col = db.collection('siteItems');
+
+const ICON_PATHS = {
+    sword: '<line x1="19" y1="5" x2="9" y2="15"/><line x1="7" y1="17" x2="11" y2="13"/><line x1="9" y1="15" x2="6" y2="18"/><circle cx="5" cy="19" r="1" fill="C"/>',
+    grid: '<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/><path d="M6 6l2 2M18 6l-2 2" stroke-width="1.4"/>',
+    horse: '<path d="M4 18c2-6 5-10 9-10 3 0 4 2 4 4 0 3-2 4-5 4"/><circle cx="17" cy="8" r="1" fill="C"/><path d="M8 18h9"/><path d="M6 15l-2 3M20 15l2 3"/>',
+    wrench: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2-2z"/>',
+    table: '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="9" y1="10" x2="9" y2="20"/><line x1="15" y1="10" x2="15" y2="20"/>',
+    calendar: '<rect x="4" y="5" width="16" height="15" rx="2"/><line x1="4" y1="10" x2="20" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/>',
+    card: '<rect x="4" y="3" width="10" height="16" rx="2" transform="rotate(-8 9 11)"/><rect x="11" y="4" width="10" height="16" rx="2" transform="rotate(8 16 12)"/><circle cx="16" cy="11" r="1.4" fill="C"/>',
+    clock: '<circle cx="12" cy="12" r="8"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="12" x2="15" y2="14"/>',
+    box: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16M9 9v11"/>',
+    star: '<path d="M12 3l2.6 5.9L21 9.6l-4.8 4.2 1.4 6.6L12 17l-5.6 3.4 1.4-6.6L3 9.6l6.4-.7z"/>',
+    sparkle: '<path d="M12 4l1.5 5.5L19 11l-5.5 1.5L12 18l-1.5-5.5L5 11l5.5-1.5L12 4z"/>'
+};
+function iconSvg(key, color, size){
+    size = size || 22;
+    const inner = (ICON_PATHS[key] || ICON_PATHS.box).replace(/C/g, color);
+    return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+}
+
+document.querySelectorAll('.panel-header').forEach(header => {
+    header.addEventListener('click', () => {
+        header.closest('.panel').classList.toggle('open');
+    });
+});
+
+function toast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.opacity='1'; t.style.transform='translateX(-50%) translateY(0)';
+    clearTimeout(toast._t);
+    toast._t = setTimeout(()=>{ t.style.opacity='0'; t.style.transform='translateX(-50%) translateY(20px)'; }, 1600);
+}
+
+let selectedIcon = 'box';
+function renderIconPicker(){
+    const wrap = document.getElementById('icon-pick');
+    wrap.innerHTML = Object.keys(ICON_PATHS).map(key => `
+        <div class="icon-opt ${key===selectedIcon?'sel':''}" data-icon="${key}">${iconSvg(key, '#e8b93f', 20)}</div>
+    `).join('');
+}
+document.getElementById('icon-pick').addEventListener('click', e => {
+    const opt = e.target.closest('.icon-opt');
+    if (!opt) return;
+    selectedIcon = opt.dataset.icon;
+    renderIconPicker();
+});
+
+document.getElementById('f-category').addEventListener('change', e => {
+    document.getElementById('f-sub-wrap').style.display = e.target.value === 'games' ? '' : 'none';
+});
+
+document.getElementById('add-btn').addEventListener('click', () => {
+    const category = document.getElementById('f-category').value;
+    const title = document.getElementById('f-title').value.trim();
+    const desc = document.getElementById('f-desc').value.trim();
+    const href = document.getElementById('f-href').value.trim();
+    const tag = document.getElementById('f-tag').value;
+    if (!title || !href) { toast('제목과 링크는 꼭 입력해주세요'); return; }
+    const doc = {
+        category, title, desc, href, tag,
+        icon: selectedIcon,
+        published: false,
+        order: Date.now(),
+        createdAt: Date.now()
+    };
+    if (category === 'games') doc.subcategory = document.getElementById('f-subcategory').value;
+    col.add(doc).then(() => {
+        toast('✅ 추가했어요 (비공개 상태)');
+        document.getElementById('f-title').value = '';
+        document.getElementById('f-desc').value = '';
+        document.getElementById('f-href').value = '';
+    }).catch(() => toast('추가 실패'));
+});
+
+const CAT_LABEL = { games:'게임', works:'작업물', etc:'기타', 'ai-lab':'AI 실험실' };
+const SUB_LABEL = { solo:'혼자', multi:'함께' };
+
+function todayStr(){
+    const d = new Date();
+    return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+}
+function logUpdate(text){
+    // 공개 전환 시 자동으로 "최근 업데이트"에 기록 (바로 공개 상태로 생성됨)
+    upCol.add({ text, date: todayStr(), badge: 'NEW', published: true, order: Date.now(), createdAt: Date.now() })
+        .catch(() => {});
+}
+
+function renderItemList(items){
+    const listEl = document.getElementById('item-list');
+    if (items.length === 0) { listEl.innerHTML = '<p style="color:var(--muted); font-size:12.5px;">아직 항목이 없어요.</p>'; return; }
+    const groups = { games:[], works:[], etc:[], 'ai-lab':[] };
+    items.forEach(it => { (groups[it.category] || groups.etc).push(it); });
+
+    let html = '';
+    ['games','works','etc','ai-lab'].forEach(cat => {
+        if (groups[cat].length === 0) return;
+        html += `<div class="cat-group-title pixel">${CAT_LABEL[cat]}</div>`;
+        groups[cat].sort((a,b)=>(a.order||0)-(b.order||0)).forEach(it => {
+            const color = it.tag === 'wip' ? '#d9642f' : '#e8b93f';
+            const subBadge = it.subcategory ? `<span class="item-badge">${SUB_LABEL[it.subcategory]||''}</span>` : '';
+            html += `
+            <div class="item-row ${it.published ? '' : 'unpub'}" data-id="${it.id}">
+                <div class="item-icon">${iconSvg(it.icon, color, 22)}</div>
+                <div class="item-info">
+                    <div>${it.featured?'<span class="item-badge" style="color:#e8b93f; border-color:var(--border-lit);">⭐ 대표</span>':''}${subBadge}<span class="item-badge">${it.tag==='wip'?'제작중':'PLAYABLE'}</span><span class="item-title">${escHtml(it.title)}</span></div>
+                    <div class="item-desc">${escHtml(it.desc||'')}</div>
+                </div>
+                <div class="item-actions">
+                    <button class="icon-btn" data-action="star" title="대표 프로젝트로 지정" style="color:${it.featured ? '#e8b93f' : 'var(--muted)'};">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="${it.featured ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.9L21 9.6l-4.8 4.2 1.4 6.6L12 17l-5.6 3.4 1.4-6.6L3 9.6l6.4-.7z"/></svg>
+                    </button>
+                    <div class="toggle-track ${it.published?'on':''}" data-action="toggle" title="공개/비공개"><div class="toggle-knob"></div></div>
+                    <button class="icon-btn" data-action="edit" title="수정">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1-4L16 5l3 3L8 19l-4 1Z"/></svg>
+                    </button>
+                    <button class="icon-btn" data-action="delete" title="삭제">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>
+                    </button>
+                </div>
+            </div>`;
+        });
+    });
+    listEl.innerHTML = html;
+}
+function escHtml(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+let currentItems = [];
+document.getElementById('item-list').addEventListener('click', e => {
+    const row = e.target.closest('.item-row');
+    if (!row) return;
+    const id = row.dataset.id;
+    const item = currentItems.find(it => it.id === id);
+    if (!item) return;
+
+    if (e.target.closest('[data-action="toggle"]')) {
+        const willPublish = !item.published;
+        col.doc(id).update({ published: willPublish });
+        if (willPublish) logUpdate(`새로운 ${CAT_LABEL[item.category] || '콘텐츠'} 공개: "${item.title}"`);
+    } else if (e.target.closest('[data-action="star"]')) {
+        const willFeature = !item.featured;
+        col.doc(id).update({ featured: willFeature, featuredOrder: willFeature ? Date.now() : (item.featuredOrder || 0) });
+        if (willFeature) logUpdate(`"${item.title}"이(가) 대표 프로젝트로 지정됐어요`);
+    } else if (e.target.closest('[data-action="delete"]')) {
+        if (confirm(`"${item.title}" 항목을 삭제할까요? 되돌릴 수 없어요.`)) {
+            col.doc(id).delete();
+        }
+    } else if (e.target.closest('[data-action="edit"]')) {
+        openEdit(row, item);
+    }
+});
+
+function openEdit(row, item){
+    const existing = row.nextElementSibling;
+    if (existing && existing.classList.contains('edit-panel')) { existing.remove(); return; }
+    const panel = document.createElement('div');
+    panel.className = 'edit-panel';
+    panel.innerHTML = `
+        <label class="f-label">제목</label>
+        <input type="text" class="e-title" value="${escHtml(item.title)}">
+        <label class="f-label">설명</label>
+        <textarea class="e-desc" rows="2">${escHtml(item.desc||'')}</textarea>
+        <label class="f-label">링크</label>
+        <input type="text" class="e-href" value="${escHtml(item.href)}">
+        <div class="row2">
+            <div>
+                <label class="f-label">상태</label>
+                <select class="e-tag">
+                    <option value="playable" ${item.tag==='playable'?'selected':''}>PLAYABLE / READY</option>
+                    <option value="wip" ${item.tag==='wip'?'selected':''}>제작중</option>
+                </select>
+            </div>
+            <div>
+                <label class="f-label">정렬 순서(작을수록 앞)</label>
+                <input type="number" class="e-order" value="${item.order||0}">
+            </div>
+        </div>
+        <button class="btn primary e-save">저장</button>
+    `;
+    row.after(panel);
+    panel.querySelector('.e-save').addEventListener('click', () => {
+        col.doc(item.id).update({
+            title: panel.querySelector('.e-title').value.trim(),
+            desc: panel.querySelector('.e-desc').value.trim(),
+            href: panel.querySelector('.e-href').value.trim(),
+            tag: panel.querySelector('.e-tag').value,
+            order: Number(panel.querySelector('.e-order').value) || 0
+        }).then(() => toast('저장했어요'));
+    });
+}
+
+function subscribeItems(){
+    col.onSnapshot(snap => {
+        currentItems = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+        renderItemList(currentItems);
+    }, () => toast('데이터 연결 오류'));
+}
+
+/* ===== 점검 모드 ===== */
+const configDoc = db.collection('siteConfig').doc('main');
+let maintOn = false;
+function setMaintUI(on){
+    maintOn = on;
+    document.getElementById('maint-toggle').classList.toggle('on', on);
+}
+document.getElementById('maint-toggle').addEventListener('click', () => setMaintUI(!maintOn));
+document.getElementById('maint-save').addEventListener('click', () => {
+    configDoc.set({
+        maintenance: maintOn,
+        maintenanceMsg: document.getElementById('maint-msg').value.trim()
+    }, { merge: true }).then(() => toast('저장했어요')).catch(() => toast('저장 실패'));
+});
+function subscribeConfig(){
+    configDoc.onSnapshot(doc => {
+        if (!doc.exists) return;
+        const d = doc.data();
+        setMaintUI(!!d.maintenance);
+        if (d.maintenanceMsg) document.getElementById('maint-msg').value = d.maintenanceMsg;
+        setVisitorUI(d.showVisitorCount !== false); // 기본값 true(공개)
+    });
+}
+
+/* ===== 방문자 수 공개 여부 ===== */
+let visitorOn = true;
+function setVisitorUI(on){
+    visitorOn = on;
+    document.getElementById('visitor-toggle').classList.toggle('on', on);
+}
+document.getElementById('visitor-toggle').addEventListener('click', () => {
+    setVisitorUI(!visitorOn);
+    configDoc.set({ showVisitorCount: visitorOn }, { merge: true })
+        .then(() => toast(visitorOn ? '✅ 방문자 수를 공개했어요' : '👁️‍🗨️ 방문자 수를 숨겼어요'))
+        .catch(() => toast('저장 실패'));
+});
+
+function showAdminError(msg){
+    document.getElementById('gate-error').textContent = msg;
+}
+
+document.getElementById('gate-submit').addEventListener('click', () => {
+    const email = document.getElementById('gate-email').value.trim();
+    const pw = document.getElementById('gate-pw').value;
+    if (!email || !pw) { showAdminError('이메일과 비밀번호를 입력해주세요'); return; }
+    showAdminError('');
+    try { localStorage.setItem('adminEmailRemember', email); } catch(e) {}
+    auth.signInWithEmailAndPassword(email, pw).catch(err => {
+        showAdminError('로그인 실패: 이메일 또는 비밀번호를 확인해주세요');
+    });
+});
+['gate-email','gate-pw'].forEach(id => {
+    document.getElementById(id).addEventListener('keydown', e => {
+        if (e.key === 'Enter') document.getElementById('gate-submit').click();
+    });
+});
+
+// 저장해둔 이메일이 있으면 자동으로 채워넣고, 바로 비밀번호 칸에 커서를 둠
+(function fillRememberedEmail(){
+    try {
+        const saved = localStorage.getItem('adminEmailRemember');
+        if (saved) {
+            document.getElementById('gate-email').value = saved;
+            document.getElementById('gate-pw').focus();
+        }
+    } catch(e) {}
+})();
+
+document.getElementById('logout-btn').addEventListener('click', () => {
+    auth.signOut();
+});
+
+// 로그인 상태에 따라 관리자 화면을 자동으로 열고 닫음 (새로고침해도 로그인 유지됨)
+auth.onAuthStateChanged(user => {
+    if (user) {
+        document.getElementById('gate-overlay').style.display = 'none';
+        document.getElementById('main-wrap').style.display = 'block';
+        subscribeItems();
+        subscribeConfig();
+        subscribeUp();
+        subscribeRm();
+        subscribeStats();
+    } else {
+        document.getElementById('gate-overlay').style.display = 'flex';
+        document.getElementById('main-wrap').style.display = 'none';
+    }
+});
+
+/* ===== 모드 전환 (콘텐츠 관리 ↔ 통계 분석) ===== */
+document.getElementById('mode-btn-content').addEventListener('click', () => setMode('content'));
+document.getElementById('mode-btn-stats').addEventListener('click', () => setMode('stats'));
+function setMode(mode){
+    const isContent = mode === 'content';
+    document.getElementById('mode-content').style.display = isContent ? 'block' : 'none';
+    document.getElementById('mode-stats').style.display = isContent ? 'none' : 'block';
+    const contentBtn = document.getElementById('mode-btn-content');
+    const statsBtn = document.getElementById('mode-btn-stats');
+    contentBtn.style.color = isContent ? 'var(--gold)' : 'var(--muted)';
+    contentBtn.style.borderBottomColor = isContent ? 'var(--gold)' : 'transparent';
+    statsBtn.style.color = isContent ? 'var(--muted)' : 'var(--gold)';
+    statsBtn.style.borderBottomColor = isContent ? 'transparent' : 'var(--gold)';
+}
+
+/* ===== 📊 통계 분석 ===== */
+const statsCol = db.collection('siteStats');
+function dateKeyOffset(daysAgo){
+    const d = new Date();
+    d.setDate(d.getDate() - daysAgo);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function subscribeStats(){
+    // 오늘
+    statsCol.doc(dateKeyOffset(0)).onSnapshot(doc => {
+        const n = doc.exists ? (doc.data().visits || 0) : 0;
+        document.getElementById('stat-today').textContent = n.toLocaleString();
+    }, () => { document.getElementById('stat-today').textContent = '–'; });
+
+    // 최근 7일
+    const keys = [];
+    for(let i=6;i>=0;i--) keys.push(dateKeyOffset(i));
+    Promise.all(keys.map(k => statsCol.doc(k).get().then(doc => ({
+        key:k, n: doc.exists ? (doc.data().visits||0) : 0
+    })).catch(()=>({key:k, n:0})))).then(results => {
+        const max = Math.max(1, ...results.map(r=>r.n));
+        const wrap = document.getElementById('stat-week');
+        wrap.innerHTML = results.map(r => {
+            const h = Math.round((r.n / max) * 80) + 4;
+            const label = r.key.slice(5).replace('-', '.');
+            return `
+                <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:6px;">
+                    <div style="font-size:10px; color:var(--muted);">${r.n}</div>
+                    <div style="width:100%; height:${h}px; background:var(--gold); border-radius:4px 4px 0 0; opacity:0.85;"></div>
+                    <div style="font-size:9px; color:var(--muted);">${label}</div>
+                </div>`;
+        }).join('');
+    });
+}
+
+const EDIT_ICONS = `
+    <button class="icon-btn" data-action="edit" title="수정">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1-4L16 5l3 3L8 19l-4 1Z"/></svg>
+    </button>
+    <button class="icon-btn" data-action="delete" title="삭제">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>
+    </button>`;
+
+/* ===== 📰 최근 업데이트 ===== */
+const upCol = db.collection('updates');
+let upItems = [];
+document.getElementById('up-add-btn').addEventListener('click', () => {
+    const text = document.getElementById('up-text').value.trim();
+    const date = document.getElementById('up-date').value.trim();
+    const badge = document.getElementById('up-badge').value;
+    if (!text || !date) { toast('내용과 날짜는 꼭 입력해주세요'); return; }
+    upCol.add({ text, date, badge, published: true, order: Date.now(), createdAt: Date.now() })
+        .then(() => {
+            toast('✅ 추가했어요 (바로 공개됨)');
+            document.getElementById('up-text').value = '';
+            document.getElementById('up-date').value = '';
+        }).catch(() => toast('추가 실패'));
+});
+function renderUpList(){
+    const wrap = document.getElementById('up-list');
+    if (upItems.length === 0) { wrap.innerHTML = '<p style="color:var(--muted); font-size:12px;">아직 항목이 없어요.</p>'; return; }
+    wrap.innerHTML = [...upItems].sort((a,b)=>(b.order||0)-(a.order||0)).map(it => `
+        <div class="item-row ${it.published?'':'unpub'}" data-id="${it.id}">
+            <div class="item-info">
+                <div>${it.badge?`<span class="item-badge">${escHtml(it.badge)}</span>`:''}<span class="item-title">${escHtml(it.text)}</span></div>
+                <div class="item-desc">${escHtml(it.date)}</div>
+            </div>
+            <div class="item-actions">
+                <div class="toggle-track ${it.published?'on':''}" data-action="toggle" title="공개/비공개"><div class="toggle-knob"></div></div>
+                ${EDIT_ICONS}
+            </div>
+        </div>`).join('');
+}
+document.getElementById('up-list').addEventListener('click', e => {
+    const row = e.target.closest('.item-row'); if (!row) return;
+    const item = upItems.find(it => it.id === row.dataset.id); if (!item) return;
+    if (e.target.closest('[data-action="toggle"]')) { upCol.doc(item.id).update({ published: !item.published }); }
+    else if (e.target.closest('[data-action="delete"]')) { if (confirm(`"${item.text}" 삭제할까요?`)) upCol.doc(item.id).delete(); }
+    else if (e.target.closest('[data-action="edit"]')) { openUpEdit(row, item); }
+});
+function openUpEdit(row, item){
+    const existing = row.nextElementSibling;
+    if (existing && existing.classList.contains('edit-panel')) { existing.remove(); return; }
+    const panel = document.createElement('div');
+    panel.className = 'edit-panel';
+    panel.innerHTML = `
+        <label class="f-label">내용</label>
+        <input type="text" class="e-text" value="${escHtml(item.text)}">
+        <label class="f-label">날짜</label>
+        <input type="text" class="e-date" value="${escHtml(item.date)}">
+        <label class="f-label">NEW 배지</label>
+        <select class="e-badge">
+            <option value="NEW" ${item.badge==='NEW'?'selected':''}>표시함</option>
+            <option value="" ${!item.badge?'selected':''}>표시 안 함</option>
+        </select>
+        <button class="btn primary e-save">저장</button>`;
+    row.after(panel);
+    panel.querySelector('.e-save').addEventListener('click', () => {
+        upCol.doc(item.id).update({
+            text: panel.querySelector('.e-text').value.trim(),
+            date: panel.querySelector('.e-date').value.trim(),
+            badge: panel.querySelector('.e-badge').value
+        }).then(() => toast('저장했어요'));
+    });
+}
+function subscribeUp(){
+    upCol.onSnapshot(snap => {
+        upItems = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+        renderUpList();
+    }, () => toast('데이터 연결 오류'));
+}
+
+/* ===== 🗺️ 앞으로의 계획 ===== */
+const rmCol = db.collection('roadmapItems');
+let rmItems = [];
+document.getElementById('rm-add-btn').addEventListener('click', () => {
+    const status = document.getElementById('rm-status').value;
+    const title = document.getElementById('rm-title').value.trim();
+    const desc = document.getElementById('rm-desc').value.trim();
+    if (!title) { toast('제목은 꼭 입력해주세요'); return; }
+    rmCol.add({ status, title, desc, active: status === '진행 중', published: false, order: Date.now(), createdAt: Date.now() })
+        .then(() => {
+            toast('✅ 추가했어요 (비공개 상태)');
+            document.getElementById('rm-title').value = '';
+            document.getElementById('rm-desc').value = '';
+        }).catch(() => toast('추가 실패'));
+});
+function renderRmList(){
+    const wrap = document.getElementById('rm-list');
+    if (rmItems.length === 0) { wrap.innerHTML = '<p style="color:var(--muted); font-size:12px;">아직 항목이 없어요.</p>'; return; }
+    wrap.innerHTML = [...rmItems].sort((a,b)=>(a.order||0)-(b.order||0)).map(it => `
+        <div class="item-row ${it.published?'':'unpub'}" data-id="${it.id}">
+            <div class="item-info">
+                <div><span class="item-badge">${escHtml(it.status)}</span><span class="item-title">${escHtml(it.title)}</span></div>
+                <div class="item-desc">${escHtml(it.desc||'')}</div>
+            </div>
+            <div class="item-actions">
+                <div class="toggle-track ${it.published?'on':''}" data-action="toggle" title="공개/비공개"><div class="toggle-knob"></div></div>
+                ${EDIT_ICONS}
+            </div>
+        </div>`).join('');
+}
+document.getElementById('rm-list').addEventListener('click', e => {
+    const row = e.target.closest('.item-row'); if (!row) return;
+    const item = rmItems.find(it => it.id === row.dataset.id); if (!item) return;
+    if (e.target.closest('[data-action="toggle"]')) {
+        const willPublish = !item.published;
+        rmCol.doc(item.id).update({ published: willPublish });
+        if (willPublish) logUpdate(`새 계획 추가: "${item.title}" (${item.status})`);
+    }
+    else if (e.target.closest('[data-action="delete"]')) { if (confirm(`"${item.title}" 삭제할까요?`)) rmCol.doc(item.id).delete(); }
+    else if (e.target.closest('[data-action="edit"]')) { openRmEdit(row, item); }
+});
+function openRmEdit(row, item){
+    const existing = row.nextElementSibling;
+    if (existing && existing.classList.contains('edit-panel')) { existing.remove(); return; }
+    const panel = document.createElement('div');
+    panel.className = 'edit-panel';
+    panel.innerHTML = `
+        <label class="f-label">진행 상태</label>
+        <select class="e-status">
+            <option value="진행 중" ${item.status==='진행 중'?'selected':''}>진행 중</option>
+            <option value="기획 중" ${item.status==='기획 중'?'selected':''}>기획 중</option>
+            <option value="예정" ${item.status==='예정'?'selected':''}>예정</option>
+        </select>
+        <label class="f-label">제목</label>
+        <input type="text" class="e-title" value="${escHtml(item.title)}">
+        <label class="f-label">설명</label>
+        <textarea class="e-desc" rows="2">${escHtml(item.desc||'')}</textarea>
+        <label class="f-label">정렬 순서(작을수록 앞)</label>
+        <input type="number" class="e-order" value="${item.order||0}">
+        <button class="btn primary e-save">저장</button>`;
+    row.after(panel);
+    panel.querySelector('.e-save').addEventListener('click', () => {
+        const status = panel.querySelector('.e-status').value;
+        rmCol.doc(item.id).update({
+            status,
+            title: panel.querySelector('.e-title').value.trim(),
+            desc: panel.querySelector('.e-desc').value.trim(),
+            order: Number(panel.querySelector('.e-order').value) || 0,
+            active: status === '진행 중'
+        }).then(() => toast('저장했어요'));
+    });
+}
+function subscribeRm(){
+    rmCol.onSnapshot(snap => {
+        rmItems = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+        renderRmList();
+    }, () => toast('데이터 연결 오류'));
+}
+
+renderIconPicker();
+</script>
+</body>
+</html>

@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>경마 배팅 · 나의 프로젝트 작업실</title>
+<link rel="icon" type="image/svg+xml" href="../../assets/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../../assets/favicon-32.png">
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/style.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+    .wrap{ max-width:820px; margin:0 auto; padding:0 20px 100px; }
+    .tool-header{ max-width:820px; margin:0 auto; padding:56px 20px 24px; text-align:center; }
+    .tool-header .eyebrow{ font-size:11px; letter-spacing:0.18em; color:var(--gold); margin-bottom:14px; }
+    .tool-header h1{ font-size:clamp(24px,5vw,34px); font-weight:900; margin:0 0 10px; }
+    .tool-header p{ color:var(--muted); font-size:13.5px; max-width:480px; margin:0 auto; }
+
+    .gate-overlay{
+        position:fixed; inset:0; background:rgba(10,9,8,0.94); z-index:50;
+        display:flex; align-items:center; justify-content:center; padding:20px;
+    }
+    .gate-box{
+        background:linear-gradient(180deg, var(--surface2), var(--surface));
+        border:1px solid var(--border-lit); border-radius:14px; padding:32px 28px;
+        max-width:360px; width:100%; text-align:center;
+    }
+    .gate-box h2{ margin:8px 0 10px; font-size:20px; }
+    .gate-box p{ color:var(--muted); font-size:12.5px; margin:0 0 16px; line-height:1.5; }
+    .gate-box input{
+        width:100%; box-sizing:border-box; background:var(--bg); border:1px solid var(--border);
+        color:var(--text); border-radius:8px; padding:10px 12px; font-size:14px; margin-bottom:12px; text-align:center;
+        font-family:inherit;
+    }
+    .gate-box .btn{ width:100%; margin-bottom:8px; padding:10px; box-sizing:border-box; }
+    .gate-hint{ font-size:10.5px; color:#8a7f6a; margin-top:14px; }
+
+    .btn{
+        background:var(--surface); border:1px solid var(--border); color:var(--text);
+        border-radius:6px; padding:8px 14px; font-size:12.5px; cursor:pointer; font-family:inherit;
+        transition:border-color .15s ease, color .15s ease;
+    }
+    .btn:hover{ border-color:var(--border-lit); color:var(--gold); }
+    .btn.primary{ border-color:var(--border-lit); color:var(--gold); }
+    .btn.danger:hover{ border-color:#8a3a2a; color:#e0876a; }
+    .btn:disabled{ opacity:0.4; cursor:not-allowed; }
+
+    .toolbar{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:18px; }
+    .spacer{ flex:1; }
+    #room-status{ font-size:12px; color:var(--muted); }
+
+    .panel{
+        background:linear-gradient(180deg, var(--surface2), var(--surface));
+        border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:18px;
+    }
+    .panel h3{ margin:0 0 14px; font-size:14px; }
+
+    .player-chip{
+        display:inline-flex; align-items:center; gap:5px; font-size:11.5px; color:var(--muted);
+        background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:4px 10px; margin:0 6px 6px 0;
+    }
+    .player-chip .dot{ width:6px; height:6px; border-radius:50%; background:#7dd08a; }
+
+    .horse-card{
+        display:flex; align-items:center; gap:12px; padding:12px; border:1px solid var(--border);
+        border-radius:10px; margin-bottom:10px; cursor:pointer; transition:border-color .15s ease, background .15s ease;
+    }
+    .horse-card:hover{ border-color:var(--border-lit); }
+    .horse-card.mine{ border-color:var(--gold); background:rgba(232,185,63,0.08); }
+    .horse-token{
+        width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+        font-size:19px; flex:0 0 auto; border:2px solid rgba(255,255,255,0.15);
+    }
+    .horse-info{ flex:1; min-width:0; }
+    .horse-name-input{
+        background:transparent; border:none; border-bottom:1px solid transparent; color:var(--text);
+        font-size:14px; font-weight:700; padding:2px 0; width:100%; font-family:inherit;
+    }
+    .horse-name-input:focus{ outline:none; border-bottom-color:var(--border-lit); }
+    .horse-bettors{ font-size:11px; color:var(--muted); margin-top:2px; min-height:14px; }
+    .horse-actions{ display:flex; align-items:center; gap:6px; flex:0 0 auto; }
+    .my-bet-badge{ font-size:10px; color:var(--gold); background:rgba(232,185,63,0.15); padding:3px 8px; border-radius:4px; }
+    .del-btn{ background:none; border:none; color:var(--muted); cursor:pointer; padding:4px; display:inline-flex; align-items:center; justify-content:center; }
+    .del-btn:hover{ color:#e0876a; }
+
+    .track-lane{ position:relative; height:52px; margin-bottom:10px; }
+    .track-bar{
+        position:absolute; inset:0; background:repeating-linear-gradient(90deg, var(--surface) 0 40px, var(--surface2) 40px 80px);
+        border:1px solid var(--border); border-radius:8px;
+    }
+    .finish-line{
+        position:absolute; left:90%; top:0; bottom:0; width:2px; background:repeating-linear-gradient(180deg,#fff 0 6px,#222 6px 12px);
+        opacity:0.5;
+    }
+    .lane-label{ position:absolute; left:6px; top:4px; font-size:10.5px; color:var(--muted); z-index:2; }
+    .horse-runner{
+        position:absolute; top:16px; left:0; width:34px; height:34px; border-radius:50%;
+        display:flex; align-items:center; justify-content:center; font-size:18px;
+        border:2px solid rgba(255,255,255,0.2); transition:left 4.8s cubic-bezier(.2,.7,.3,1);
+    }
+
+    .result-banner{
+        text-align:center; padding:24px 16px; border:1px solid var(--border-lit); border-radius:12px;
+        background:rgba(232,185,63,0.08); margin-bottom:18px; display:none;
+    }
+    .result-banner.show{ display:block; }
+    .result-banner .win-name{ font-size:22px; font-weight:900; color:var(--gold); margin:6px 0; }
+    .result-banner .winners{ font-size:12.5px; color:var(--text); margin-top:8px; }
+
+    .note{ font-size:11px; color:var(--muted); text-align:center; margin-top:6px; }
+
+    .host-badge{ font-size:9px; color:var(--gold); background:rgba(232,185,63,0.15); padding:2px 6px; border-radius:4px; margin-left:4px; }
+    .horse-name{ font-size:14px; font-weight:700; color:var(--text); }
+    .edit-name-btn{ background:none; border:none; color:var(--muted); cursor:pointer; padding:2px 4px; display:inline-flex; align-items:center; justify-content:center; vertical-align:middle; }
+    .edit-name-btn:hover{ color:var(--gold); }
+
+    .popup-overlay{
+        position:fixed; inset:0; background:rgba(10,9,8,0.85); z-index:70;
+        display:none; align-items:center; justify-content:center; padding:20px;
+    }
+    .popup-overlay.show{ display:flex; }
+    .popup-box{
+        background:linear-gradient(180deg, var(--surface2), var(--surface));
+        border:1px solid var(--border-lit); border-radius:14px; padding:28px 26px;
+        max-width:340px; width:100%; text-align:center;
+    }
+    .popup-title{ font-size:16px; font-weight:900; color:var(--gold); margin-bottom:10px; }
+    .popup-msg{ font-size:13px; color:var(--text); line-height:1.6; margin-bottom:18px; }
+</style>
+</head>
+<body>
+
+<nav class="topnav pixel">
+    <div class="nav-drop">
+        <a href="../../index.html">홈</a>
+        <button class="nav-drop-caret" aria-label="홈 하위메뉴 열기">▾</button>
+        <div class="nav-drop-menu">
+            <a href="../../about.html">💬 소개</a>
+            <a href="../../devlog.html">📓 개발일지</a>
+        </div>
+    </div>
+    <a href="../../ai-lab.html">AI 실험실</a>
+    <a href="../../works.html">작업물</a>
+    <div class="nav-drop">
+        <a href="../../games.html" class="active">게임</a>
+        <button class="nav-drop-caret" aria-label="게임 하위메뉴 열기">▾</button>
+        <div class="nav-drop-menu">
+            <a href="../../games.html?mode=solo">🕹️ 혼자 플레이</a>
+            <a href="../../games.html?mode=multi">👥 함께 플레이</a>
+        </div>
+    </div>
+    <a href="../../etc.html">기타</a>
+</nav>
+
+<div class="gate-overlay" id="gate-overlay">
+    <div class="gate-box">
+        <div class="eyebrow pixel">MULTIPLAYER</div>
+        <h2>방 코드 &amp; 닉네임</h2>
+        <p>같은 방 코드를 입력한 사람들끼리 실시간으로 같은 경주를 보고 함께 베팅할 수 있어요.</p>
+        <input type="text" id="gate-name" placeholder="닉네임">
+        <input type="text" id="gate-room" placeholder="방 코드 (예: friday-race)">
+        <button class="btn primary" id="gate-submit">입장하기</button>
+        <p class="gate-hint">🔒 완벽한 보안이 아니에요. 아무 방 코드나 정해서 친구들과 공유하세요.</p>
+    </div>
+</div>
+
+<header class="tool-header">
+    <div class="eyebrow pixel">HORSE RACE</div>
+    <h1>경마 배팅</h1>
+    <p>말을 추가/삭제하고, 각자 우승마를 골라 베팅한 뒤 함께 경주를 지켜보세요.</p>
+</header>
+
+<div class="wrap">
+    <div class="toolbar">
+        <span id="room-status">연결 중...</span>
+        <div class="spacer"></div>
+        <button class="btn" id="rename-btn">닉네임 변경</button>
+        <button class="btn danger" id="leave-btn">방 나가기</button>
+    </div>
+
+    <div class="panel">
+        <h3>👥 참가자</h3>
+        <div id="player-list"></div>
+    </div>
+
+    <div class="result-banner" id="result-banner">
+        <div style="font-size:12px; color:var(--muted);">🏆 경주 결과</div>
+        <div class="win-name" id="result-name"></div>
+        <div class="winners" id="result-winners"></div>
+        <button class="btn primary" id="restart-btn" style="margin-top:14px;">🔄 다시 경주하기</button>
+    </div>
+
+    <div class="panel">
+        <h3>🐎 트랙</h3>
+        <div id="track"></div>
+        <div class="note" id="race-note"></div>
+    </div>
+
+    <div class="panel">
+        <h3>🎯 말 목록 (클릭해서 베팅하기)</h3>
+        <div id="horse-list"></div>
+        <div class="toolbar" style="margin-top:4px;">
+            <button class="btn" id="add-horse-btn">＋ 말 추가</button>
+            <div class="spacer"></div>
+            <button class="btn primary" id="start-race-btn">🏁 경주 시작</button>
+        </div>
+        <div class="note" id="host-hint"></div>
+    </div>
+</div>
+
+<div class="popup-overlay" id="popup-overlay">
+    <div class="popup-box">
+        <div class="popup-title" id="popup-title"></div>
+        <div class="popup-msg" id="popup-msg"></div>
+        <button class="btn primary" id="popup-ok">확인</button>
+    </div>
+</div>
+
+<div id="toast" style="position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--surface2); border:1px solid var(--border-lit); color:var(--gold); padding:10px 18px; border-radius:8px; font-size:12.5px; opacity:0; pointer-events:none; transition:opacity .2s ease, transform .2s ease; z-index:60;"></div>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyB0LRiIpNwdcCkS4Y5Dz4pP9zcLoadO2Xk",
+    authDomain: "taskflow-7cb3b.firebaseapp.com",
+    projectId: "taskflow-7cb3b",
+    storageBucket: "taskflow-7cb3b.firebasestorage.app",
+    messagingSenderId: "811223035419",
+    appId: "1:811223035419:web:08b972916827147bc2d2be"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+const RACE_DURATION_MS = 5000;
+const PALETTE = ['#e8b93f','#4ac8ff','#e0876a','#7dd08a','#c98fe0','#f2a65a','#6ea8d8','#e8709a'];
+const PLAYER_KEY = 'horseRacePlayerId';
+const NAME_KEY = 'horseRaceNickname';
+const ROOM_KEY = 'horseRaceRoomCode';
+
+function uid(){ return 'id_' + Math.random().toString(36).slice(2, 10); }
+function escapeHtml(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escapeAttr(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+function toast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.opacity = '1';
+    t.style.transform = 'translateX(-50%) translateY(0)';
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(-50%) translateY(20px)'; }, 1800);
+}
+function showPopup(title, msg){
+    document.getElementById('popup-title').textContent = title;
+    document.getElementById('popup-msg').textContent = msg;
+    document.getElementById('popup-overlay').classList.add('show');
+}
+document.getElementById('popup-ok').addEventListener('click', () => {
+    document.getElementById('popup-overlay').classList.remove('show');
+});
+function isHost(){
+    return !!roomState && roomState.hostId === playerId;
+}
+
+let playerId = localStorage.getItem(PLAYER_KEY);
+if (!playerId) { playerId = uid(); localStorage.setItem(PLAYER_KEY, playerId); }
+let nickname = localStorage.getItem(NAME_KEY) || '';
+let roomRef = null;
+let roomState = null;
+let revealTimer = null;
+let revealed = false;
+let allBetNotified = false;
+
+function defaultHorses(){
+    const names = ['번개', '질풍', '천둥', '섬광'];
+    return names.map((n, i) => ({ id: uid(), name: n, color: PALETTE[i % PALETTE.length] }));
+}
+
+function joinRoom(code, name){
+    document.getElementById('gate-overlay').style.display = 'none';
+    localStorage.setItem(ROOM_KEY, code);
+    localStorage.setItem(NAME_KEY, name);
+    nickname = name;
+    roomRef = db.collection('racingRooms').doc(code);
+    document.getElementById('room-status').textContent = `🔗 방 "${code}" 에 연결됨`;
+
+    roomRef.get().then(doc => {
+        if (!doc.exists) {
+            roomRef.set({
+                horses: defaultHorses(),
+                status: 'waiting',
+                winnerId: null,
+                bets: {},
+                players: { [playerId]: { name: nickname, lastSeen: Date.now() } },
+                raceStartedAt: null,
+                hostId: playerId,
+                updatedAt: Date.now()
+            });
+        } else {
+            const patch = { players: { [playerId]: { name: nickname, lastSeen: Date.now() } } };
+            if (!doc.data().hostId) patch.hostId = playerId;
+            roomRef.set(patch, { merge: true });
+        }
+        subscribeRoom();
+        setInterval(heartbeat, 15000);
+    }).catch(() => toast('연결 실패 - 인터넷 연결을 확인해주세요'));
+}
+
+function heartbeat(){
+    if (!roomRef) return;
+    roomRef.update({ [`players.${playerId}.lastSeen`]: Date.now() }).catch(() => {});
+}
+
+function subscribeRoom(){
+    roomRef.onSnapshot(snap => {
+        const data = snap.data();
+        if (!data) return;
+        const prevStatus = roomState ? roomState.status : null;
+        roomState = data;
+        renderAll();
+        if (data.status === 'racing' && prevStatus !== 'racing') {
+            startLocalAnimation();
+        }
+        if (data.status === 'waiting') {
+            clearTimeout(revealTimer);
+            revealed = false;
+            allBetNotified = false;
+            document.getElementById('result-banner').classList.remove('show');
+            resetTrackPositions();
+        }
+    }, () => toast('실시간 동기화 오류'));
+}
+
+function saveRoom(patch){
+    if (!roomRef) return;
+    roomRef.set(Object.assign({ updatedAt: Date.now() }, patch), { merge: true }).catch(() => toast('저장 실패'));
+}
+
+// ---- 렌더링 ----
+function renderAll(){
+    if (!roomState) return;
+    const host = isHost();
+    const waiting = roomState.status === 'waiting';
+    const horses = roomState.horses || [];
+    const players = roomState.players || {};
+    const bets = roomState.bets || {};
+
+    renderPlayers();
+    renderHorses();
+    renderTrackLanes();
+
+    const startBtn = document.getElementById('start-race-btn');
+    const hasBets = Object.keys(bets).length > 0;
+    startBtn.disabled = !host || !waiting || horses.length < 2 || !hasBets;
+    startBtn.style.display = host ? '' : 'none';
+
+    const addBtn = document.getElementById('add-horse-btn');
+    addBtn.disabled = !host || !waiting || horses.length >= 8;
+    addBtn.style.display = host ? '' : 'none';
+
+    document.getElementById('host-hint').textContent = host
+        ? ''
+        : '⏳ 경주 시작과 말 추가/삭제/이름 변경은 방장만 할 수 있어요.';
+
+    if (waiting) {
+        const playerIds = Object.keys(players);
+        const allBet = playerIds.length > 0 && playerIds.every(pid => bets[pid]);
+        if (allBet && !allBetNotified) {
+            allBetNotified = true;
+            showPopup('✅ 배팅 완료', '모두 배팅을 마쳤습니다! 경주를 시작해주세요.');
+        }
+        if (!allBet) allBetNotified = false;
+    }
+}
+
+function renderPlayers(){
+    const players = roomState.players || {};
+    const bets = roomState.bets || {};
+    const horses = roomState.horses || [];
+    const STALE_MS = 45000;
+    document.getElementById('player-list').innerHTML = Object.keys(players).map(pid => {
+        const p = players[pid];
+        const betHorse = horses.find(h => h.id === bets[pid]);
+        const betText = betHorse ? ` · ${escapeHtml(betHorse.name)} 베팅` : '';
+        const hostTag = pid === roomState.hostId ? '<span class="host-badge">방장</span>' : '';
+        const stale = pid !== playerId && (!p.lastSeen || Date.now() - p.lastSeen > STALE_MS);
+        const staleTag = stale ? '<span class="host-badge" style="color:var(--muted); background:rgba(255,255,255,0.06);">자리비움</span>' : '';
+        return `<span class="player-chip"><span class="dot" style="${stale ? 'background:var(--muted);' : ''}"></span>${escapeHtml(p.name)}${pid === playerId ? ' (나)' : ''}${hostTag}${staleTag}${betText}</span>`;
+    }).join('') || '<span class="player-chip">아직 참가자가 없어요</span>';
+}
+
+function renderHorses(){
+    const horses = roomState.horses || [];
+    const bets = roomState.bets || {};
+    const players = roomState.players || {};
+    const myBet = bets[playerId];
+    const waiting = roomState.status === 'waiting';
+    const host = isHost();
+
+    document.getElementById('horse-list').innerHTML = horses.map(h => {
+        const bettorIds = Object.keys(bets).filter(pid => bets[pid] === h.id);
+        const bettorNames = bettorIds.map(pid => players[pid] ? escapeHtml(players[pid].name) : '?').join(', ');
+        return `
+        <div class="horse-card ${myBet === h.id ? 'mine' : ''}" data-action="bet" data-id="${h.id}">
+            <div class="horse-token" style="background:${h.color}33; color:${h.color}; border-color:${h.color}66;">🐎</div>
+            <div class="horse-info">
+                <span class="horse-name">${escapeHtml(h.name)}</span>
+                ${host && waiting ? `<button class="edit-name-btn" data-action="rename" data-id="${h.id}" title="이름 수정"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1-4L16 5l3 3L8 19l-4 1Z"/></svg></button>` : ''}
+                <div class="horse-bettors">${bettorNames ? '베팅: ' + bettorNames : '베팅한 사람 없음'}</div>
+            </div>
+            <div class="horse-actions">
+                ${myBet === h.id ? '<span class="my-bet-badge">내 베팅</span>' : ''}
+                ${host && waiting && horses.length > 2 ? `<button class="del-btn" data-action="delete" data-id="${h.id}" title="삭제"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button>` : ''}
+            </div>
+        </div>`;
+    }).join('') || '<div class="note">말이 없어요. 말을 추가해주세요.</div>';
+}
+
+function renderTrackLanes(){
+    const horses = roomState.horses || [];
+    const track = document.getElementById('track');
+    const existingIds = Array.from(track.children).map(el => el.dataset.laneId);
+    const currentIds = horses.map(h => h.id);
+    if (existingIds.join(',') !== currentIds.join(',')) {
+        track.innerHTML = horses.map(h => `
+            <div class="track-lane" data-lane-id="${h.id}">
+                <div class="track-bar"></div>
+                <div class="finish-line"></div>
+                <span class="lane-label">${escapeHtml(h.name)}</span>
+                <div class="horse-runner" id="runner-${h.id}" style="background:${h.color}33; color:${h.color}; border-color:${h.color}66; left:2px;">🐎</div>
+            </div>
+        `).join('') || '<div class="note">말을 추가하면 트랙이 나타나요.</div>';
+    } else {
+        horses.forEach(h => {
+            const label = track.querySelector(`[data-lane-id="${h.id}"] .lane-label`);
+            if (label) label.textContent = h.name;
+        });
+    }
+}
+
+function resetTrackPositions(){
+    (roomState.horses || []).forEach(h => {
+        const el = document.getElementById('runner-' + h.id);
+        if (el) { el.style.transition = 'none'; el.style.left = '2px'; }
+    });
+    document.getElementById('race-note').textContent = '';
+}
+
+// ---- 이벤트: 말 목록 ----
+document.getElementById('horse-list').addEventListener('click', e => {
+    const renameBtn = e.target.closest('[data-action="rename"]');
+    if (renameBtn) {
+        if (!isHost() || roomState.status !== 'waiting') return;
+        const cur = (roomState.horses || []).find(h => h.id === renameBtn.dataset.id);
+        const newName = prompt('말 이름을 입력하세요', cur ? cur.name : '');
+        if (!newName || !newName.trim()) return;
+        const horses = (roomState.horses || []).map(h => h.id === renameBtn.dataset.id ? Object.assign({}, h, { name: newName.trim() }) : h);
+        saveRoom({ horses });
+        return;
+    }
+    const delBtn = e.target.closest('[data-action="delete"]');
+    if (delBtn) {
+        if (!isHost() || roomState.status !== 'waiting') return;
+        const horses = roomState.horses || [];
+        if (horses.length <= 2) { toast('말은 최소 2마리 있어야 해요'); return; }
+        const remaining = horses.filter(h => h.id !== delBtn.dataset.id);
+        const bets = Object.assign({}, roomState.bets || {});
+        Object.keys(bets).forEach(pid => { if (bets[pid] === delBtn.dataset.id) delete bets[pid]; });
+        saveRoom({ horses: remaining, bets });
+        return;
+    }
+    const card = e.target.closest('[data-action="bet"]');
+    if (card && roomState.status === 'waiting') {
+        const bets = Object.assign({}, roomState.bets || {});
+        bets[playerId] = card.dataset.id;
+        saveRoom({ bets });
+    }
+});
+
+document.getElementById('add-horse-btn').addEventListener('click', () => {
+    if (!isHost()) { toast('말 추가는 방장만 할 수 있어요'); return; }
+    const horses = (roomState.horses || []).slice();
+    if (horses.length >= 8) return;
+    horses.push({ id: uid(), name: '새 말' + (horses.length + 1), color: PALETTE[horses.length % PALETTE.length] });
+    saveRoom({ horses });
+});
+
+document.getElementById('start-race-btn').addEventListener('click', () => {
+    if (!isHost()) { toast('경주 시작은 방장만 할 수 있어요'); return; }
+    const horses = roomState.horses || [];
+    if (horses.length < 2) { toast('말이 2마리 이상 있어야 시작할 수 있어요'); return; }
+    const bets = roomState.bets || {};
+    if (Object.keys(bets).length === 0) { toast('아직 아무도 베팅을 안 했어요! 최소 1명은 베팅해야 시작할 수 있어요'); return; }
+    const winner = horses[Math.floor(Math.random() * horses.length)];
+    saveRoom({ status: 'racing', winnerId: winner.id, raceStartedAt: Date.now() });
+});
+
+document.getElementById('restart-btn').addEventListener('click', () => {
+    saveRoom({ status: 'waiting', winnerId: null, bets: {}, raceStartedAt: null });
+});
+
+// ---- 경주 애니메이션 ----
+function startLocalAnimation(){
+    revealed = false;
+    document.getElementById('result-banner').classList.remove('show');
+    const horses = roomState.horses || [];
+    const winnerId = roomState.winnerId;
+    const startedAt = roomState.raceStartedAt || Date.now();
+    const elapsed = Date.now() - startedAt;
+    const remaining = Math.max(300, RACE_DURATION_MS - elapsed);
+
+    horses.forEach(h => {
+        const el = document.getElementById('runner-' + h.id);
+        if (!el) return;
+        el.style.transition = 'none';
+        el.style.left = '2px';
+        void el.offsetWidth;
+        const isWinner = h.id === winnerId;
+        const targetPct = isWinner ? 90 : Math.round(40 + Math.random() * 40);
+        const dur = isWinner ? (remaining / 1000).toFixed(2) : ((remaining * (0.7 + Math.random() * 0.5)) / 1000).toFixed(2);
+        el.style.transition = `left ${dur}s cubic-bezier(.25,.6,.3,1)`;
+        requestAnimationFrame(() => { el.style.left = `calc(${targetPct}% - 17px)`; });
+    });
+
+    document.getElementById('race-note').textContent = '🏁 경주가 시작됐어요...!';
+    clearTimeout(revealTimer);
+    revealTimer = setTimeout(revealResult, remaining);
+}
+
+function revealResult(){
+    if (revealed || !roomState) return;
+    revealed = true;
+    const horses = roomState.horses || [];
+    const winner = horses.find(h => h.id === roomState.winnerId);
+    if (!winner) return;
+    const bets = roomState.bets || {};
+    const players = roomState.players || {};
+    const winnerIds = Object.keys(bets).filter(pid => bets[pid] === winner.id);
+    const winnerNames = winnerIds.map(pid => players[pid] ? escapeHtml(players[pid].name) : '?');
+
+    document.getElementById('result-name').textContent = `🐎 ${winner.name} 우승!`;
+    document.getElementById('result-winners').textContent = winnerNames.length
+        ? `맞춘 사람: ${winnerNames.join(', ')}`
+        : '이번 경주는 아무도 못 맞췄어요';
+    document.getElementById('result-banner').classList.add('show');
+    document.getElementById('race-note').textContent = '경주 종료!';
+    showPopup(
+        `🏆 ${winner.name} 우승!`,
+        winnerNames.length ? `맞춘 사람: ${winnerNames.join(', ')}` : '이번 경주는 아무도 못 맞췄어요'
+    );
+}
+
+// ---- 게이트 ----
+document.getElementById('gate-submit').addEventListener('click', () => {
+    const name = document.getElementById('gate-name').value.trim();
+    const room = document.getElementById('gate-room').value.trim();
+    if (!name || !room) { toast('닉네임과 방 코드를 모두 입력해주세요'); return; }
+    joinRoom(room, name);
+});
+document.getElementById('rename-btn').addEventListener('click', () => {
+    const name = prompt('새 닉네임을 입력하세요', nickname);
+    if (!name) return;
+    nickname = name;
+    localStorage.setItem(NAME_KEY, name);
+    const players = Object.assign({}, roomState.players || {});
+    players[playerId] = { name, lastSeen: Date.now() };
+    saveRoom({ players });
+});
+document.getElementById('leave-btn').addEventListener('click', () => {
+    if (!confirm('방을 나가고 방 코드를 다시 입력할까요?')) return;
+    leaveRoom(() => {
+        localStorage.removeItem(ROOM_KEY);
+        location.reload();
+    });
+});
+
+function leaveRoom(done){
+    if (!roomRef || !roomState) { if (done) done(); return; }
+    const remainingIds = Object.keys(roomState.players || {}).filter(id => id !== playerId);
+    const wasHost = roomState.hostId === playerId;
+
+    if (remainingIds.length === 0) {
+        // 나 혼자였던 방 -> 방 자체를 삭제 (방 폭파)
+        roomRef.delete().catch(() => {}).finally(() => { if (done) done(); });
+        return;
+    }
+
+    const update = {
+        [`players.${playerId}`]: firebase.firestore.FieldValue.delete(),
+        [`bets.${playerId}`]: firebase.firestore.FieldValue.delete()
+    };
+    if (wasHost) {
+        // 방장이 나가면 남은 사람 중 한 명에게 자동으로 위임
+        update.hostId = remainingIds[Math.floor(Math.random() * remainingIds.length)];
+    }
+    roomRef.update(update).catch(() => {}).finally(() => { if (done) done(); });
+}
+
+const savedRoom = localStorage.getItem(ROOM_KEY);
+const savedName = localStorage.getItem(NAME_KEY);
+if (savedRoom && savedName) {
+    document.getElementById('gate-name').value = savedName;
+    document.getElementById('gate-room').value = savedRoom;
+    joinRoom(savedRoom, savedName);
+}
+</script>
+<script src="../../assets/nav.js"></script>
+<script src="../../assets/maintenance.js"></script>
+<script src="../../assets/analytics-config.js"></script>
+<script src="../../assets/ga4.js"></script>
+<script src="../../assets/visitor-counter.js"></script>
+</body>
+</html>

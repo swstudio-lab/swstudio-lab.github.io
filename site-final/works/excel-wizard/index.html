@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>함수식 마법사 · 나의 프로젝트 작업실</title>
+<link rel="icon" type="image/svg+xml" href="../../assets/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../../assets/favicon-32.png">
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/style.css">
+<style>
+    .wrap{ max-width:960px; margin:0 auto; padding:0 20px 100px; }
+    .tool-header{ max-width:960px; margin:0 auto; padding:56px 20px 24px; text-align:center; }
+    .tool-header .eyebrow{ font-size:11px; letter-spacing:0.18em; color:var(--gold); margin-bottom:14px; }
+    .tool-header h1{ font-size:clamp(24px,5vw,34px); font-weight:900; margin:0 0 10px; }
+    .tool-header p{ color:var(--muted); font-size:13.5px; max-width:520px; margin:0 auto; }
+
+    .platform-switch{ display:flex; gap:8px; justify-content:center; margin-bottom:24px; }
+    .plat-btn{
+        background:var(--surface); border:1px solid var(--border); color:var(--muted);
+        border-radius:20px; padding:8px 18px; font-size:12.5px; cursor:pointer; font-family:inherit;
+        transition:border-color .15s ease, color .15s ease, background .15s ease;
+    }
+    .plat-btn.active{ border-color:var(--border-lit); color:var(--gold); background:rgba(232,185,63,0.1); }
+
+    .panel{
+        background:linear-gradient(180deg, var(--surface2), var(--surface));
+        border:1px solid var(--border); border-radius:12px; padding:20px;
+    }
+    .panel h3{ margin:0 0 16px; font-size:14px; }
+    .toggle-h3{
+        cursor:pointer; user-select:none; display:flex; align-items:center; justify-content:space-between;
+    }
+    .toggle-h3 .chev{ font-size:11px; color:var(--muted); transition:transform .15s ease; }
+
+    select, input[type="text"], input[type="number"], textarea{
+        width:100%; box-sizing:border-box; background:var(--surface); border:1px solid var(--border);
+        color:var(--text); border-radius:6px; padding:9px 10px; font-size:13px; font-family:inherit;
+        margin-bottom:12px;
+    }
+    select:focus, input:focus, textarea:focus{ outline:none; border-color:var(--border-lit); }
+    label.f-label{ font-size:11.5px; color:var(--muted); display:block; margin-bottom:5px; }
+    .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .row3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+
+    .formula-box{
+        background:var(--bg); border:1px solid var(--border-lit); border-radius:8px;
+        padding:12px 14px; display:flex; align-items:flex-start; gap:10px; margin-bottom:10px;
+    }
+    .formula-box code{ flex:1; font-size:13.5px; color:var(--gold); word-break:break-all; line-height:1.6; }
+    .copy-btn{
+        background:var(--surface2); border:1px solid var(--border); color:var(--muted);
+        border-radius:6px; padding:6px 10px; font-size:11px; cursor:pointer; flex:0 0 auto; font-family:inherit;
+    }
+    .copy-btn:hover{ color:var(--gold); border-color:var(--border-lit); }
+    .explain-box{ font-size:13px; color:var(--text); line-height:1.7; }
+
+    .tier-row{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:8px; }
+
+    .range-demo{ display:flex; flex-wrap:wrap; align-items:flex-start; gap:16px; }
+    .namebox-wrap{ display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+    .namebox{
+        background:rgba(232,185,63,0.15); border:1.5px solid var(--gold); border-radius:4px;
+        padding:5px 12px; font-size:13px; color:var(--gold); font-weight:700; font-family:monospace;
+    }
+    .namebox-label{ font-size:10.5px; color:var(--muted); }
+    .grid-mini{
+        display:grid; grid-template-columns:26px repeat(3, 32px); grid-auto-rows:24px;
+        border:1px solid var(--border); flex:0 0 auto;
+    }
+    .gcell{ border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--muted); background:var(--surface); }
+    .gcell.head{ background:var(--surface2); font-weight:700; }
+    .gcell.head.hl{ background:rgba(232,185,63,0.28); color:var(--gold); }
+    .gcell.rownum{ background:var(--surface2); font-weight:700; }
+    .gcell.hl{ background:rgba(232,185,63,0.18); }
+
+    .ex-table{ border-collapse:collapse; font-size:11px; margin-bottom:10px; }
+    .ex-table th, .ex-table td{ border:1px solid var(--border); padding:4px 10px; text-align:center; color:var(--muted); background:var(--surface); white-space:nowrap; }
+    .ex-table th{ background:var(--surface2); color:var(--text); font-weight:700; }
+    .ex-table td.hl, .ex-table th.hl{ background:rgba(232,185,63,0.2); color:var(--gold); font-weight:700; }
+    .ex-caption{ font-size:12px; color:var(--muted); margin-bottom:18px; line-height:1.6; }
+    .ex-wrap{ overflow-x:auto; }
+    .note{ font-size:11px; color:var(--muted); margin-top:4px; }
+</style>
+</head>
+<body>
+
+<nav class="topnav pixel">
+    <div class="nav-drop">
+        <a href="../../index.html">홈</a>
+        <button class="nav-drop-caret" aria-label="홈 하위메뉴 열기">▾</button>
+        <div class="nav-drop-menu">
+            <a href="../../about.html">💬 소개</a>
+            <a href="../../devlog.html">📓 개발일지</a>
+        </div>
+    </div>
+    <a href="../../ai-lab.html">AI 실험실</a>
+    <a href="../../works.html" class="active">작업물</a>
+    <div class="nav-drop">
+        <a href="../../games.html">게임</a>
+        <button class="nav-drop-caret" aria-label="게임 하위메뉴 열기">▾</button>
+        <div class="nav-drop-menu">
+            <a href="../../games.html?mode=solo">🕹️ 혼자 플레이</a>
+            <a href="../../games.html?mode=multi">👥 함께 플레이</a>
+        </div>
+    </div>
+    <a href="../../etc.html">기타</a>
+</nav>
+
+<header class="tool-header">
+    <div class="eyebrow pixel">FORMULA WIZARD</div>
+    <h1>함수식 마법사</h1>
+    <p>함수 이름이 아니라 "하고 싶은 일"을 고르면, 완성된 수식을 조립해드려요. 실제 데이터는 입력하지 않아도 돼요 — 셀 범위와 조건만 있으면 충분해요.</p>
+</header>
+
+<div class="wrap">
+    <div class="platform-switch" id="platform-switch"></div>
+
+    <div class="panel" style="margin-bottom:18px;">
+        <h3 class="toggle-h3" onclick="toggleSection('range-guide-body', this)">
+            <span>💡 "범위"나 "셀"은 직접 안 외우셔도 돼요</span><span class="chev">▾</span>
+        </h3>
+        <div id="range-guide-body">
+            <div class="range-demo">
+                <div class="grid-mini">
+                    <div class="gcell"></div>
+                    <div class="gcell head">A</div>
+                    <div class="gcell head hl">B</div>
+                    <div class="gcell head">C</div>
+                    <div class="gcell rownum">1</div><div class="gcell"></div><div class="gcell"></div><div class="gcell"></div>
+                    <div class="gcell rownum">2</div><div class="gcell"></div><div class="gcell hl"></div><div class="gcell"></div>
+                    <div class="gcell rownum">3</div><div class="gcell"></div><div class="gcell hl"></div><div class="gcell"></div>
+                    <div class="gcell rownum">4</div><div class="gcell"></div><div class="gcell hl"></div><div class="gcell"></div>
+                    <div class="gcell rownum">5</div><div class="gcell"></div><div class="gcell hl"></div><div class="gcell"></div>
+                </div>
+                <div class="namebox-wrap">
+                    <div class="namebox-label">엑셀 왼쪽 위에 이렇게 자동으로 떠요 ↓</div>
+                    <div class="namebox">B2:B5</div>
+                </div>
+            </div>
+            <p class="note" style="margin-top:12px;">엑셀/구글시트 화면에서 <b>원하는 구간을 마우스로 드래그</b>해서 선택해보세요. 그러면 왼쪽 위(이름상자)에 <b>"B2:B5"</b>처럼 범위가 자동으로 나타나요. 그 글자를 그대로 복사해서 아래 입력칸에 붙여넣으면 돼요 — "범위"가 뭔지 몰라도, 그냥 드래그하고 복사-붙여넣기만 하면 됩니다. "조건값"은 그 칸에 실제로 적혀있는 글자를 그대로 적으면 돼요 (예: 상태 칸에 "완료"라고 써있으면 조건값도 "완료").</p>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h3 class="toggle-h3" onclick="toggleSection('scenario-body', this)">
+            <span>🧩 하고 싶은 일</span><span class="chev">▾</span>
+        </h3>
+        <div id="scenario-body">
+            <select id="scenario-select"></select>
+            <div id="scenario-example"></div>
+            <div id="scenario-form"></div>
+        </div>
+
+        <h3 style="margin-top:20px;" id="result-heading">✅ 완성된 수식</h3>
+        <div class="formula-box">
+            <code id="formula-out">조건을 입력하면 여기에 수식이 완성돼요</code>
+            <button class="copy-btn" id="copy-btn">복사</button>
+        </div>
+        <div class="explain-box" id="explain-out"></div>
+    </div>
+</div>
+
+<div id="toast" style="position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--surface2); border:1px solid var(--border-lit); color:var(--gold); padding:10px 18px; border-radius:8px; font-size:12.5px; opacity:0; pointer-events:none; transition:opacity .2s ease, transform .2s ease;"></div>
+
+<script>
+function esc(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function toAbsolute(ref){
+    if (!ref) return ref;
+    return ref.replace(/\$?([A-Za-z]{1,3})\$?(\d+)/g, '$$$1$$$2');
+}
+const SECTION_KEY = 'excelWizardSections';
+function loadSectionState(){
+    try { return JSON.parse(localStorage.getItem(SECTION_KEY)) || {}; } catch(e) { return {}; }
+}
+function saveSectionState(state){
+    try { localStorage.setItem(SECTION_KEY, JSON.stringify(state)); } catch(e) {}
+}
+const sectionState = loadSectionState();
+function toggleSection(id, h3el){
+    const el = document.getElementById(id);
+    const chev = h3el.querySelector('.chev');
+    const collapsed = el.style.display !== 'none';
+    el.style.display = collapsed ? 'none' : '';
+    chev.style.transform = collapsed ? 'rotate(-90deg)' : '';
+    sectionState[id] = collapsed;
+    saveSectionState(sectionState);
+}
+function applySectionState(){
+    Object.keys(sectionState).forEach(id => {
+        if (!sectionState[id]) return;
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.style.display = 'none';
+        const h3 = el.previousElementSibling;
+        if (h3) { const chev = h3.querySelector('.chev'); if (chev) chev.style.transform = 'rotate(-90deg)'; }
+    });
+}
+function toast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.opacity='1'; t.style.transform='translateX(-50%) translateY(0)';
+    clearTimeout(toast._t);
+    toast._t = setTimeout(()=>{ t.style.opacity='0'; t.style.transform='translateX(-50%) translateY(20px)'; }, 1600);
+}
+let platform = 'excel';
+function v(id){ const el = document.getElementById(id); return el ? el.value.trim() : ''; }
+function setFormula(f, explain){
+    const heading = document.getElementById('result-heading');
+    const box = document.getElementById('formula-out');
+    const copyBtn = document.getElementById('copy-btn');
+    const note = document.getElementById('explain-out');
+    if (currentScenario === 'explain') {
+        heading.textContent = '📖 수식 설명';
+        box.style.whiteSpace = 'pre-line';
+        box.textContent = explain || '수식을 붙여넣으면 여기에 설명이 나와요';
+        copyBtn.style.display = explain ? '' : 'none';
+        note.textContent = '';
+    } else {
+        heading.textContent = '✅ 완성된 수식';
+        box.style.whiteSpace = '';
+        box.textContent = f;
+        copyBtn.style.display = '';
+        note.textContent = explain || '';
+    }
+}
+
+const EXAMPLES = {
+    sumif: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th>B</th><th class="hl">C</th></tr><tr><td>2</td><td>완료</td><td class="hl">10,000</td></tr><tr><td>3</td><td>진행중</td><td>5,000</td></tr><tr><td>4</td><td>완료</td><td class="hl">8,000</td></tr></table></div><div class="ex-caption">B열이 "완료"인 행만 골라서 C열 값을 더하고 싶을 때 → 조건 범위는 B2:B4, 조건값은 "완료", 합계 범위는 C2:C4</div>`,
+    vlookup: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th class="hl">A</th><th>B</th><th>C</th></tr><tr><td>2</td><td class="hl">101</td><td>김철수</td><td>영업팀</td></tr><tr><td>3</td><td>102</td><td>이영희</td><td>기획팀</td></tr></table></div><div class="ex-caption">사번(A열)으로 이름·부서를 찾아오고 싶을 때 → 찾을 값은 사번 셀, 표 범위는 A2:C100, 가져올 열 번호는 이름=2, 부서=3</div>`,
+    rank: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th>A</th><th class="hl">B</th></tr><tr><td>2</td><td>김철수</td><td class="hl">92</td></tr><tr><td>3</td><td>이영희</td><td>85</td></tr><tr><td>4</td><td>박민수</td><td>78</td></tr></table></div><div class="ex-caption">92점(B2)이 B2:B4 범위 안에서 몇 등인지 알고 싶을 때</div>`,
+    datecalc: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th>A</th><th>B</th></tr><tr><td>2</td><td>2024-01-15</td><td>2024-03-20</td></tr></table></div><div class="ex-caption">근무일수: 시작일(A2)~종료일(B2) 사이 평일 수 / 나이: 생년월일 셀 하나만 / D-day: 목표 날짜 셀 하나만 입력하면 돼요</div>`,
+    duplicate: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th class="hl">A</th></tr><tr><td>2</td><td>가나다</td></tr><tr><td>3</td><td class="hl">홍길동</td></tr><tr><td>4</td><td>이몽룡</td></tr><tr><td>5</td><td class="hl">홍길동</td></tr></table></div><div class="ex-caption">"홍길동"이 A열에 2번 나와서 중복이에요 → 확인할 셀은 A3, 전체 범위는 A2:A5</div>`,
+    iftiers: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th class="hl">B</th></tr><tr><td>2</td><td class="hl">92</td></tr></table></div><div class="ex-caption">점수(B2)가 90 이상이면 "A", 80 이상이면 "B"... 이렇게 구간별로 다른 값을 보여주고 싶을 때</div>`,
+    explain: `<div class="ex-caption">뭘 뜻하는지 모르겠는 복잡한 수식을 붙여넣으면, 어떤 함수가 쓰였는지 하나씩 짚어드려요.</div>`,
+    texttools: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th class="hl">A</th><th class="hl">B</th></tr><tr><td>2</td><td class="hl">홍길동</td><td class="hl">영업팀</td></tr></table></div><div class="ex-caption">"홍길동"과 "영업팀"을 합쳐서 "홍길동-영업팀"처럼 만들거나, 텍스트 일부만 잘라오고 싶을 때</div>`,
+    cleandata: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th class="hl">A</th></tr><tr><td>2</td><td class="hl">"␣␣홍길동␣␣"</td></tr></table></div><div class="ex-caption">다른 곳에서 복사해온 데이터에 불필요한 공백이 껴있을 때 깔끔하게 정리해요.</div>`,
+    maxminif: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th class="hl">B</th><th class="hl">C</th></tr><tr><td>2</td><td class="hl">서울</td><td class="hl">15,000</td></tr><tr><td>3</td><td>부산</td><td>9,000</td></tr><tr><td>4</td><td class="hl">서울</td><td class="hl">22,000</td></tr></table></div><div class="ex-caption">"서울"인 행들 중에서 가장 큰 금액(22,000)을 찾고 싶을 때</div>`,
+    textsearch: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th class="hl">A</th></tr><tr><td>2</td><td class="hl">2024년 정기 워크숍 안내</td></tr></table></div><div class="ex-caption">셀 안에 "워크숍"이라는 단어가 포함되어 있는지 확인하고 싶을 때</div>`,
+    autonum: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th class="hl">A</th><th>B</th></tr><tr><td>1</td><td class="hl">번호</td><td>이름</td></tr><tr><td>2</td><td>1</td><td>홍길동</td></tr><tr><td>3</td><td>2</td><td>이몽룡</td></tr></table></div><div class="ex-caption">머리글(A1) 기준으로, 중간에 행을 지우거나 추가해도 안 꼬이는 순번을 만들고 싶을 때</div>`,
+    numformat: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th class="hl">B</th></tr><tr><td>2</td><td class="hl">1234567</td></tr></table></div><div class="ex-caption">1234567을 "1,234,567"처럼 천 단위 콤마로, 또는 반올림·퍼센트로 바꾸고 싶을 때</div>`,
+    mode: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th class="hl">B</th></tr><tr><td>2</td><td class="hl">3</td></tr><tr><td>3</td><td class="hl">5</td></tr><tr><td>4</td><td class="hl">3</td></tr></table></div><div class="ex-caption">여러 사람이 고른 점수·선택지 중 가장 많이 나온 값을 찾고 싶을 때</div>`,
+    tenure: `<div class="ex-wrap"><table class="ex-table"><tr><th></th><th class="hl">B</th></tr><tr><td>2</td><td class="hl">2019-03-04</td></tr></table></div><div class="ex-caption">입사일(B2)부터 오늘까지 몇 년 몇 개월 근무했는지 계산하고 싶을 때</div>`
+};
+
+const SCENARIOS = {
+    sumif: {
+        label: '조건에 맞는 합계/평균/개수',
+        form: `
+            <label class="f-label">구하고 싶은 값</label>
+            <select id="s_type" onchange="toggleSumRange(); recompute()">
+                <option value="sum">합계</option>
+                <option value="avg">평균</option>
+                <option value="count">개수</option>
+            </select>
+            <label class="f-label">조건 (전부 만족해야 하는 AND 조건이에요)</label>
+            <div id="s_conds"></div>
+            <button type="button" class="copy-btn" onclick="addSumCond()">+ 조건 추가</button>
+            <label class="f-label" id="s_sumlabel" style="margin-top:14px;">합계/평균 낼 범위</label>
+            <input id="s_sr" placeholder="예: D2:D100" oninput="recompute()">
+        `,
+        onShow(){ sumConds = [{r:'',c:''}]; renderSumConds(); toggleSumRange(); },
+        build(){
+            const type = v('s_type');
+            const conds = sumConds.filter(c => c.r && c.c);
+            const sr = v('s_sr');
+            if (conds.length === 0) return { f: '조건을 최소 1개 입력해주세요', e: '' };
+            if (type === 'count') {
+                const f = conds.length === 1
+                    ? `=COUNTIF(${conds[0].r},"${conds[0].c}")`
+                    : `=COUNTIFS(${conds.map(c=>`${c.r},"${c.c}"`).join(',')})`;
+                return { f, e: `조건 ${conds.length}개를 모두 만족하는 행의 개수를 세요.` };
+            }
+            if (!sr) return { f: '합계/평균 낼 범위도 입력해주세요', e: '' };
+            const fn = type === 'sum' ? 'SUMIF' : 'AVERAGEIF';
+            const fnS = type === 'sum' ? 'SUMIFS' : 'AVERAGEIFS';
+            const f = conds.length === 1
+                ? `=${fn}(${conds[0].r},"${conds[0].c}",${sr})`
+                : `=${fnS}(${sr},${conds.map(c=>`${c.r},"${c.c}"`).join(',')})`;
+            return { f, e: `조건 ${conds.length}개를 모두 만족하는 행들의 값을 ${type==='sum'?'더해요':'평균 내요'}.` };
+        }
+    },
+    vlookup: {
+        label: '다른 표에서 값 가져오기',
+        form: `
+            <label class="f-label">찾을 값</label>
+            <input id="v_val" placeholder="예: A2" oninput="recompute()">
+            <label class="f-label">찾아볼 표 범위 (첫 열에 찾을 값이 있어야 해요)</label>
+            <input id="v_table" placeholder="예: Sheet2!A:D" oninput="recompute()">
+            <label class="f-label">가져올 열 번호 (표의 몇 번째 열인지)</label>
+            <input id="v_col" type="number" placeholder="예: 3" oninput="recompute()">
+            <label class="f-label">못 찾았을 때 보여줄 값 (선택)</label>
+            <input id="v_fallback" placeholder="예: 없음" oninput="recompute()">
+        `,
+        build(){
+            const val = v('v_val'), table = v('v_table'), col = v('v_col'), fb = v('v_fallback');
+            if (!val || !table || !col) return { f: '찾을 값, 표 범위, 열 번호를 입력해주세요', e: '' };
+            let base = `VLOOKUP(${val},${table},${col},FALSE)`;
+            let f = fb ? `=IFERROR(${base},"${fb}")` : `=${base}`;
+            return { f, e: fb ? '표에서 값을 찾아오고, 못 찾으면 지정한 값을 보여줘요.' : '표의 첫 열에서 찾을 값을 찾아 지정한 열의 값을 가져와요.' };
+        }
+    },
+    rank: {
+        label: '순위 매기기',
+        form: `
+            <label class="f-label">순위를 매길 셀</label>
+            <input id="rk_cell" placeholder="예: B2" oninput="recompute()">
+            <label class="f-label">전체 범위</label>
+            <input id="rk_range" placeholder="예: B2:B100" oninput="recompute()">
+            <label class="f-label">순서</label>
+            <select id="rk_order" onchange="recompute()">
+                <option value="0">큰 값이 1등 (내림차순)</option>
+                <option value="1">작은 값이 1등 (오름차순)</option>
+            </select>
+        `,
+        build(){
+            const cell = v('rk_cell'), range = v('rk_range'), order = v('rk_order');
+            if (!cell || !range) return { f: '순위 매길 셀과 범위를 입력해주세요', e: '' };
+            const fn = platform === 'excel' ? 'RANK.EQ' : 'RANK';
+            return { f: `=${fn}(${cell},${range},${order})`, e: '해당 값이 범위 안에서 몇 등인지 계산해요.' };
+        }
+    },
+    datecalc: {
+        label: '날짜 계산 (근무일수/나이/D-day)',
+        form: `
+            <label class="f-label">계산 종류</label>
+            <select id="d_type" onchange="toggleDateForm(); recompute()">
+                <option value="workdays">두 날짜 사이 근무일수 (주말 제외)</option>
+                <option value="age">만 나이 계산</option>
+                <option value="dday">디데이 (목표일까지 며칠)</option>
+            </select>
+            <div id="d_form"></div>
+        `,
+        onShow(){ toggleDateForm(); },
+        build(){
+            const type = v('d_type');
+            if (type === 'workdays') {
+                const s = v('d_start'), e = v('d_end');
+                if (!s || !e) return { f: '시작일과 종료일을 입력해주세요', e: '' };
+                return { f: `=NETWORKDAYS(${s},${e})`, e: '주말을 제외한 두 날짜 사이의 근무일수를 계산해요.' };
+            }
+            if (type === 'age') {
+                const b = v('d_birth');
+                if (!b) return { f: '생년월일 셀을 입력해주세요', e: '' };
+                return { f: `=DATEDIF(${b},TODAY(),"y")`, e: '생년월일을 기준으로 만 나이를 계산해요.' };
+            }
+            const t = v('d_target');
+            if (!t) return { f: '목표 날짜 셀을 입력해주세요', e: '' };
+            return { f: `=${t}-TODAY()`, e: '오늘부터 목표일까지 남은 일수를 계산해요.' };
+        }
+    },
+    duplicate: {
+        label: '중복값 찾기',
+        form: `
+            <label class="f-label">확인할 셀 (한 칸만! 예: A3)</label>
+            <input id="dp_cell" placeholder="예: A3 (A3:B200 처럼 범위 X)" oninput="recompute()">
+            <label class="f-label">전체 범위 (중복인지 비교할 전체 대상)</label>
+            <input id="dp_range" placeholder="예: A3:A200" oninput="recompute()">
+            <div class="note">💡 이 수식은 원본 데이터 옆 새 열(예: C열)의 <b>첫 데이터 행</b>에 넣고, 데이터 끝까지 아래로 채워(드래그해)주세요. 한 칸에 결과 하나가 아니라, 행마다 중복 여부가 표시돼요. 범위는 자동으로 고정($)돼서 아래로 채워도 안 밀려요.</div>
+        `,
+        build(){
+            const cell = v('dp_cell'), rangeRaw = v('dp_range');
+            if (!cell || !rangeRaw) return { f: '확인할 셀과 전체 범위를 입력해주세요', e: '' };
+            if (/:/.test(cell)) return { f: '"확인할 셀"에는 범위가 아니라 셀 하나만 입력해주세요 (예: A3)', e: '' };
+            const range = toAbsolute(rangeRaw);
+            return { f: `=IF(COUNTIF(${range},${cell})>1,"중복","")`, e: `같은 값이 ${range} 범위 안에 2번 이상 있으면 그 행에 "중복"이라고 표시해요. (드래그해서 채우면 ${cell}이 A4, A5...로 자동으로 바뀌어요)` };
+        }
+    },
+    iftiers: {
+        label: '조건별로 다른 값 표시하기',
+        form: `
+            <label class="f-label">기준 셀</label>
+            <input id="if_cell" placeholder="예: B2" oninput="recompute()">
+            <label class="f-label">조건 1 (예: >=90) / 결과값</label>
+            <div class="tier-row"><input id="if_o1" placeholder=">=90" oninput="recompute()"><input id="if_r1" placeholder="A" oninput="recompute()"></div>
+            <label class="f-label">조건 2 / 결과값</label>
+            <div class="tier-row"><input id="if_o2" placeholder=">=80" oninput="recompute()"><input id="if_r2" placeholder="B" oninput="recompute()"></div>
+            <label class="f-label">조건 3 / 결과값</label>
+            <div class="tier-row"><input id="if_o3" placeholder=">=70" oninput="recompute()"><input id="if_r3" placeholder="C" oninput="recompute()"></div>
+            <label class="f-label">모두 해당 안 될 때</label>
+            <input id="if_else" placeholder="F" oninput="recompute()">
+        `,
+        build(){
+            const cell = v('if_cell');
+            const tiers = [[v('if_o1'), v('if_r1')], [v('if_o2'), v('if_r2')], [v('if_o3'), v('if_r3')]].filter(t => t[0] && t[1]);
+            const elseV = v('if_else') || '""';
+            if (!cell || tiers.length === 0) return { f: '기준 셀과 조건을 최소 1개 입력해주세요', e: '' };
+            const parts = tiers.map(t => `${cell}${t[0]},"${t[1]}"`);
+            const f = `=IFS(${parts.join(',')},TRUE,"${elseV.replace(/"/g,'')}")`;
+            return { f, e: '위에서부터 순서대로 조건을 확인해서, 처음 맞는 조건의 결과값을 보여줘요.' };
+        }
+    },
+    explain: {
+        label: '기존 수식 설명해주기',
+        form: `
+            <label class="f-label">수식을 붙여넣어주세요</label>
+            <textarea id="ex_formula" rows="3" placeholder="예: =IFERROR(VLOOKUP(A2,Sheet2!A:C,3,FALSE),&quot;없음&quot;)" oninput="recompute()"></textarea>
+            <div class="note">완벽한 해석기는 아니고, 많이 쓰는 함수들을 알아보고 설명해드려요.</div>
+        `,
+        build(){
+            const s = v('ex_formula');
+            if (!s) return { f: '', e: '설명할 수식을 붙여넣어주세요' };
+            const known = [
+                [/VLOOKUP/i, 'VLOOKUP: 표의 첫 열에서 값을 찾아 다른 열의 값을 가져와요.'],
+                [/XLOOKUP/i, 'XLOOKUP: VLOOKUP보다 유연하게, 표에서 값을 찾아 원하는 열의 값을 가져와요.'],
+                [/HLOOKUP/i, 'HLOOKUP: 표의 첫 행에서 값을 찾아 다른 행의 값을 가져와요.'],
+                [/INDEX/i, 'INDEX: 범위에서 몇 번째 행/열의 값을 가져와요.'],
+                [/MATCH\(/i, 'MATCH: 찾는 값이 범위에서 몇 번째 위치에 있는지 찾아요.'],
+                [/IFERROR/i, 'IFERROR: 앞의 수식이 오류가 나면, 지정한 값을 대신 보여줘요.'],
+                [/IFNA/i, 'IFNA: 앞의 수식이 값을 못 찾으면(#N/A 오류), 지정한 값을 대신 보여줘요.'],
+                [/SUMIFS/i, 'SUMIFS: 여러 조건을 모두 만족하는 값들을 더해요.'],
+                [/SUMIF(?!S)/i, 'SUMIF: 조건을 만족하는 값들을 더해요.'],
+                [/SUM\(/i, 'SUM: 범위 안의 숫자를 모두 더해요.'],
+                [/COUNTIFS/i, 'COUNTIFS: 여러 조건을 모두 만족하는 행의 개수를 세요.'],
+                [/COUNTIF(?!S)/i, 'COUNTIF: 조건을 만족하는 행의 개수를 세요.'],
+                [/COUNTA/i, 'COUNTA: 비어있지 않은 셀의 개수를 세요.'],
+                [/COUNT\(/i, 'COUNT: 숫자가 들어있는 셀의 개수를 세요.'],
+                [/AVERAGEIFS/i, 'AVERAGEIFS: 여러 조건을 만족하는 값들의 평균을 내요.'],
+                [/AVERAGEIF(?!S)/i, 'AVERAGEIF: 조건을 만족하는 값들의 평균을 내요.'],
+                [/AVERAGE\(/i, 'AVERAGE: 범위 안 숫자들의 평균을 내요.'],
+                [/MAXIFS/i, 'MAXIFS: 조건을 만족하는 값들 중 가장 큰 값을 찾아요.'],
+                [/MINIFS/i, 'MINIFS: 조건을 만족하는 값들 중 가장 작은 값을 찾아요.'],
+                [/MAX\(/i, 'MAX: 범위 안에서 가장 큰 값을 찾아요.'],
+                [/MIN\(/i, 'MIN: 범위 안에서 가장 작은 값을 찾아요.'],
+                [/RANK/i, 'RANK: 범위 안에서 몇 등인지 순위를 매겨요.'],
+                [/ROUNDUP/i, 'ROUNDUP: 지정한 자리에서 무조건 올림해요.'],
+                [/ROUNDDOWN/i, 'ROUNDDOWN: 지정한 자리에서 무조건 내림해요.'],
+                [/ROUND\(/i, 'ROUND: 지정한 소수 자리까지 반올림해요.'],
+                [/TRUNC/i, 'TRUNC: 소수점 이하를 잘라내요 (반올림 없이).'],
+                [/CEILING/i, 'CEILING: 지정한 단위로 올림해요.'],
+                [/FLOOR/i, 'FLOOR: 지정한 단위로 내림해요.'],
+                [/ABS\(/i, 'ABS: 숫자를 절댓값(양수)으로 바꿔요.'],
+                [/DATEDIF/i, 'DATEDIF: 두 날짜 사이의 년/월/일 차이를 계산해요.'],
+                [/NETWORKDAYS/i, 'NETWORKDAYS: 주말을 제외한 두 날짜 사이 근무일수를 계산해요.'],
+                [/EOMONTH/i, 'EOMONTH: 몇 개월 뒤/전 달의 마지막 날짜를 구해요.'],
+                [/WEEKDAY/i, 'WEEKDAY: 날짜가 무슨 요일인지 숫자로 알려줘요.'],
+                [/TODAY\(/i, 'TODAY: 오늘 날짜를 보여줘요.'],
+                [/NOW\(/i, 'NOW: 현재 날짜와 시간을 보여줘요.'],
+                [/\bYEAR\(/i, 'YEAR: 날짜에서 연도만 뽑아와요.'],
+                [/\bMONTH\(/i, 'MONTH: 날짜에서 월만 뽑아와요.'],
+                [/\bDAY\(/i, 'DAY: 날짜에서 일(날짜)만 뽑아와요.'],
+                [/TEXTJOIN/i, 'TEXTJOIN: 여러 셀의 텍스트를 구분자로 이어붙여요.'],
+                [/CONCATENATE/i, 'CONCATENATE: 여러 텍스트를 하나로 이어붙여요.'],
+                [/CONCAT\(/i, 'CONCAT: 여러 텍스트나 범위를 하나로 이어붙여요.'],
+                [/UNIQUE/i, 'UNIQUE: 범위에서 중복을 제거한 목록을 뽑아요.'],
+                [/FILTER\(/i, 'FILTER: 조건에 맞는 행들만 걸러서 보여줘요.'],
+                [/\bSORT\(/i, 'SORT: 범위를 기준에 따라 정렬해요.'],
+                [/IFS\(/i, 'IFS: 여러 조건을 순서대로 확인해서 처음 맞는 조건의 결과를 보여줘요.'],
+                [/\bIF\(/i, 'IF: 조건이 맞으면 A, 아니면 B를 보여줘요.'],
+                [/\bAND\(/i, 'AND: 여러 조건이 전부 참일 때만 참(TRUE)이에요.'],
+                [/\bOR\(/i, 'OR: 여러 조건 중 하나라도 참이면 참(TRUE)이에요.'],
+                [/\bNOT\(/i, 'NOT: 조건의 참/거짓을 반대로 뒤집어요.'],
+                [/ISBLANK/i, 'ISBLANK: 셀이 비어있는지 확인해요.'],
+                [/ISERROR/i, 'ISERROR: 수식 결과가 오류인지 확인해요.'],
+                [/ISNUMBER/i, 'ISNUMBER: 셀이 숫자인지 확인해요.'],
+                [/TRIM/i, 'TRIM: 불필요한 공백을 정리해요.'],
+                [/\bCLEAN\(/i, 'CLEAN: 눈에 안 보이는 이상한 문자를 제거해요.'],
+                [/UPPER\(/i, 'UPPER: 영문을 전부 대문자로 바꿔요.'],
+                [/LOWER\(/i, 'LOWER: 영문을 전부 소문자로 바꿔요.'],
+                [/PROPER\(/i, 'PROPER: 각 단어의 첫 글자만 대문자로 바꿔요.'],
+                [/SUBSTITUTE/i, 'SUBSTITUTE: 텍스트 안의 특정 글자를 다른 글자로 바꿔요.'],
+                [/REPLACE\(/i, 'REPLACE: 텍스트의 특정 위치를 다른 글자로 바꿔요.'],
+                [/\bLEN\(/i, 'LEN: 텍스트의 글자 수를 세요.'],
+                [/LEFT\(/i, 'LEFT: 텍스트의 왼쪽에서 몇 글자를 잘라와요.'],
+                [/RIGHT\(/i, 'RIGHT: 텍스트의 오른쪽에서 몇 글자를 잘라와요.'],
+                [/MID\(/i, 'MID: 텍스트의 중간에서 몇 글자를 잘라와요.'],
+                [/SEARCH\(/i, 'SEARCH: 텍스트 안에 특정 단어가 있는지 찾아요 (대소문자 구분 안 함).'],
+                [/\bFIND\(/i, 'FIND: 텍스트 안에 특정 단어가 있는지 찾아요 (대소문자 구분함).'],
+                [/\bTEXT\(/i, 'TEXT: 숫자나 날짜를 원하는 형식의 텍스트로 바꿔요.'],
+                [/VALUE\(/i, 'VALUE: 텍스트로 된 숫자를 진짜 숫자로 바꿔요.']
+            ];
+            const found = known.filter(k => k[0].test(s)).map(k => '· ' + k[1]);
+            if (found.length === 0) return { f: '', e: '알고 있는 함수 패턴을 찾지 못했어요. 조금 더 흔한 함수 조합으로 다시 시도해보세요.' };
+            return { f: '', e: found.join('\n') };
+        }
+    },
+    texttools: {
+        label: '텍스트 합치기/자르기',
+        form: `
+            <label class="f-label">종류</label>
+            <select id="t_type" onchange="toggleTextForm(); recompute()">
+                <option value="join">여러 셀 합치기</option>
+                <option value="left">왼쪽에서 N글자 자르기</option>
+                <option value="right">오른쪽에서 N글자 자르기</option>
+                <option value="mid">중간에서 N글자 자르기</option>
+            </select>
+            <div id="t_form"></div>
+        `,
+        onShow(){ toggleTextForm(); },
+        build(){
+            const type = v('t_type');
+            if (type === 'join') {
+                const cells = v('t_cells'), sep = v('t_sep') || ' ';
+                if (!cells) return { f: '합칠 셀들을 입력해주세요', e: '' };
+                const list = cells.split(',').map(c=>c.trim()).filter(Boolean);
+                return { f: `=TEXTJOIN("${sep}",TRUE,${list.join(',')})`, e: '여러 셀의 내용을 구분자로 이어 붙여요.' };
+            }
+            const cell = v('t_cell'), n = v('t_n');
+            if (!cell || !n) return { f: '셀과 글자 수를 입력해주세요', e: '' };
+            if (type === 'left') return { f: `=LEFT(${cell},${n})`, e: '왼쪽에서부터 지정한 글자 수만큼 잘라와요.' };
+            if (type === 'right') return { f: `=RIGHT(${cell},${n})`, e: '오른쪽에서부터 지정한 글자 수만큼 잘라와요.' };
+            const start = v('t_start') || '1';
+            return { f: `=MID(${cell},${start},${n})`, e: '지정한 위치부터 글자 수만큼 잘라와요.' };
+        }
+    },
+    cleandata: {
+        label: '데이터 정리 (공백/이상한 문자 제거)',
+        form: `
+            <label class="f-label">정리할 셀</label>
+            <input id="cl_cell" placeholder="예: A2" oninput="recompute()">
+        `,
+        build(){
+            const cell = v('cl_cell');
+            if (!cell) return { f: '정리할 셀을 입력해주세요', e: '' };
+            return { f: `=TRIM(CLEAN(${cell}))`, e: '불필요한 공백과 눈에 안 보이는 이상한 문자를 제거해요.' };
+        }
+    },
+    maxminif: {
+        label: '조건부 최댓값/최솟값',
+        form: `
+            <label class="f-label">종류</label>
+            <select id="m_type" onchange="recompute()">
+                <option value="max">최댓값</option>
+                <option value="min">최솟값</option>
+            </select>
+            <label class="f-label">값을 찾을 범위</label>
+            <input id="m_val" placeholder="예: C2:C100" oninput="recompute()">
+            <label class="f-label">조건 (전부 만족해야 하는 AND 조건이에요)</label>
+            <div id="m_conds"></div>
+            <button type="button" class="copy-btn" onclick="addMmCond()">+ 조건 추가</button>
+        `,
+        onShow(){ mmConds = [{r:'',c:''}]; renderMmConds(); },
+        build(){
+            const type = v('m_type'), val = v('m_val');
+            const conds = mmConds.filter(c => c.r && c.c);
+            if (!val || conds.length === 0) return { f: '값 범위와 조건을 최소 1개 입력해주세요', e: '' };
+            const fn = type === 'max' ? 'MAXIFS' : 'MINIFS';
+            const f = `=${fn}(${val},${conds.map(c=>`${c.r},"${c.c}"`).join(',')})`;
+            return { f, e: `조건 ${conds.length}개를 모두 만족하는 값들 중 가장 ${type==='max'?'큰':'작은'} 값을 찾아요.` };
+        }
+    },
+    textsearch: {
+        label: '특정 텍스트 포함 여부 확인',
+        form: `
+            <label class="f-label">확인할 셀</label>
+            <input id="ts_cell" placeholder="예: A2" oninput="recompute()">
+            <label class="f-label">찾을 단어</label>
+            <input id="ts_word" placeholder="예: 완료" oninput="recompute()">
+        `,
+        build(){
+            const cell = v('ts_cell'), word = v('ts_word');
+            if (!cell || !word) return { f: '확인할 셀과 찾을 단어를 입력해주세요', e: '' };
+            return { f: `=IF(ISNUMBER(SEARCH("${word}",${cell})),"포함","미포함")`, e: '셀 안에 지정한 단어가 들어있는지 확인해요.' };
+        }
+    },
+    autonum: {
+        label: '자동 일련번호 매기기',
+        form: `
+            <label class="f-label">머리글(제목) 셀 주소</label>
+            <input id="an_header" placeholder="예: $A$1" oninput="recompute()">
+            <div class="note">이 수식을 데이터 첫 행에 넣고 아래로 채우면, 중간에 행을 지우거나 추가해도 번호가 안 꼬여요.</div>
+        `,
+        build(){
+            const h = v('an_header');
+            if (!h) return { f: '머리글 셀 주소를 입력해주세요', e: '' };
+            return { f: `=ROW()-ROW(${h})`, e: '머리글 행 기준으로 몇 번째 행인지 계산해서 순번을 매겨요.' };
+        }
+    },
+    numformat: {
+        label: '숫자 서식 변환',
+        form: `
+            <label class="f-label">종류</label>
+            <select id="n_type" onchange="toggleNumForm(); recompute()">
+                <option value="comma">천 단위 콤마</option>
+                <option value="round">반올림</option>
+                <option value="percent">퍼센트로 표시</option>
+            </select>
+            <div id="n_form"></div>
+        `,
+        onShow(){ toggleNumForm(); },
+        build(){
+            const type = v('n_type'), cell = v('n_cell');
+            if (!cell) return { f: '셀을 입력해주세요', e: '' };
+            if (type === 'comma') return { f: `=TEXT(${cell},"#,##0")`, e: '숫자를 천 단위 콤마가 있는 텍스트로 바꿔요.' };
+            if (type === 'percent') return { f: `=TEXT(${cell},"0.0%")`, e: '숫자를 퍼센트 형식으로 표시해요 (0.25 → 25.0%).' };
+            const d = v('n_digits') || '0';
+            return { f: `=ROUND(${cell},${d})`, e: '지정한 소수 자리까지 반올림해요.' };
+        }
+    },
+    mode: {
+        label: '최빈값 찾기 (가장 많이 등장한 값)',
+        form: `
+            <label class="f-label">범위</label>
+            <input id="md_range" placeholder="예: B2:B100" oninput="recompute()">
+        `,
+        build(){
+            const range = v('md_range');
+            if (!range) return { f: '범위를 입력해주세요', e: '' };
+            const fn = platform === 'excel' ? 'MODE.SNGL' : 'MODE';
+            return { f: `=${fn}(${range})`, e: '범위 안에서 가장 자주 등장한 값을 찾아요. (숫자 데이터에만 적용돼요)' };
+        }
+    },
+    tenure: {
+        label: '근속/경력 연수 계산',
+        form: `
+            <label class="f-label">입사일(시작일) 셀</label>
+            <input id="tn_start" placeholder="예: B2" oninput="recompute()">
+        `,
+        build(){
+            const s = v('tn_start');
+            if (!s) return { f: '입사일 셀을 입력해주세요', e: '' };
+            return { f: `=DATEDIF(${s},TODAY(),"y")&"년 "&DATEDIF(${s},TODAY(),"ym")&"개월"`, e: '입사일부터 오늘까지 몇 년 몇 개월인지 계산해요.' };
+        }
+    }
+};
+
+// ---- 동적 조건 목록 (조건에 맞는 합계/평균/개수, 조건부 최댓값/최솟값에서 공용으로 사용) ----
+let sumConds = [{r:'',c:''}];
+function renderSumConds(){
+    const wrap = document.getElementById('s_conds');
+    if (!wrap) return;
+    wrap.innerHTML = sumConds.map((c,i) => `
+        <div class="row2" style="margin-bottom:8px;">
+            <input value="${esc(c.r)}" placeholder="범위 (예: B2:B100)" data-i="${i}" data-f="r" oninput="updateSumCond(event)">
+            <div style="display:flex; gap:6px;">
+                <input value="${esc(c.c)}" placeholder="조건값 (예: 완료)" data-i="${i}" data-f="c" oninput="updateSumCond(event)" style="flex:1;">
+                ${sumConds.length > 1 ? `<button type="button" class="copy-btn" onclick="removeSumCond(${i})">×</button>` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+function updateSumCond(e){
+    sumConds[+e.target.dataset.i][e.target.dataset.f] = e.target.value;
+    recompute();
+}
+function addSumCond(){
+    if (sumConds.length >= 6) { toast('조건은 최대 6개까지 가능해요'); return; }
+    sumConds.push({r:'',c:''});
+    renderSumConds();
+    recompute();
+}
+function removeSumCond(i){
+    sumConds.splice(i,1);
+    renderSumConds();
+    recompute();
+}
+
+let mmConds = [{r:'',c:''}];
+function renderMmConds(){
+    const wrap = document.getElementById('m_conds');
+    if (!wrap) return;
+    wrap.innerHTML = mmConds.map((c,i) => `
+        <div class="row2" style="margin-bottom:8px;">
+            <input value="${esc(c.r)}" placeholder="범위 (예: B2:B100)" data-i="${i}" data-f="r" oninput="updateMmCond(event)">
+            <div style="display:flex; gap:6px;">
+                <input value="${esc(c.c)}" placeholder="조건값 (예: 서울)" data-i="${i}" data-f="c" oninput="updateMmCond(event)" style="flex:1;">
+                ${mmConds.length > 1 ? `<button type="button" class="copy-btn" onclick="removeMmCond(${i})">×</button>` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+function updateMmCond(e){
+    mmConds[+e.target.dataset.i][e.target.dataset.f] = e.target.value;
+    recompute();
+}
+function addMmCond(){
+    if (mmConds.length >= 6) { toast('조건은 최대 6개까지 가능해요'); return; }
+    mmConds.push({r:'',c:''});
+    renderMmConds();
+    recompute();
+}
+function removeMmCond(i){
+    mmConds.splice(i,1);
+    renderMmConds();
+    recompute();
+}
+
+function toggleSumRange(){
+    const type = v('s_type');
+    const label = document.getElementById('s_sumlabel');
+    const sr = document.getElementById('s_sr');
+    if (!label) return;
+    if (type === 'count') { label.textContent = '(개수 세기는 이 항목이 필요 없어요)'; sr.style.display = 'none'; label.style.opacity = '0.5'; }
+    else { label.textContent = '합계/평균 낼 범위'; sr.style.display = ''; label.style.opacity = '1'; }
+}
+function toggleDateForm(){
+    const type = v('d_type');
+    const el = document.getElementById('d_form');
+    if (type === 'workdays') el.innerHTML = `<label class="f-label">시작일 셀 / 종료일 셀</label><div class="row2"><input id="d_start" placeholder="예: B2" oninput="recompute()"><input id="d_end" placeholder="예: C2" oninput="recompute()"></div>`;
+    else if (type === 'age') el.innerHTML = `<label class="f-label">생년월일 셀</label><input id="d_birth" placeholder="예: B2" oninput="recompute()">`;
+    else el.innerHTML = `<label class="f-label">목표 날짜 셀</label><input id="d_target" placeholder="예: B2" oninput="recompute()">`;
+}
+function toggleTextForm(){
+    const type = v('t_type');
+    const el = document.getElementById('t_form');
+    if (type === 'join') el.innerHTML = `<label class="f-label">합칠 셀들 (콤마로 구분)</label><input id="t_cells" placeholder="예: A2, B2, C2" oninput="recompute()"><label class="f-label">구분자</label><input id="t_sep" placeholder="예: 공백 한 칸 또는 -" oninput="recompute()">`;
+    else if (type === 'mid') el.innerHTML = `<label class="f-label">셀 / 시작 위치 / 글자 수</label><div class="row3"><input id="t_cell" placeholder="A2" oninput="recompute()"><input id="t_start" placeholder="시작(예:3)" oninput="recompute()"><input id="t_n" placeholder="글자수(예:4)" oninput="recompute()"></div>`;
+    else el.innerHTML = `<label class="f-label">셀 / 글자 수</label><div class="row2"><input id="t_cell" placeholder="예: A2" oninput="recompute()"><input id="t_n" placeholder="예: 3" oninput="recompute()"></div>`;
+}
+function toggleNumForm(){
+    const type = v('n_type');
+    const el = document.getElementById('n_form');
+    if (type === 'round') el.innerHTML = `<label class="f-label">셀 / 소수 자리 수</label><div class="row2"><input id="n_cell" placeholder="예: B2" oninput="recompute()"><input id="n_digits" placeholder="예: 2" oninput="recompute()"></div>`;
+    else el.innerHTML = `<label class="f-label">셀</label><input id="n_cell" placeholder="예: B2" oninput="recompute()">`;
+}
+
+let currentScenario = 'sumif';
+
+function renderScenarioSelect(){
+    const sel = document.getElementById('scenario-select');
+    sel.innerHTML = Object.keys(SCENARIOS).map(id => `<option value="${id}">${esc(SCENARIOS[id].label)}</option>`).join('');
+    sel.value = currentScenario;
+}
+function renderScenarioForm(){
+    const sc = SCENARIOS[currentScenario];
+    document.getElementById('scenario-example').innerHTML = EXAMPLES[currentScenario] || '';
+    document.getElementById('scenario-form').innerHTML = sc.form;
+    if (sc.onShow) sc.onShow();
+    recompute();
+}
+function recompute(){
+    const sc = SCENARIOS[currentScenario];
+    const result = sc.build();
+    setFormula(result.f || '입력값을 채워주세요', result.e);
+}
+
+document.getElementById('scenario-select').addEventListener('change', e => {
+    currentScenario = e.target.value;
+    renderScenarioForm();
+});
+document.getElementById('copy-btn').addEventListener('click', async () => {
+    const text = document.getElementById('formula-out').textContent;
+    try { await navigator.clipboard.writeText(text); toast('복사했어요!'); }
+    catch(e) {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+        document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); toast('복사했어요!'); } catch(e2) { toast('복사 실패'); }
+        document.body.removeChild(ta);
+    }
+});
+
+function renderPlatformSwitch(){
+    document.getElementById('platform-switch').innerHTML = `
+        <button class="plat-btn ${platform==='excel'?'active':''}" data-p="excel">엑셀</button>
+        <button class="plat-btn ${platform==='sheets'?'active':''}" data-p="sheets">구글 시트</button>
+    `;
+}
+document.getElementById('platform-switch').addEventListener('click', e => {
+    const btn = e.target.closest('.plat-btn');
+    if (!btn) return;
+    platform = btn.dataset.p;
+    renderPlatformSwitch();
+    recompute();
+});
+
+renderPlatformSwitch();
+renderScenarioSelect();
+renderScenarioForm();
+applySectionState();
+</script>
+<script src="../../assets/nav.js"></script>
+<script src="../../assets/maintenance.js"></script>
+<script src="../../assets/analytics-config.js"></script>
+<script src="../../assets/ga4.js"></script>
+<script src="../../assets/visitor-counter.js"></script>
+</body>
+</html>

@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>폭탄 돌리기 · 나의 프로젝트 작업실</title>
+<link rel="icon" type="image/svg+xml" href="../../assets/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../../assets/favicon-32.png">
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/style.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+    .wrap{ max-width:560px; margin:0 auto; padding:0 20px 100px; }
+    .tool-header{ max-width:560px; margin:0 auto; padding:56px 20px 24px; text-align:center; }
+    .tool-header .eyebrow{ font-size:11px; letter-spacing:0.18em; color:var(--gold); margin-bottom:14px; }
+    .tool-header h1{ font-size:clamp(24px,5vw,34px); font-weight:900; margin:0 0 10px; }
+    .tool-header p{ color:var(--muted); font-size:13.5px; max-width:440px; margin:0 auto; }
+
+    .gate-overlay{
+        position:fixed; inset:0; background:rgba(10,9,8,0.94); z-index:50;
+        display:flex; align-items:center; justify-content:center; padding:20px;
+    }
+    .gate-box{
+        background:linear-gradient(180deg, var(--surface2), var(--surface));
+        border:1px solid var(--border-lit); border-radius:14px; padding:32px 28px;
+        max-width:360px; width:100%; text-align:center;
+    }
+    .gate-box h2{ margin:8px 0 10px; font-size:20px; }
+    .gate-box p{ color:var(--muted); font-size:12.5px; margin:0 0 16px; line-height:1.5; }
+    .gate-box input{
+        width:100%; box-sizing:border-box; background:var(--bg); border:1px solid var(--border);
+        color:var(--text); border-radius:8px; padding:10px 12px; font-size:14px; margin-bottom:12px; text-align:center;
+        font-family:inherit;
+    }
+    .gate-box .btn{ width:100%; margin-bottom:8px; padding:10px; box-sizing:border-box; }
+    .gate-hint{ font-size:10.5px; color:#8a7f6a; margin-top:14px; }
+
+    .btn{
+        background:var(--surface); border:1px solid var(--border); color:var(--text);
+        border-radius:6px; padding:9px 16px; font-size:13px; cursor:pointer; font-family:inherit;
+        transition:border-color .15s ease, color .15s ease;
+    }
+    .btn:hover{ border-color:var(--border-lit); color:var(--gold); }
+    .btn.primary{ border-color:var(--border-lit); color:var(--gold); }
+    .btn.danger:hover{ border-color:#8a3a2a; color:#e0876a; }
+    .btn:disabled{ opacity:0.35; cursor:not-allowed; }
+
+    .toolbar{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:18px; justify-content:center; }
+    #room-status{ font-size:12px; color:var(--muted); }
+
+    .panel{
+        background:linear-gradient(180deg, var(--surface2), var(--surface));
+        border:1px solid var(--border); border-radius:14px; padding:28px 22px; text-align:center;
+    }
+    .player-cards{ display:flex; gap:14px; justify-content:center; margin-bottom:26px; flex-wrap:wrap; }
+    .player-card{
+        flex:1; min-width:140px; max-width:200px; border:2px solid var(--border); border-radius:12px;
+        padding:16px 10px; background:var(--surface); transition:border-color .2s ease, background .2s ease;
+    }
+    .player-card.holder{ border-color:#e0876a; background:rgba(224,135,106,0.08); }
+    .player-card .p-emoji{ font-size:30px; margin-bottom:8px; }
+    .player-card .p-name{ font-size:13px; font-weight:700; }
+    .player-card .p-score{ font-size:11px; color:var(--muted); margin-top:4px; }
+    .player-card .p-bomb{ font-size:22px; margin-top:8px; min-height:28px; }
+
+    .bomb-stage{ margin:10px 0 26px; }
+    .bomb-icon{ font-size:64px; display:inline-block; animation:bomb-pulse 1s infinite; }
+    @keyframes bomb-pulse{ 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.12); } }
+    .status-text{ font-size:13px; color:var(--muted); margin-bottom:20px; min-height:18px; }
+
+    .pass-btn{
+        font-size:16px; padding:16px 36px; border-radius:30px; font-weight:900;
+        background:linear-gradient(90deg, var(--ember), var(--gold)); color:#1a1208; border:none; cursor:pointer;
+        box-shadow:0 6px 20px rgba(217,100,47,0.3);
+    }
+    .pass-btn:disabled{ opacity:0.3; cursor:not-allowed; box-shadow:none; background:var(--surface); color:var(--muted); }
+
+    .result-banner{
+        text-align:center; padding:26px; border:1px solid #8a3a2a; border-radius:12px;
+        background:rgba(217,100,47,0.1); margin-bottom:20px; display:none;
+    }
+    .result-banner.show{ display:block; }
+    .result-banner .rb-title{ font-size:22px; font-weight:900; color:#e0876a; margin-bottom:10px; }
+    .result-banner .rb-sub{ font-size:13px; color:var(--text); margin-bottom:16px; }
+
+    .waiting-list{ font-size:13px; color:var(--text); margin-bottom:18px; }
+    .host-hint{ font-size:11px; color:var(--muted); margin-top:10px; }
+</style>
+</head>
+<body>
+
+<nav class="topnav pixel">
+    <div class="nav-drop">
+        <a href="../../index.html">홈</a>
+        <button class="nav-drop-caret" aria-label="홈 하위메뉴 열기">▾</button>
+        <div class="nav-drop-menu">
+            <a href="../../about.html">💬 소개</a>
+            <a href="../../devlog.html">📓 개발일지</a>
+        </div>
+    </div>
+    <a href="../../ai-lab.html">AI 실험실</a>
+    <a href="../../works.html">작업물</a>
+    <div class="nav-drop">
+        <a href="../../games.html" class="active">게임</a>
+        <button class="nav-drop-caret" aria-label="게임 하위메뉴 열기">▾</button>
+        <div class="nav-drop-menu">
+            <a href="../../games.html?mode=solo">🕹️ 혼자 플레이</a>
+            <a href="../../games.html?mode=multi">👥 함께 플레이</a>
+        </div>
+    </div>
+    <a href="../../etc.html">기타</a>
+</nav>
+
+<div class="gate-overlay" id="gate-overlay">
+    <div class="gate-box">
+        <div class="eyebrow pixel">MULTIPLAYER</div>
+        <h2>방 코드 &amp; 닉네임</h2>
+        <p>2명이 같은 방 코드로 들어오면 폭탄 돌리기를 시작할 수 있어요. 타이머는 아무도 몰라요 — 언제 터질지는 아무도 모릅니다!</p>
+        <input type="text" id="gate-name" placeholder="닉네임">
+        <input type="text" id="gate-room" placeholder="방 코드 (예: friday-bomb)">
+        <button class="btn primary" id="gate-submit">입장하기</button>
+        <p class="gate-hint">🔒 완벽한 보안이 아니에요. 아무 방 코드나 정해서 친구와 공유하세요.</p>
+    </div>
+</div>
+
+<header class="tool-header">
+    <div class="eyebrow pixel">BOMB PASS</div>
+    <h1>💣 폭탄 돌리기</h1>
+    <p>2명이서 폭탄을 주고받다가, 정체 모를 순간 터져요. 터질 때 들고 있으면 지는 거예요!</p>
+</header>
+
+<div class="wrap">
+    <div class="toolbar">
+        <span id="room-status">연결 중...</span>
+        <button class="btn" id="rename-btn">닉네임 변경</button>
+        <button class="btn danger" id="leave-btn">방 나가기</button>
+    </div>
+
+    <div class="result-banner" id="result-banner">
+        <div class="rb-title" id="rb-title"></div>
+        <div class="rb-sub" id="rb-sub"></div>
+        <button class="btn primary" id="next-round-btn">🔄 다음 라운드</button>
+    </div>
+
+    <div class="panel">
+        <div class="waiting-list" id="waiting-list"></div>
+        <div class="player-cards" id="player-cards"></div>
+
+        <div id="game-area" style="display:none;">
+            <div class="bomb-stage"><span class="bomb-icon">💣</span></div>
+            <div class="status-text" id="status-text"></div>
+            <button class="pass-btn" id="pass-btn">🙌 폭탄 넘기기!</button>
+        </div>
+
+        <button class="btn primary" id="start-btn" style="margin-top:6px;">🎬 게임 시작</button>
+        <div class="host-hint" id="host-hint"></div>
+    </div>
+</div>
+
+<div id="toast" style="position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--surface2); border:1px solid var(--border-lit); color:var(--gold); padding:10px 18px; border-radius:8px; font-size:12.5px; opacity:0; pointer-events:none; transition:opacity .2s ease, transform .2s ease;"></div>
+
+<script>
+const firebaseConfig = {
+    apiKey: "AIzaSyB0LRiIpNwdcCkS4Y5Dz4pP9zcLoadO2Xk",
+    authDomain: "taskflow-7cb3b.firebaseapp.com",
+    projectId: "taskflow-7cb3b",
+    storageBucket: "taskflow-7cb3b.firebasestorage.app",
+    messagingSenderId: "811223035419",
+    appId: "1:811223035419:web:08b972916827147bc2d2be"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+const PLAYER_KEY = 'bombPassPlayerId';
+const NAME_KEY = 'bombPassNickname';
+const ROOM_KEY = 'bombPassRoomCode';
+const MIN_MS = 8000, MAX_MS = 25000;
+
+function uid(){ return 'id_' + Math.random().toString(36).slice(2, 10); }
+function escapeHtml(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function toast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.opacity = '1';
+    t.style.transform = 'translateX(-50%) translateY(0)';
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(-50%) translateY(20px)'; }, 1800);
+}
+
+let playerId = localStorage.getItem(PLAYER_KEY);
+if (!playerId) { playerId = uid(); localStorage.setItem(PLAYER_KEY, playerId); }
+let nickname = localStorage.getItem(NAME_KEY) || '';
+let roomRef = null;
+let roomState = null;
+let explodeTimer = null;
+
+function isHost(){ return !!roomState && roomState.hostId === playerId; }
+function activePlayerIds(){
+    if (!roomState) return [];
+    return Object.keys(roomState.players || {}).sort((a,b) => (roomState.players[a].joinedAt||0) - (roomState.players[b].joinedAt||0)).slice(0, 2);
+}
+
+function joinRoom(code, name){
+    document.getElementById('gate-overlay').style.display = 'none';
+    localStorage.setItem(ROOM_KEY, code);
+    localStorage.setItem(NAME_KEY, name);
+    nickname = name;
+    roomRef = db.collection('bombRooms').doc(code);
+    document.getElementById('room-status').textContent = `🔗 방 "${code}" 에 연결됨`;
+
+    roomRef.get().then(doc => {
+        if (!doc.exists) {
+            roomRef.set({
+                hostId: playerId,
+                players: { [playerId]: { name: nickname, joinedAt: Date.now() } },
+                status: 'waiting',
+                holderId: null,
+                startedAt: null,
+                durationMs: null,
+                loserId: null,
+                scores: {},
+                round: 0,
+                updatedAt: Date.now()
+            });
+        } else {
+            const data = doc.data();
+            const patch = { players: Object.assign({}, data.players, { [playerId]: { name: nickname, joinedAt: (data.players && data.players[playerId] && data.players[playerId].joinedAt) || Date.now() } }) };
+            if (!data.hostId) patch.hostId = playerId;
+            roomRef.set(patch, { merge: true });
+        }
+        subscribeRoom();
+    }).catch(() => toast('연결 실패 - 인터넷 연결을 확인해주세요'));
+}
+
+function subscribeRoom(){
+    roomRef.onSnapshot(snap => {
+        const data = snap.data();
+        if (!data) return;
+        roomState = data;
+        renderAll();
+        watchExplosion();
+    }, () => toast('실시간 동기화 오류'));
+}
+
+function saveRoom(patch){
+    if (!roomRef) return;
+    roomRef.set(Object.assign({ updatedAt: Date.now() }, patch), { merge: true }).catch(() => toast('저장 실패'));
+}
+
+function getExplodeAt(){
+    if (!roomState.startedAt || !roomState.durationMs) return null;
+    const startedMs = roomState.startedAt.toMillis ? roomState.startedAt.toMillis() : roomState.startedAt;
+    return startedMs + roomState.durationMs;
+}
+function watchExplosion(){
+    clearTimeout(explodeTimer);
+    if (roomState.status !== 'playing') return;
+    const explodeAt = getExplodeAt();
+    if (!explodeAt) return; // 서버 시각이 아직 확정 안 됐으면(막 시작한 직후) 잠깐 기다림
+    const remain = explodeAt - Date.now();
+    if (remain <= 0) {
+        maybeExplode();
+    } else {
+        explodeTimer = setTimeout(maybeExplode, remain + 50);
+    }
+}
+function maybeExplode(){
+    if (!roomState || roomState.status !== 'playing') return;
+    const explodeAt = getExplodeAt();
+    if (!explodeAt || Date.now() < explodeAt) return;
+    const loser = roomState.holderId;
+    const active = activePlayerIds();
+    const winner = active.find(id => id !== loser);
+    const scores = Object.assign({}, roomState.scores || {});
+    if (winner) scores[winner] = (scores[winner] || 0) + 1;
+    saveRoom({ status: 'exploded', loserId: loser, scores });
+}
+
+function renderAll(){
+    if (!roomState) return;
+    const players = roomState.players || {};
+    const active = activePlayerIds();
+    const host = isHost();
+
+    document.getElementById('waiting-list').textContent =
+        `참가자: ${Object.keys(players).map(pid => players[pid].name + (pid === roomState.hostId ? ' (방장)' : '')).join(', ') || '없음'}`;
+
+    document.getElementById('player-cards').innerHTML = active.map(pid => {
+        const p = players[pid];
+        const isHolder = roomState.status === 'playing' && roomState.holderId === pid;
+        const score = (roomState.scores || {})[pid] || 0;
+        return `
+        <div class="player-card ${isHolder ? 'holder' : ''}">
+            <div class="p-emoji">${isHolder ? '😨' : '🙂'}</div>
+            <div class="p-name">${escapeHtml(p ? p.name : '?')}${pid===playerId ? ' (나)' : ''}</div>
+            <div class="p-score">🏆 ${score}승</div>
+            <div class="p-bomb">${isHolder ? '💣' : ''}</div>
+        </div>`;
+    }).join('');
+
+    const startBtn = document.getElementById('start-btn');
+    const gameArea = document.getElementById('game-area');
+    const resultBanner = document.getElementById('result-banner');
+    const hostHint = document.getElementById('host-hint');
+
+    if (roomState.status === 'waiting') {
+        gameArea.style.display = 'none';
+        resultBanner.classList.remove('show');
+        startBtn.style.display = host ? '' : 'none';
+        startBtn.disabled = active.length < 2;
+        hostHint.textContent = host
+            ? (active.length < 2 ? '⏳ 2명이 모여야 시작할 수 있어요' : '')
+            : '⏳ 방장이 게임을 시작하길 기다리는 중...';
+    } else if (roomState.status === 'playing') {
+        gameArea.style.display = 'block';
+        resultBanner.classList.remove('show');
+        startBtn.style.display = 'none';
+        hostHint.textContent = '';
+        const amHolder = roomState.holderId === playerId;
+        document.getElementById('pass-btn').disabled = !amHolder;
+        document.getElementById('status-text').textContent = amHolder
+            ? '💥 지금 폭탄이 나한테 있어요! 빨리 넘기세요!'
+            : '상대방이 폭탄을 들고 있어요... 대기하세요';
+    } else if (roomState.status === 'exploded') {
+        gameArea.style.display = 'none';
+        startBtn.style.display = 'none';
+        hostHint.textContent = '';
+        const loser = players[roomState.loserId];
+        document.getElementById('rb-title').textContent = `💥 펑!`;
+        document.getElementById('rb-sub').textContent = `${loser ? escapeHtml(loser.name) : '?'}님이 폭탄을 터뜨렸어요!`;
+        resultBanner.classList.add('show');
+    }
+}
+
+document.getElementById('start-btn').addEventListener('click', () => {
+    if (!isHost()) return;
+    const active = activePlayerIds();
+    if (active.length < 2) { toast('2명이 모여야 시작할 수 있어요'); return; }
+    const holder = active[Math.floor(Math.random() * active.length)];
+    const duration = MIN_MS + Math.random() * (MAX_MS - MIN_MS);
+    saveRoom({
+        status: 'playing',
+        holderId: holder,
+        startedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        durationMs: duration,
+        loserId: null,
+        round: (roomState.round || 0) + 1
+    });
+});
+
+document.getElementById('pass-btn').addEventListener('click', () => {
+    if (!roomState || roomState.status !== 'playing' || roomState.holderId !== playerId) return;
+    const active = activePlayerIds();
+    const other = active.find(id => id !== playerId);
+    if (!other) return;
+    saveRoom({ holderId: other });
+});
+
+document.getElementById('next-round-btn').addEventListener('click', () => {
+    if (!isHost()) { toast('다음 라운드는 방장만 시작할 수 있어요'); return; }
+    const active = activePlayerIds();
+    if (active.length < 2) { saveRoom({ status: 'waiting' }); return; }
+    const holder = active[Math.floor(Math.random() * active.length)];
+    const duration = MIN_MS + Math.random() * (MAX_MS - MIN_MS);
+    saveRoom({
+        status: 'playing',
+        holderId: holder,
+        startedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        durationMs: duration,
+        loserId: null,
+        round: (roomState.round || 0) + 1
+    });
+});
+
+document.getElementById('rename-btn').addEventListener('click', () => {
+    const name = prompt('새 닉네임을 입력하세요', nickname);
+    if (!name) return;
+    nickname = name;
+    localStorage.setItem(NAME_KEY, name);
+    const players = Object.assign({}, roomState.players || {});
+    players[playerId] = Object.assign({}, players[playerId], { name });
+    saveRoom({ players });
+});
+
+document.getElementById('leave-btn').addEventListener('click', () => {
+    if (!confirm('방을 나가고 방 코드를 다시 입력할까요?')) return;
+    leaveRoom(() => { localStorage.removeItem(ROOM_KEY); location.reload(); });
+});
+function leaveRoom(done){
+    if (!roomRef || !roomState) { if (done) done(); return; }
+    const remainingIds = Object.keys(roomState.players || {}).filter(id => id !== playerId);
+    const wasHost = roomState.hostId === playerId;
+    if (remainingIds.length === 0) {
+        roomRef.delete().catch(() => {}).finally(() => { if (done) done(); });
+        return;
+    }
+    const update = { [`players.${playerId}`]: firebase.firestore.FieldValue.delete() };
+    if (wasHost) update.hostId = remainingIds[Math.floor(Math.random() * remainingIds.length)];
+    roomRef.update(update).catch(() => {}).finally(() => { if (done) done(); });
+}
+
+document.getElementById('gate-submit').addEventListener('click', () => {
+    const name = document.getElementById('gate-name').value.trim();
+    const room = document.getElementById('gate-room').value.trim();
+    if (!name || !room) { toast('닉네임과 방 코드를 모두 입력해주세요'); return; }
+    joinRoom(room, name);
+});
+
+const savedRoom = localStorage.getItem(ROOM_KEY);
+const savedName = localStorage.getItem(NAME_KEY);
+if (savedRoom && savedName) {
+    document.getElementById('gate-name').value = savedName;
+    document.getElementById('gate-room').value = savedRoom;
+    joinRoom(savedRoom, savedName);
+}
+</script>
+<script src="../../assets/nav.js"></script>
+<script src="../../assets/maintenance.js"></script>
+<script src="../../assets/analytics-config.js"></script>
+<script src="../../assets/ga4.js"></script>
+<script src="../../assets/visitor-counter.js"></script>
+</body>
+</html>
