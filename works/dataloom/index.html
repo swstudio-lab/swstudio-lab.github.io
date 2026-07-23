@@ -931,6 +931,24 @@ function isBlankRow(row){
 function isTotalRow(row, firstHeader){
   return /^(합계|총계|소계|계|total|sum)$/i.test(String(row[firstHeader]??'').trim());
 }
+// "합계" 같은 글자가 안 적혀있어도(첫 칸이 비어있어도), 마지막 행의 숫자가
+// 그 위 행들을 다 더한 값이랑 거의 똑같으면 진짜 데이터가 아니라 합계 행으로 판단함
+function looksLikeBlankGrandTotalRow(json, headerCols){
+  if(json.length < 3) return false;
+  const lastRow = json[json.length-1];
+  const firstCol = headerCols[0].name;
+  if(String(lastRow[firstCol] ?? '').trim() !== '') return false; // 라벨이 있으면 대상 아님
+  const others = json.slice(0, -1);
+  for(const hc of headerCols){
+    const vals = others.map(r=>parseFloat(String(r[hc.name]).replace(/,/g,'')));
+    if(vals.some(v=>isNaN(v))) continue;
+    const sumOthers = vals.reduce((a,b)=>a+b,0);
+    const lastVal = parseFloat(String(lastRow[hc.name]).replace(/,/g,''));
+    if(isNaN(lastVal) || sumOthers===0) continue;
+    if(Math.abs(sumOthers - lastVal) < Math.max(1, sumOthers*0.001)) return true;
+  }
+  return false;
+}
 
 function handleFile(file){
   const reader = new FileReader();
@@ -960,6 +978,8 @@ function handleFile(file){
       }
       // 완전히 빈 줄, "합계/총계" 같은 집계 줄은 실제 데이터가 아니므로 제외
       json = json.filter(row => !isBlankRow(row) && !isTotalRow(row, headerCols[0].name));
+      // 라벨이 비어있어도 마지막 행이 "위 행들의 합"과 같으면 숨은 합계행으로 보고 제외
+      if(looksLikeBlankGrandTotalRow(json, headerCols)) json = json.slice(0, -1);
 
       if(json.length === 0){ alert('빈 파일이거나 읽을 데이터가 없어요.'); return; }
       state.headers = headerCols.map(h=>h.name);
