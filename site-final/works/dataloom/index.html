@@ -255,6 +255,22 @@
   .search-card{background:var(--panel);border:1px solid var(--gold-dim);border-radius:10px;padding:12px 14px;}
   .search-card-title{font-weight:700;font-size:13px;margin-bottom:6px;color:var(--gold);}
   .search-card-row{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:2px 0;}
+  .table-filter-chip{
+    display:flex; align-items:center; gap:8px; background:rgba(224,169,74,0.1); border:1px solid var(--gold-dim);
+    border-radius:8px; padding:8px 12px; margin-bottom:10px; font-size:12px; color:var(--muted);
+  }
+  .table-filter-chip b{ color:var(--gold); }
+  .table-filter-chip button{
+    margin-left:auto; background:none; border:1px solid var(--line); color:var(--muted);
+    border-radius:6px; padding:3px 8px; font-size:11px; cursor:pointer; font-family:inherit;
+  }
+  .table-filter-chip button:hover{ border-color:var(--danger); color:var(--danger); }
+  .chart-canvas-wrap canvas{ cursor:pointer; }
+  .flash-highlight{ animation: flashPulse 1.2s ease; }
+  @keyframes flashPulse{
+    0%{ box-shadow:0 0 0 3px rgba(224,169,74,0.8); }
+    100%{ box-shadow:0 0 0 0px rgba(224,169,74,0); }
+  }
   .search-empty{font-size:12px;color:var(--muted);padding:10px 2px;}
 
   .kw-list{display:flex;flex-wrap:wrap;gap:8px;}
@@ -447,6 +463,19 @@ function tooltipFormatCfg(){
     return `${ctx.dataset.label || ctx.label}: ${val}`;
   } } };
 }
+// 차트를 클릭하면 그 라벨로 표를 필터링(다시 누르면 해제). "기타"로 묶인 조각은 여러 값이 섞여있어 필터 대상에서 제외.
+function makeChartClickHandler(dsId, groupField, entries){
+  return (evt, elements, chart) => {
+    if(!elements.length) return;
+    const idx = elements[0].index;
+    if(entries && entries[idx] && entries[idx].isOther) return;
+    const label = chart.data.labels[idx];
+    const cur = tableFilter[dsId];
+    if(cur && cur.field === groupField && String(cur.value) === String(label)) delete tableFilter[dsId];
+    else tableFilter[dsId] = { field: groupField, value: label, label: label };
+    renderDashboard();
+  };
+}
 
 const RECIPES = {
   sales: { label:'판매', emoji:'📈',
@@ -557,6 +586,7 @@ const CALC_OPTIONS_BY_KIND = {
 ========================================================= */
 let state = { step:0, category:null, headers:[], rows:[], matched:{}, unmatched:[], fieldMap:{}, draftChecked:new Set(), datasets:[], checkedWidgets:new Set(), labelOverrides:{}, layout:{}, chartTypeOverrides:{}, roomCode:null };
 let hiddenWidgets = new Set();
+let tableFilter = {}; // dsId -> {field, value, label} — 차트/KPI 클릭으로 표를 필터링함. 저장/공유엔 포함 안 함(각자 보는 화면 취향이라)
 let chartInstances = {};
 
 /* =========================================================
@@ -931,6 +961,24 @@ function isBlankRow(row){
 function isTotalRow(row, firstHeader){
   return /^(합계|총계|소계|계|total|sum)$/i.test(String(row[firstHeader]??'').trim());
 }
+// "합계" 같은 글자가 안 적혀있어도(첫 칸이 비어있어도), 마지막 행의 숫자가
+// 그 위 행들을 다 더한 값이랑 거의 똑같으면 진짜 데이터가 아니라 합계 행으로 판단함
+function looksLikeBlankGrandTotalRow(json, headerCols){
+  if(json.length < 3) return false;
+  const lastRow = json[json.length-1];
+  const firstCol = headerCols[0].name;
+  if(String(lastRow[firstCol] ?? '').trim() !== '') return false; // 라벨이 있으면 대상 아님
+  const others = json.slice(0, -1);
+  for(const hc of headerCols){
+    const vals = others.map(r=>parseFloat(String(r[hc.name]).replace(/,/g,'')));
+    if(vals.some(v=>isNaN(v))) continue;
+    const sumOthers = vals.reduce((a,b)=>a+b,0);
+    const lastVal = parseFloat(String(lastRow[hc.name]).replace(/,/g,''));
+    if(isNaN(lastVal) || sumOthers===0) continue;
+    if(Math.abs(sumOthers - lastVal) < Math.max(1, sumOthers*0.001)) return true;
+  }
+  return false;
+}
 
 function handleFile(file){
   const reader = new FileReader();
@@ -960,6 +1008,8 @@ function handleFile(file){
       }
       // 완전히 빈 줄, "합계/총계" 같은 집계 줄은 실제 데이터가 아니므로 제외
       json = json.filter(row => !isBlankRow(row) && !isTotalRow(row, headerCols[0].name));
+      // 라벨이 비어있어도 마지막 행이 "위 행들의 합"과 같으면 숨은 합계행으로 보고 제외
+      if(looksLikeBlankGrandTotalRow(json, headerCols)) json = json.slice(0, -1);
 
       if(json.length === 0){ alert('빈 파일이거나 읽을 데이터가 없어요.'); return; }
       state.headers = headerCols.map(h=>h.name);
@@ -1439,6 +1489,7 @@ function removeDataset(dsId){
   [...state.checkedWidgets].forEach(id=>{ if(id.startsWith(dsId+'::')) state.checkedWidgets.delete(id); });
   [...hiddenWidgets].forEach(id=>{ if(id.startsWith(dsId+'::')) hiddenWidgets.delete(id); });
   Object.keys(state.labelOverrides).forEach(id=>{ if(id.startsWith(dsId+'::')) delete state.labelOverrides[id]; });
+  delete tableFilter[dsId];
   renderDashboard();
   syncRoomIfConnected();
 }
@@ -1508,7 +1559,13 @@ function renderDatasetSection(ds){
         <button class="eye-btn" data-toggle="${id}">👁</button>
         <button class="eye-btn" data-delete="${id}" title="완전히 삭제">🗑</button>
       </div>`;
-    gridItems += gridItemHtml(id, 'kpi', head, `<div class="kpi-value">${val}</div>`, hiddenWidgets.has(id), 'kpi-card');
+    // "최고/최저 OO" 같은 특정 값 하나를 가리키는 KPI는 클릭하면 표가 그 값으로 필터링되고,
+    // "총예산"처럼 전체를 더한 값은 특정 행을 가리키지 않으니 클릭하면 표로 스크롤만 해줌
+    const isGroupKpi = (k.calc==='maxGroupLabel' || k.calc==='minGroupLabel') && val !== '–';
+    const clickAttrs = isGroupKpi
+      ? `data-kpi-filter-ds="${dsId}" data-kpi-filter-field="${ds.fieldMap[k.groupBy] || k.groupBy}" data-kpi-filter-value="${val}"`
+      : `data-kpi-scroll-ds="${dsId}"`;
+    gridItems += gridItemHtml(id, 'kpi', head, `<div class="kpi-value" ${clickAttrs} style="cursor:pointer;">${val}</div>`, hiddenWidgets.has(id), 'kpi-card');
   });
 
   recipe.charts.forEach(c=>{
@@ -1522,7 +1579,7 @@ function renderDatasetSection(ds){
   const tableId = dsId+'::table:main';
   if(state.checkedWidgets.has(tableId) && recipe.table.length){
     gridItems += gridItemHtml(tableId, 'table', widgetHeadHtml(tableId, '📋 원본 표'),
-      `<div class="table-scroll"><table class="dash-table" id="mainTable-${dsId}"></table></div>`,
+      `<div id="tableFilterChip-${dsId}"></div><div class="table-scroll"><table class="dash-table" id="mainTable-${dsId}"></table></div>`,
       hiddenWidgets.has(tableId));
   }
 
@@ -1673,6 +1730,27 @@ function renderDashboard(){
     });
   });
 
+  // KPI 카드 클릭 — "최고/최저 OO"처럼 특정 값을 가리키는 카드는 표를 그 값으로 필터링
+  area.querySelectorAll('[data-kpi-filter-ds]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const dsId = el.dataset.kpiFilterDs, field = el.dataset.kpiFilterField, value = el.dataset.kpiFilterValue;
+      const cur = tableFilter[dsId];
+      if(cur && cur.field === field && String(cur.value) === String(value)) delete tableFilter[dsId];
+      else tableFilter[dsId] = { field, value, label: value };
+      renderDashboard();
+    });
+  });
+  // 그 외 KPI 카드 클릭 — 전체를 더한 값이라 필터링은 안 되니, 대신 표로 스크롤해서 보여줌
+  area.querySelectorAll('[data-kpi-scroll-ds]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const tableWidget = document.querySelector(`[data-widget="${el.dataset.kpiScrollDs}::table:main"]`);
+      if(!tableWidget){ return; }
+      tableWidget.scrollIntoView({behavior:'smooth', block:'center'});
+      tableWidget.classList.add('flash-highlight');
+      setTimeout(()=>tableWidget.classList.remove('flash-highlight'), 1200);
+    });
+  });
+
   // 데이터셋 삭제
   area.querySelectorAll('[data-remove-ds]').forEach(btn=>{
     btn.addEventListener('click', ()=> removeDataset(btn.dataset.removeDs));
@@ -1741,8 +1819,20 @@ function renderDashboard(){
     if(tableEl){
       const cols = recipe.table.map(f=>({field:f, header: fm[f]||f, label: state.labelOverrides[dsId+'::col:'+f] || recipe.fieldLabels[f]||f}));
       const cellHtml = v => (typeof v === 'number') ? fmtNum(v) : (v ?? '');
+      const filt = tableFilter[dsId];
+      const filteredRows = filt ? rows.filter(r => String(r[filt.field]) === String(filt.value)) : rows;
+
+      const chipEl = document.getElementById('tableFilterChip-'+dsId);
+      if(chipEl){
+        chipEl.innerHTML = filt
+          ? `<div class="table-filter-chip">🔍 필터: <b>${filt.label}</b> (${filteredRows.length}건) <button data-clear-filter="${dsId}">✕ 해제</button></div>`
+          : '';
+        const clearBtn = chipEl.querySelector('[data-clear-filter]');
+        if(clearBtn) clearBtn.addEventListener('click', ()=>{ delete tableFilter[dsId]; renderDashboard(); });
+      }
+
       tableEl.innerHTML = `<thead><tr>${cols.map((c,i)=>`<th contenteditable="true" spellcheck="false" data-widget-id="${dsId}::col:${recipe.table[i]}">${c.label}</th>`).join('')}</tr></thead>
-        <tbody>${rows.slice(0,200).map(r=>`<tr>${cols.map(c=>`<td>${cellHtml(r[c.header])}</td>`).join('')}</tr>`).join('')}</tbody>`;
+        <tbody>${filteredRows.slice(0,200).map(r=>`<tr>${cols.map(c=>`<td>${cellHtml(r[c.header])}</td>`).join('')}</tr>`).join('')}</tbody>`;
       tableEl.querySelectorAll('[data-widget-id]').forEach(bindLabelEdit);
     }
 
@@ -1788,6 +1878,7 @@ function renderDashboard(){
             backgroundColor: chartColors[i], borderWidth:0
           })) },
           options:{ responsive:true, maintainAspectRatio:false,
+            onClick: makeChartClickHandler(dsId, groupField, null),
             plugins:{ legend:{ display:true, labels:{color:'#8d8d96',font:{size:10}} }, datalabels: datalabelsFor('bar', false, labels.length), tooltip: tooltipFormatCfg() },
             scales:{ x:{ticks:{color:'#8d8d96',font:{size:10}},grid:{color:'#2a2a32'}}, y:{ticks:{color:'#8d8d96',font:{size:10}},grid:{color:'#2a2a32'}} } }
         });
@@ -1854,12 +1945,14 @@ function renderDashboard(){
       }
 
       const bg = entries.map((e,i)=> e.isOther ? MUTED_GRAY : chartColors[i % chartColors.length]);
+      const clickable = c.groupBy !== 'date_month'; // 월별로 묶인 차트는 원본 날짜값이랑 정확히 안 맞아서 필터 제외
       chartInstances[chartKey] = new Chart(canvas.getContext('2d'), {
         type: chartJsType,
         data: { labels: entries.map(e=>e.label), datasets:[{ label:c.label, data:entries.map(e=>e.value),
           backgroundColor: isDoughnut ? bg : bg[0],
           borderColor: bg[0], borderWidth: chosenType==='line'?2:0, tension:0.3 }] },
         options: { responsive:true, maintainAspectRatio:false, indexAxis: isHorizontal ? 'y' : 'x',
+          onClick: clickable ? makeChartClickHandler(dsId, groupField, entries) : undefined,
           plugins:{ legend:{ display: isDoughnut, labels:{color:'#8d8d96',font:{size:10}} }, datalabels: datalabelsFor(chosenType, isHorizontal, entries.length), tooltip: tooltipFormatCfg() },
           scales: isDoughnut ? {} : { x:{ticks:{color:'#8d8d96',font:{size:10}},grid:{color:'#2a2a32'}}, y:{ticks:{color:'#8d8d96',font:{size:10}},grid:{color:'#2a2a32'}} } }
       });
@@ -1943,6 +2036,7 @@ function renderDashboard(){
 function resetAll(){
   state = { step:0, category:null, headers:[], rows:[], matched:{}, unmatched:[], fieldMap:{}, draftChecked:new Set(), datasets:[], checkedWidgets:new Set(), labelOverrides:{}, layout:{}, chartTypeOverrides:{}, roomCode:null };
   hiddenWidgets = new Set();
+  tableFilter = {};
   Object.values(chartInstances).forEach(c=>c && c.destroy && c.destroy());
   chartInstances = {};
   Object.values(gridInstances).forEach(g=>{ try{ g.destroy(false); }catch(e){} });
