@@ -25,6 +25,7 @@
 <link rel="stylesheet" href="assets/style.css">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="assets/firebase-init.js"></script>
 <style>
     .reveal{ opacity:0; transform:translateY(14px); animation:revealIn .6s ease forwards; }
     @keyframes revealIn{ to{ opacity:1; transform:translateY(0); } }
@@ -257,16 +258,6 @@
 </footer>
 
 <script>
-const firebaseConfig = {
-    apiKey: "AIzaSyB0LRiIpNwdcCkS4Y5Dz4pP9zcLoadO2Xk",
-    authDomain: "taskflow-7cb3b.firebaseapp.com",
-    projectId: "taskflow-7cb3b",
-    storageBucket: "taskflow-7cb3b.firebasestorage.app",
-    messagingSenderId: "811223035419",
-    appId: "1:811223035419:web:08b972916827147bc2d2be"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
 
 function svgIcon(inner, size){
     size = size || 30;

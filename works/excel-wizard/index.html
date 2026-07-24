@@ -733,14 +733,8 @@ document.getElementById('scenario-select').addEventListener('change', e => {
 });
 document.getElementById('copy-btn').addEventListener('click', async () => {
     const text = document.getElementById('formula-out').textContent;
-    try { await navigator.clipboard.writeText(text); toast('복사했어요!'); }
-    catch(e) {
-        const ta = document.createElement('textarea');
-        ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
-        document.body.appendChild(ta); ta.select();
-        try { document.execCommand('copy'); toast('복사했어요!'); } catch(e2) { toast('복사 실패'); }
-        document.body.removeChild(ta);
-    }
+    const ok = await copyTextToClipboard(text);
+    toast(ok ? '복사했어요!' : '복사 실패');
 });
 
 function renderPlatformSwitch(){
@@ -762,6 +756,7 @@ renderScenarioSelect();
 renderScenarioForm();
 applySectionState();
 </script>
+<script src="../../assets/clipboard-util.js"></script>
 <script src="../../assets/nav.js"></script>
 <script src="../../assets/maintenance.js"></script>
 <script src="../../assets/analytics-config.js"></script>

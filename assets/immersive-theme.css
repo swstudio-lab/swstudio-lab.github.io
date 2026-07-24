@@ -1,0 +1,16 @@
+/*
+  "몰입형 독립 페이지"(DataLoom, AI 게임 빌더, 문서 이미지 도구 등)가 공유하는
+  다크+골드 테마 색상/폰트 변수예요. 사이트 공통 네비게이션이 없는, 자체적인
+  화면 톤을 가진 도구 페이지들에서 이 파일을 불러다 씀 (일반 사이트 페이지의
+  assets/style.css 와는 별개 — 그쪽은 밝은 톤의 사이트 공통 레이아웃용).
+
+  같은 :root 변수가 여러 파일에 각자 복붙돼있던 걸 여기 하나로 통합함
+  (2026-07 리팩토링).
+*/
+:root{
+  --bg:#0b0b0e; --panel:#15151a; --panel-2:#1c1c22; --line:#2a2a32;
+  --gold:#e0a94a; --gold-dim:#8a6b30; --teal:#5fc7bd; --ink:#efece4; --muted:#8d8d96; --danger:#d9705f;
+  --mono:'JetBrains Mono','Courier New',monospace; --display:'Space Grotesk','Pretendard',sans-serif; --body:'Noto Sans KR',sans-serif;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}

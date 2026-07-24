@@ -14,6 +14,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="../../assets/firebase-init.js"></script>
 <style>
     .wrap{ max-width:1080px; margin:0 auto; padding:0 20px 100px; }
     .tool-header{ max-width:1080px; margin:0 auto; padding:56px 20px 28px; text-align:center; }
@@ -359,25 +360,10 @@ const STORAGE_KEY = 'todoWbsProjects_v3';
 const COL_KEY = 'todoWbsColumns_v1';
 const TEAM_CODE_KEY = 'taskflowTeamCode';
 
-// ---- Firebase 설정 (본인 Firebase 프로젝트 값으로 교체하세요) ----
-// Firebase 콘솔 > 프로젝트 설정 > 일반 > "내 앱"에서 나오는 firebaseConfig 값을 그대로 붙여넣으면 됩니다.
-const firebaseConfig = {
-    apiKey: "AIzaSyB0LRiIpNwdcCkS4Y5Dz4pP9zcLoadO2Xk",
-    authDomain: "taskflow-7cb3b.firebaseapp.com",
-    projectId: "taskflow-7cb3b",
-    storageBucket: "taskflow-7cb3b.firebasestorage.app",
-    messagingSenderId: "811223035419",
-    appId: "1:811223035419:web:08b972916827147bc2d2be"
-};
-let cloudEnabled = false;
+// ---- Firebase 설정 — assets/firebase-init.js 에서 공용으로 불러옴 ----
+let cloudEnabled = !!window.db;
 let teamRef = null;
 let cloudSaveTimer = null;
-try {
-    if (firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith('여기에')) {
-        firebase.initializeApp(firebaseConfig);
-        cloudEnabled = true;
-    }
-} catch(e) { cloudEnabled = false; }
 
 const PRIORITIES = ['낮음', '보통', '높음', '긴급'];
 const STATUSES = ['대기', '진행중', '완료', '보류'];
@@ -888,20 +874,8 @@ function buildRows(project){
 
 document.getElementById('copy-text-btn').addEventListener('click', async () => {
     const text = buildTextOutline(currentProject());
-    try {
-        await navigator.clipboard.writeText(text);
-        toast('텍스트가 복사됐어요!');
-    } catch(e) {
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        try { document.execCommand('copy'); toast('텍스트가 복사됐어요!'); }
-        catch(e2) { toast('복사에 실패했어요'); }
-        document.body.removeChild(ta);
-    }
+    const ok = await copyTextToClipboard(text);
+    toast(ok ? '텍스트가 복사됐어요!' : '복사에 실패했어요');
 });
 
 document.getElementById('xlsx-btn').addEventListener('click', () => {
@@ -988,7 +962,7 @@ async function enterTeam(code){
     document.getElementById('gate-overlay').style.display = 'none';
     if (!cloudEnabled) { toast('먼저 Firebase 설정을 완료해주세요'); return; }
     cryptoKey = await deriveKey(code);
-    const db = firebase.firestore();
+    const db = window.db;
     teamRef = db.collection('taskflowTeams').doc(code);
     document.getElementById('team-toolbar').style.display = 'flex';
     const statusEl = document.getElementById('team-status');
@@ -1026,6 +1000,7 @@ document.getElementById('team-change-btn').addEventListener('click', () => {
 renderProject();
 initGate();
 </script>
+<script src="../../assets/clipboard-util.js"></script>
 <script src="../../assets/nav.js"></script>
 <script src="../../assets/maintenance.js"></script>
 <script src="../../assets/analytics-config.js"></script>

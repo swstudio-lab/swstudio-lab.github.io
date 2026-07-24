@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DocFlow — 문서 이미지 전처리</title>
+<link rel="icon" type="image/svg+xml" href="../../assets/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../../assets/favicon-32.png">
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<meta name="description" content="문서 이미지를 업로드하고 필요한 처리만 체크하면 한 번에 정리해주는 도구. 서버 업로드 없이 브라우저 안에서만 처리돼요.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=JetBrains+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/immersive-theme.css">
+<style>
+  body{
+    background:radial-gradient(circle at 20% -10%, rgba(224,169,74,0.08), transparent 40%), var(--bg);
+    color:var(--ink); font-family:var(--body); min-height:100vh; padding:32px 16px 80px;
+  }
+  .wrap{max-width:1000px;margin:0 auto;}
+  .top{margin-bottom:28px;}
+  .top-title{font-family:var(--display);font-size:22px;font-weight:800;color:var(--gold);}
+  .top-sub{font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.7;}
+  .badge-local{
+    display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--teal);
+    border:1px solid rgba(95,199,189,0.35);background:rgba(95,199,189,0.08);
+    border-radius:20px;padding:3px 10px;margin-top:10px;
+  }
+
+  .section{margin-bottom:26px;}
+  .section-title{font-size:14px;font-weight:700;color:var(--ink);margin-bottom:10px;}
+
+  /* 프리셋 */
+  .preset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;}
+  .preset-card{
+    background:var(--panel);border:1.5px solid var(--line);border-radius:14px;padding:16px 14px;
+    text-align:center;cursor:pointer;transition:all .15s ease;
+  }
+  .preset-card:hover:not(.locked){border-color:var(--gold-dim);background:var(--panel-2);}
+  .preset-card.selected{border-color:var(--gold);background:rgba(224,169,74,0.08);}
+  .preset-card.locked{opacity:0.4;cursor:default;}
+  .preset-emoji{font-size:24px;margin-bottom:8px;}
+  .preset-name{font-size:12.5px;font-weight:600;}
+  .preset-tag{font-size:10px;color:var(--muted);margin-top:4px;}
+
+  /* 업로드 */
+  .drop-zone{
+    border:1.5px dashed var(--line);border-radius:14px;padding:32px 20px;text-align:center;
+    cursor:pointer;transition:border-color .15s ease;background:var(--panel);
+  }
+  .drop-zone:hover, .drop-zone.dragover{border-color:var(--gold-dim);}
+  .drop-zone-icon{font-size:30px;margin-bottom:8px;}
+  .drop-zone-text{font-size:13px;color:var(--muted);}
+  .file-badge{
+    display:none;align-items:center;gap:8px;background:var(--panel-2);border:1px solid var(--line);
+    border-radius:10px;padding:8px 12px;font-size:12px;color:var(--muted);margin-top:10px;
+  }
+  .file-badge.show{display:flex;}
+
+  /* 체크박스 */
+  .check-group{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px 14px;margin-bottom:10px;}
+  .check-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);cursor:pointer;}
+  .check-row:last-child{border-bottom:none;}
+  .check-row.disabled{cursor:default;opacity:0.4;}
+  .box{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--line);flex-shrink:0;position:relative;}
+  .box.on{background:var(--gold);border-color:var(--gold);}
+  .box.on::after{content:'✓';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;color:#0b0b0e;font-weight:700;}
+  .check-name{font-size:13px;font-weight:600;}
+  .check-desc{font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.5;}
+  .check-soon{margin-left:auto;font-size:10px;color:var(--muted);border:1px solid var(--line);border-radius:12px;padding:2px 8px;flex-shrink:0;}
+
+  /* 저장형식 */
+  .format-row{display:flex;gap:8px;flex-wrap:wrap;}
+  .format-btn{
+    background:var(--panel);border:1.5px solid var(--line);border-radius:10px;padding:9px 18px;
+    font-size:12.5px;cursor:pointer;color:var(--ink);font-family:inherit;
+  }
+  .format-btn.selected{border-color:var(--gold);background:rgba(224,169,74,0.1);color:var(--gold);}
+
+  .btn-primary{
+    width:100%;background:var(--gold);color:#0b0b0e;font-weight:700;padding:14px;border-radius:12px;
+    font-size:14px;cursor:pointer;border:none;font-family:inherit;margin-top:6px;
+  }
+  .btn-primary:disabled{opacity:0.35;cursor:not-allowed;}
+  .btn-ghost{
+    background:none;border:1px solid var(--line);color:var(--muted);border-radius:10px;
+    padding:10px 16px;font-size:12.5px;cursor:pointer;font-family:inherit;
+  }
+
+  /* 미리보기 */
+  .preview-wrap{display:none;margin-top:26px;}
+  .preview-wrap.show{display:block;}
+  .preview-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media(max-width:560px){ .preview-grid{grid-template-columns:1fr;} }
+  .preview-box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center;}
+  .preview-label{font-size:11px;color:var(--muted);margin-bottom:8px;}
+  .preview-box img, .preview-box canvas{max-width:100%;border-radius:8px;background:
+    repeating-conic-gradient(#2a2a32 0% 25%, #1c1c22 0% 50%) 50% / 16px 16px;}
+
+  .warning-box{
+    background:rgba(217,112,95,0.08);border:1px solid var(--danger);border-radius:10px;
+    padding:10px 14px;margin-top:14px;font-size:12px;color:#f0a293;display:none;
+  }
+  .warning-box.show{display:block;}
+
+  .spinner-line{display:none;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-top:10px;}
+  .spinner-line.show{display:flex;}
+  .spinner-dot{width:8px;height:8px;border-radius:50%;background:var(--gold);animation:pulse 1s ease infinite;}
+  @keyframes pulse{0%,100%{opacity:0.3;} 50%{opacity:1;}}
+
+  footer{text-align:center;font-size:11px;color:var(--muted);opacity:0.6;margin-top:60px;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="top">
+    <div class="top-title">📄 DocFlow</div>
+    <div class="top-sub">문서 이미지를 업로드하고 필요한 처리만 체크하면 한 번에 정리해드려요.</div>
+    <div class="badge-local">🔒 이 페이지에서 하는 모든 처리는 브라우저 안에서만 이뤄져요 — 서버로 업로드되지 않아요</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">무엇을 하시겠어요?</div>
+    <div class="preset-grid" id="presetGrid"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">1. 이미지 업로드</div>
+    <div class="drop-zone" id="dropZone">
+      <div class="drop-zone-icon">📁</div>
+      <div class="drop-zone-text">클릭하거나 파일을 끌어다 놓으세요 (JPG, PNG)</div>
+      <input type="file" id="fileInput" accept="image/*" style="display:none;">
+    </div>
+    <div class="file-badge" id="fileBadge"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">2. 처리할 항목 선택</div>
+    <div id="sectionsWrap"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">3. 저장 형식</div>
+    <div class="format-row" id="formatRow"></div>
+  </div>
+
+  <button class="btn-primary" id="processBtn" disabled>처리하기</button>
+  <div class="spinner-line" id="spinnerLine"><span class="spinner-dot"></span> 처리하는 중이에요...</div>
+  <div class="warning-box" id="warningBox"></div>
+
+  <div class="preview-wrap" id="previewWrap">
+    <div class="preview-grid">
+      <div class="preview-box">
+        <div class="preview-label">원본</div>
+        <img id="originalPreview">
+      </div>
+      <div class="preview-box">
+        <div class="preview-label">결과</div>
+        <canvas id="resultPreview"></canvas>
+      </div>
+    </div>
+    <button class="btn-primary" id="downloadBtn" style="margin-top:14px;">⬇ 다운로드</button>
+  </div>
+
+  <footer>DocFlow · 지금은 일부 기능만 열려있어요, 계속 추가할 예정이에요</footer>
+</div>
+
+<script src="../../assets/vendor/jspdf.umd.min.js"></script>
+<script src="../../assets/clipboard-util.js"></script>
+<script>
+/* ---------------------------------------------------------
+   데이터 정의
+--------------------------------------------------------- */
+const SECTIONS = [
+  { title:'이미지 보정', items:[
+    {id:'deskew', name:'기울기 자동 보정', desc:'기울어진 문서를 똑바로 맞춰요.', ready:false},
+    {id:'trimMargin', name:'여백 자동 제거', desc:'문서 바깥의 불필요한 여백을 잘라내요.', ready:true},
+    {id:'denoise', name:'노이즈 제거', desc:'스캔할 때 생기는 잡티·얼룩을 부드럽게 줄여요.', ready:true},
+    {id:'autoCrop', name:'문서 자동 크롭', desc:'사진 속 종이 영역만 찾아서 잘라내요.', ready:false},
+  ]},
+  { title:'문서 정리', items:[
+    {id:'removeLines', name:'표 선 제거', desc:'표의 테두리 선을 지워요.', ready:false},
+    {id:'removeBg', name:'배경 제거', desc:'문서 주변의 복잡한 배경을 지워요.', ready:false},
+    {id:'grayscale', name:'흑백 변환', desc:'컬러 이미지를 흑백으로 바꿔요.', ready:true},
+    {id:'contrast', name:'명암 보정', desc:'밝고 어두운 부분의 대비를 자동으로 맞춰요.', ready:true},
+    {id:'sharpen', name:'선명도 향상', desc:'살짝 흐릿한 이미지를 또렷하게 만들어요.', ready:true},
+  ]},
+  { title:'객체 추출', items:[
+    {id:'stampExtract', name:'도장 추출', desc:'빨간 도장만 배경 투명하게 오려내요.', ready:true},
+    {id:'signatureExtract', name:'서명 추출', desc:'서명 영역만 오려내요.', ready:false},
+  ]},
+];
+
+const PRESETS = [
+  {id:'stamp', name:'도장 만들기', emoji:'🔴', checks:['trimMargin','denoise','stampExtract'], format:'png', ready:true},
+  {id:'report', name:'보고서 삽입', emoji:'📋', checks:['trimMargin','sharpen','contrast'], format:'jpg', ready:true},
+  {id:'signature', name:'서명 만들기', emoji:'✍️', checks:['denoise','signatureExtract','contrast'], format:'png', ready:false},
+  {id:'ocr', name:'OCR 최적화', emoji:'🔍', checks:['deskew','trimMargin','denoise','removeLines','grayscale'], format:'png', ready:false},
+  {id:'archive', name:'문서 보관', emoji:'📁', checks:['deskew','denoise'], format:'pdf', ready:false},
+  {id:'custom', name:'직접 선택하기', emoji:'🎛️', checks:[], format:null, ready:true},
+];
+
+const FORMATS = [
+  {id:'png', name:'PNG (투명)'},
+  {id:'jpg', name:'JPG'},
+  {id:'webp', name:'WEBP'},
+  {id:'pdf', name:'PDF'},
+];
+
+const ALL_ITEMS = SECTIONS.flatMap(s=>s.items);
+const ITEM_MAP = Object.fromEntries(ALL_ITEMS.map(i=>[i.id,i]));
+
+/* ---------------------------------------------------------
+   상태
+--------------------------------------------------------- */
+let checked = new Set();
+let selectedFormat = 'png';
+let selectedPreset = null;
+let originalImage = null;
+let resultCanvas = null;
+
+/* ---------------------------------------------------------
+   렌더링
+--------------------------------------------------------- */
+function renderPresets(){
+  const box = document.getElementById('presetGrid');
+  box.innerHTML = '';
+  PRESETS.forEach(p=>{
+    const el = document.createElement('div');
+    el.className = 'preset-card' + (!p.ready ? ' locked' : '') + (selectedPreset===p.id?' selected':'');
+    el.innerHTML = `
+      <div class="preset-emoji">${p.emoji}</div>
+      <div class="preset-name">${p.name}</div>
+      <div class="preset-tag">${p.ready ? (p.checks.length ? p.checks.length+'개 자동 체크' : '자유롭게 선택') : '준비중'}</div>
+    `;
+    if(p.ready){
+      el.onclick = ()=>{
+        selectedPreset = p.id;
+        if(p.checks.length){
+          checked = new Set(p.checks.filter(id=>ITEM_MAP[id]?.ready));
+        }
+        if(p.format) selectedFormat = p.format;
+        renderPresets(); renderSections(); renderFormats();
+      };
+    }
+    box.appendChild(el);
+  });
+}
+
+function renderSections(){
+  const wrap = document.getElementById('sectionsWrap');
+  wrap.innerHTML = '';
+  SECTIONS.forEach(sec=>{
+    const group = document.createElement('div');
+    group.innerHTML = `<div style="font-size:11.5px;color:var(--muted);margin:12px 0 6px;">${sec.title}</div>`;
+    const list = document.createElement('div');
+    list.className = 'check-group';
+    sec.items.forEach(item=>{
+      const row = document.createElement('div');
+      row.className = 'check-row' + (!item.ready ? ' disabled' : '');
+      const on = checked.has(item.id);
+      row.innerHTML = `
+        <div class="box ${on?'on':''}"></div>
+        <div style="flex:1;">
+          <div class="check-name">${item.name}</div>
+          <div class="check-desc">${item.desc}</div>
+        </div>
+        ${!item.ready ? '<div class="check-soon">준비중</div>' : ''}
+      `;
+      if(item.ready){
+        row.onclick = ()=>{
+          selectedPreset = null; // 수동으로 건드리면 프리셋 선택 해제
+          if(checked.has(item.id)) checked.delete(item.id);
+          else checked.add(item.id);
+          renderSections(); renderPresets();
+          updateProcessBtn();
+        };
+      }
+      list.appendChild(row);
+    });
+    group.appendChild(list);
+    wrap.appendChild(group);
+  });
+}
+
+function renderFormats(){
+  const box = document.getElementById('formatRow');
+  box.innerHTML = '';
+  FORMATS.forEach(f=>{
+    const btn = document.createElement('button');
+    btn.className = 'format-btn' + (selectedFormat===f.id?' selected':'');
+    btn.textContent = f.name;
+    btn.onclick = ()=>{ selectedFormat = f.id; renderFormats(); };
+    box.appendChild(btn);
+  });
+}
+
+function updateProcessBtn(){
+  document.getElementById('processBtn').disabled = !originalImage || checked.size===0;
+}
+
+/* ---------------------------------------------------------
+   업로드
+--------------------------------------------------------- */
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('click', ()=>fileInput.click());
+dropZone.addEventListener('dragover', e=>{ e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', ()=> dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e=>{
+  e.preventDefault(); dropZone.classList.remove('dragover');
+  if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e=>{
+  if(e.target.files[0]) loadFile(e.target.files[0]);
+});
+
+function loadFile(file){
+  if(!file.type.startsWith('image/')){ alert('이미지 파일만 올릴 수 있어요.'); return; }
+  const reader = new FileReader();
+  reader.onload = e=>{
+    const img = new Image();
+    img.onload = ()=>{
+      originalImage = img;
+      document.getElementById('originalPreview').src = e.target.result;
+      const badge = document.getElementById('fileBadge');
+      badge.classList.add('show');
+      badge.textContent = `📄 ${file.name} · ${img.width}×${img.height}`;
+      updateProcessBtn();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+/* ---------------------------------------------------------
+   이미지 처리 함수들 (전부 브라우저 안에서, Canvas API로만)
+--------------------------------------------------------- */
+function cloneCanvasFromImage(img){
+  const c = document.createElement('canvas');
+  c.width = img.width; c.height = img.height;
+  c.getContext('2d').drawImage(img, 0, 0);
+  return c;
+}
+
+// 여백 자동 제거 — 그냥 어두운 픽셀 하나만 있어도 "콘텐츠"로 치면 남은 잡티 한두 개에도 여백 감지가 틀어지므로,
+// 한 줄(행/열)에 일정 개수 이상 어두운 픽셀이 몰려있어야 그 줄부터 콘텐츠가 시작한다고 판단함
+function autoTrimMargins(canvas){
+  const ctx = canvas.getContext('2d');
+  const { width, height } = canvas;
+  const d = ctx.getImageData(0,0,width,height).data;
+  const threshold = 245;
+  const minDarkPerLine = Math.max(4, Math.round(Math.min(width,height) * 0.02)); // 잡티 무시용 최소 기준 (노이즈 제거를 안 켜도 어느정도 버티게 넉넉히 잡음)
+
+  function isDark(x,y){
+    const i=(y*width+x)*4;
+    return (0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]) < threshold;
+  }
+  function countDarkInRow(y){ let c=0; for(let x=0;x<width;x++) if(isDark(x,y)) c++; return c; }
+  function countDarkInCol(x){ let c=0; for(let y=0;y<height;y++) if(isDark(x,y)) c++; return c; }
+
+  let top=0, bottom=height-1, left=0, right=width-1;
+  while(top<bottom && countDarkInRow(top) < minDarkPerLine) top++;
+  while(bottom>top && countDarkInRow(bottom) < minDarkPerLine) bottom--;
+  while(left<right && countDarkInCol(left) < minDarkPerLine) left++;
+  while(right>left && countDarkInCol(right) < minDarkPerLine) right--;
+
+  if(right<=left || bottom<=top) return canvas; // 콘텐츠를 못 찾으면 원본 유지
+  const pad = 10;
+  const minX=Math.max(0,left-pad), minY=Math.max(0,top-pad);
+  const maxX=Math.min(width-1,right+pad), maxY=Math.min(height-1,bottom+pad);
+  const newW=maxX-minX+1, newH=maxY-minY+1;
+  const out=document.createElement('canvas');
+  out.width=newW; out.height=newH;
+  out.getContext('2d').drawImage(canvas, minX,minY,newW,newH, 0,0,newW,newH);
+  return out;
+}
+
+// 노이즈 제거 — 3x3 중앙값 필터 (소금-후추 노이즈에 특히 효과적)
+function denoiseMedian(canvas){
+  const ctx = canvas.getContext('2d');
+  const { width, height } = canvas;
+  const src = ctx.getImageData(0,0,width,height);
+  const dst = ctx.createImageData(width,height);
+  const sd = src.data, dd = dst.data;
+  const idx = (x,y)=>(y*width+x)*4;
+  for(let y=0;y<height;y++){
+    for(let x=0;x<width;x++){
+      const i = idx(x,y);
+      if(x===0||y===0||x===width-1||y===height-1){
+        dd[i]=sd[i]; dd[i+1]=sd[i+1]; dd[i+2]=sd[i+2]; dd[i+3]=sd[i+3];
+        continue;
+      }
+      for(let c=0;c<3;c++){
+        const vals=[];
+        for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++) vals.push(sd[idx(x+dx,y+dy)+c]);
+        vals.sort((a,b)=>a-b);
+        dd[i+c]=vals[4];
+      }
+      dd[i+3]=sd[i+3];
+    }
+  }
+  ctx.putImageData(dst,0,0);
+  return canvas;
+}
+
+// 흑백 변환
+function toGrayscale(canvas){
+  const ctx = canvas.getContext('2d');
+  const { width, height } = canvas;
+  const imgData = ctx.getImageData(0,0,width,height);
+  const d = imgData.data;
+  for(let i=0;i<d.length;i+=4){
+    const lum = 0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
+    d[i]=d[i+1]=d[i+2]=lum;
+  }
+  ctx.putImageData(imgData,0,0);
+  return canvas;
+}
+
+// 명암 보정 — 가장 밝은/어두운 값을 0~255로 늘려서 대비를 살림
+function autoContrast(canvas){
+  const ctx = canvas.getContext('2d');
+  const { width, height } = canvas;
+  const imgData = ctx.getImageData(0,0,width,height);
+  const d = imgData.data;
+  let min=255, max=0;
+  for(let i=0;i<d.length;i+=4){
+    const lum = 0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
+    if(lum<min)min=lum; if(lum>max)max=lum;
+  }
+  const range = (max-min) || 1;
+  for(let i=0;i<d.length;i+=4){
+    for(let c=0;c<3;c++) d[i+c] = Math.max(0, Math.min(255, ((d[i+c]-min)/range)*255));
+  }
+  ctx.putImageData(imgData,0,0);
+  return canvas;
+}
+
+// 선명도 향상 — 샤픈 컨볼루션 커널
+function sharpen(canvas){
+  const ctx = canvas.getContext('2d');
+  const { width, height } = canvas;
+  const src = ctx.getImageData(0,0,width,height);
+  const dst = ctx.createImageData(width,height);
+  const sd=src.data, dd=dst.data;
+  const kernel = [0,-1,0, -1,5,-1, 0,-1,0];
+  const idx=(x,y)=>(y*width+x)*4;
+  for(let y=0;y<height;y++){
+    for(let x=0;x<width;x++){
+      const i=idx(x,y);
+      if(x===0||y===0||x===width-1||y===height-1){
+        dd[i]=sd[i]; dd[i+1]=sd[i+1]; dd[i+2]=sd[i+2]; dd[i+3]=sd[i+3];
+        continue;
+      }
+      for(let c=0;c<3;c++){
+        let sum=0, k=0;
+        for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++) sum += sd[idx(x+dx,y+dy)+c]*kernel[k++];
+        dd[i+c]=Math.max(0,Math.min(255,sum));
+      }
+      dd[i+3]=sd[i+3];
+    }
+  }
+  ctx.putImageData(dst,0,0);
+  return canvas;
+}
+
+// 도장 추출 — 붉은 계열 픽셀만 남기고 나머지는 투명 처리 후, 그 영역만 잘라냄
+function extractStamp(canvas){
+  const ctx = canvas.getContext('2d');
+  const { width, height } = canvas;
+  const imgData = ctx.getImageData(0,0,width,height);
+  const d = imgData.data;
+  const mask = new Uint8Array(width*height);
+  let minX=width, minY=height, maxX=-1, maxY=-1;
+  for(let y=0;y<height;y++){
+    for(let x=0;x<width;x++){
+      const p = y*width+x, i=p*4;
+      const r=d[i], g=d[i+1], b=d[i+2];
+      const isRed = r > 100 && (r-g) > 35 && (r-b) > 35;
+      if(isRed){
+        mask[p]=1;
+        if(x<minX)minX=x; if(x>maxX)maxX=x;
+        if(y<minY)minY=y; if(y>maxY)maxY=y;
+      }
+    }
+  }
+  if(maxX < 0) return { canvas, warning: '🔴 빨간 도장을 찾지 못했어요. 도장 추출 없이 지금까지 처리한 결과만 반영했어요.' };
+  for(let y=0;y<height;y++){
+    for(let x=0;x<width;x++){
+      if(!mask[y*width+x]) d[(y*width+x)*4+3]=0;
+    }
+  }
+  ctx.putImageData(imgData,0,0);
+  const pad=8;
+  minX=Math.max(0,minX-pad); minY=Math.max(0,minY-pad);
+  maxX=Math.min(width-1,maxX+pad); maxY=Math.min(height-1,maxY+pad);
+  const newW=maxX-minX+1, newH=maxY-minY+1;
+  const out=document.createElement('canvas');
+  out.width=newW; out.height=newH;
+  out.getContext('2d').drawImage(canvas, minX,minY,newW,newH, 0,0,newW,newH);
+  return { canvas: out, warning: null };
+}
+
+const PROCESSORS = {
+  trimMargin: autoTrimMargins,
+  denoise: denoiseMedian,
+  grayscale: toGrayscale,
+  contrast: autoContrast,
+  sharpen: sharpen,
+  stampExtract: extractStamp,
+};
+// 항상 이 순서로 적용 (체크 안 한 건 건너뜀) — 노이즈부터 지워야 여백 경계를 정확히 찾을 수 있어서 순서가 중요함
+const PROCESS_ORDER = ['denoise','trimMargin','grayscale','contrast','sharpen','stampExtract'];
+
+/* ---------------------------------------------------------
+   처리 실행
+--------------------------------------------------------- */
+document.getElementById('processBtn').addEventListener('click', async ()=>{
+  if(!originalImage) return;
+  document.getElementById('spinnerLine').classList.add('show');
+  document.getElementById('warningBox').classList.remove('show');
+  document.getElementById('processBtn').disabled = true;
+  await new Promise(r=>setTimeout(r, 30)); // 스피너가 실제로 한 번 그려지도록 살짝 여유를 둠
+
+  let canvas = cloneCanvasFromImage(originalImage);
+  const warnings = [];
+
+  for(const key of PROCESS_ORDER){
+    if(!checked.has(key)) continue;
+    const fn = PROCESSORS[key];
+    const result = fn(canvas);
+    if(result instanceof HTMLCanvasElement){
+      canvas = result;
+    } else {
+      canvas = result.canvas;
+      if(result.warning) warnings.push(result.warning);
+    }
+    await new Promise(r=>setTimeout(r, 0)); // 각 단계 사이에 화면이 멈춘 것처럼 안 보이게
+  }
+
+  resultCanvas = canvas;
+  const resultEl = document.getElementById('resultPreview');
+  resultEl.width = canvas.width; resultEl.height = canvas.height;
+  resultEl.getContext('2d').drawImage(canvas, 0, 0);
+
+  document.getElementById('previewWrap').classList.add('show');
+  document.getElementById('previewWrap').scrollIntoView({behavior:'smooth', block:'nearest'});
+  if(warnings.length){
+    document.getElementById('warningBox').textContent = warnings.join(' ');
+    document.getElementById('warningBox').classList.add('show');
+  }
+  document.getElementById('spinnerLine').classList.remove('show');
+  document.getElementById('processBtn').disabled = false;
+});
+
+/* ---------------------------------------------------------
+   다운로드
+--------------------------------------------------------- */
+document.getElementById('downloadBtn').addEventListener('click', ()=>{
+  if(!resultCanvas) return;
+  if(selectedFormat === 'pdf'){
+    const { jsPDF } = window.jspdf;
+    const imgData = resultCanvas.toDataURL('image/jpeg', 0.92);
+    const pdf = new jsPDF({
+      orientation: resultCanvas.width > resultCanvas.height ? 'landscape' : 'portrait',
+      unit: 'px',
+      format: [resultCanvas.width, resultCanvas.height]
+    });
+    pdf.addImage(imgData, 'JPEG', 0, 0, resultCanvas.width, resultCanvas.height);
+    pdf.save('DocFlow_결과.pdf');
+    return;
+  }
+  const mimeMap = { png:'image/png', jpg:'image/jpeg', webp:'image/webp' };
+  const extMap = { png:'png', jpg:'jpg', webp:'webp' };
+  resultCanvas.toBlob(blob=>{
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `DocFlow_결과.${extMap[selectedFormat]}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, mimeMap[selectedFormat], selectedFormat==='jpg' ? 0.92 : undefined);
+});
+
+/* init */
+renderPresets();
+renderSections();
+renderFormats();
+</script>
+<script src="../../assets/analytics-config.js"></script>
+<script src="../../assets/ga4.js"></script>
+<script src="../../assets/visitor-counter.js"></script>
+</body>
+</html>

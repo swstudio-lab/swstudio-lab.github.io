@@ -7,22 +7,8 @@
 <link rel="icon" type="image/svg+xml" href="../../assets/favicon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="../../assets/favicon-32.png">
 <link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="stylesheet" href="../../assets/immersive-theme.css">
 <style>
-  :root{
-    --bg: #0b0b0e;
-    --panel: #15151a;
-    --panel-2: #1c1c22;
-    --line: #2a2a32;
-    --gold: #e0a94a;
-    --gold-dim: #8a6b30;
-    --teal: #5fc7bd;
-    --ink: #efece4;
-    --muted: #8d8d96;
-    --danger: #d9705f;
-    --mono: 'JetBrains Mono', 'Courier New', monospace;
-    --display: 'Space Grotesk', 'Pretendard', sans-serif;
-    --body: 'Inter', 'Pretendard', sans-serif;
-  }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
   body{
@@ -368,6 +354,47 @@
     background:var(--gold);color:#0b0b0e;font-weight:600;
     padding:11px 22px;border-radius:10px;font-size:14px;
   }
+
+  /* ===== 퀴즈 전용 ===== */
+  .quiz-topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;}
+  .quiz-progress-text{font-family:var(--mono);font-size:12px;color:var(--muted);}
+  .quiz-score-text{font-family:var(--mono);font-size:12px;color:var(--gold);}
+  .quiz-timer-wrap{height:6px;background:var(--panel-2);border-radius:6px;overflow:hidden;margin-bottom:20px;}
+  .quiz-timer-bar{height:100%;background:var(--gold);width:100%;transition:width 1s linear;}
+  .quiz-timer-bar.warn{background:var(--danger);}
+  .quiz-question-card{
+    background:linear-gradient(180deg, var(--panel-2), var(--panel));border:1px solid var(--line);
+    border-radius:16px;padding:28px 24px;margin-bottom:16px;text-align:center;
+  }
+  .quiz-topic-tag{font-family:var(--mono);font-size:10.5px;color:var(--teal);letter-spacing:.06em;margin-bottom:10px;}
+  .quiz-question-text{font-size:18px;font-weight:700;line-height:1.5;}
+  .quiz-options{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;}
+  .quiz-opt-btn{
+    background:var(--panel);border:1.5px solid var(--line);border-radius:12px;padding:14px 18px;
+    text-align:left;font-size:14px;color:var(--ink);cursor:pointer;transition:all .15s ease;font-family:inherit;
+  }
+  .quiz-opt-btn:hover:not(:disabled){border-color:var(--gold-dim);background:var(--panel-2);}
+  .quiz-opt-btn:disabled{cursor:default;}
+  .quiz-opt-btn.correct{border-color:var(--teal);background:rgba(95,199,189,0.12);color:var(--teal);}
+  .quiz-opt-btn.wrong{border-color:var(--danger);background:rgba(217,112,95,0.12);color:var(--danger);}
+  .quiz-hint-btn{
+    background:none;border:1px dashed var(--gold-dim);color:var(--gold);border-radius:10px;
+    padding:9px 16px;font-size:12.5px;cursor:pointer;font-family:inherit;margin-bottom:14px;
+  }
+  .quiz-hint-btn:disabled{opacity:.35;cursor:default;}
+  .quiz-explain-box{
+    background:rgba(95,199,189,0.06);border:1px solid rgba(95,199,189,0.3);border-radius:10px;
+    padding:12px 16px;font-size:12.5px;color:var(--muted);line-height:1.7;margin-bottom:16px;display:none;
+  }
+  .quiz-explain-box.show{display:block;}
+  .quiz-next-btn{width:100%;background:var(--gold);color:#0b0b0e;font-weight:700;padding:13px;border-radius:12px;font-size:14px;cursor:pointer;border:none;font-family:inherit;display:none;}
+  .quiz-next-btn.show{display:block;}
+  .quiz-result-frame{text-align:center;padding:20px 0;}
+  .quiz-result-emoji{font-size:52px;margin-bottom:10px;}
+  .quiz-result-score{font-family:var(--display);font-size:38px;font-weight:800;color:var(--gold);margin-bottom:6px;}
+  .quiz-result-sub{font-size:13px;color:var(--muted);margin-bottom:6px;}
+  .quiz-best-score{font-size:12px;color:var(--teal);margin-bottom:22px;}
+  .quiz-result-frame button{background:var(--gold);color:#0b0b0e;font-weight:600;padding:11px 22px;border-radius:10px;font-size:14px;border:none;cursor:pointer;font-family:inherit;}
 </style>
 </head>
 
@@ -375,17 +402,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script>
-const firebaseConfig = {
-  apiKey: "AIzaSyB0LRiIpNwdcCkS4Y5Dz4pP9zcLoadO2Xk",
-  authDomain: "taskflow-7cb3b.firebaseapp.com",
-  projectId: "taskflow-7cb3b",
-  storageBucket: "taskflow-7cb3b.firebasestorage.app",
-  messagingSenderId: "811223035419",
-  appId: "1:811223035419:web:08b972916827147bc2d2be"
-};
-firebase.initializeApp(firebaseConfig);
-</script>
+<script src="../../assets/firebase-init.js"></script>
 
 <div class="wrap">
 
@@ -428,7 +445,7 @@ firebase.initializeApp(firebaseConfig);
   <section class="step" data-step="1">
     <div class="step-eyebrow">STEP 1 / 6</div>
     <h2 class="step-title">어떤 게임을 만들고 싶나요?</h2>
-    <p class="step-desc">지금은 가위바위보만 체험할 수 있어요. 나머지는 이 흐름이 검증되면 순서대로 열릴 예정입니다.</p>
+    <p class="step-desc">지금은 가위바위보와 퀴즈를 체험할 수 있어요. 나머지는 이 흐름이 검증되면 순서대로 열릴 예정입니다.</p>
     <div class="options" id="gameOptions"></div>
     <div class="nav">
       <span></span>
@@ -439,9 +456,10 @@ firebase.initializeApp(firebaseConfig);
   <!-- STEP 2 -->
   <section class="step" data-step="2">
     <div class="step-eyebrow">STEP 2 / 6</div>
-    <h2 class="step-title">캐릭터를 선택하세요</h2>
-    <p class="step-desc">미리보기 화면에 표시될 내 캐릭터예요.</p>
+    <h2 class="step-title" id="step2Title">캐릭터를 선택하세요</h2>
+    <p class="step-desc" id="step2Desc">미리보기 화면에 표시될 내 캐릭터예요.</p>
     <div class="options" id="charOptions"></div>
+    <div class="options" id="countOptions" style="display:none;margin-top:10px;"></div>
     <div class="nav">
       <button class="btn-ghost" onclick="goStep(1)">이전</button>
       <button class="btn-primary" id="next2" disabled>다음</button>
@@ -492,25 +510,54 @@ firebase.initializeApp(firebaseConfig);
   <!-- STEP 6 : preview -->
   <section class="step" data-step="6">
     <div class="step-eyebrow">완성</div>
-    <h2 class="step-title">내가 만든 가위바위보</h2>
-    <p class="step-desc">방금 그 코드가 실제로 이렇게 동작해요. 직접 눌러서 플레이해보세요.</p>
+    <h2 class="step-title" id="step6Title">내가 만든 가위바위보</h2>
+    <p class="step-desc" id="step6Desc">방금 그 코드가 실제로 이렇게 동작해요. 직접 눌러서 플레이해보세요.</p>
 
     <div class="preview-frame">
-      <div class="match-tally" id="matchTally"></div>
-      <div class="rps-arena">
-        <div class="rps-slot" id="meSlot">🙂</div>
-        <div class="vs">VS</div>
-        <div class="rps-slot" id="cpuSlot">🤖</div>
-      </div>
-      <div class="rps-choices" id="rpsChoices"></div>
-      <div class="result-msg" id="resultMsg"></div>
-      <div class="stat-row" id="statRow"></div>
+      <div id="rpsPreviewBlock">
+        <div class="match-tally" id="matchTally"></div>
+        <div class="rps-arena">
+          <div class="rps-slot" id="meSlot">🙂</div>
+          <div class="vs">VS</div>
+          <div class="rps-slot" id="cpuSlot">🤖</div>
+        </div>
+        <div class="rps-choices" id="rpsChoices"></div>
+        <div class="result-msg" id="resultMsg"></div>
+        <div class="stat-row" id="statRow"></div>
 
-      <div class="match-overlay" id="matchOverlay">
-        <div class="mo-emoji" id="moEmoji">🏆</div>
-        <div class="mo-title" id="moTitle">승리했어요!</div>
-        <div class="mo-score" id="moScore">2 : 0</div>
-        <button onclick="restartMatch()">다시 대결하기</button>
+        <div class="match-overlay" id="matchOverlay">
+          <div class="mo-emoji" id="moEmoji">🏆</div>
+          <div class="mo-title" id="moTitle">승리했어요!</div>
+          <div class="mo-score" id="moScore">2 : 0</div>
+          <button onclick="restartMatch()">다시 대결하기</button>
+        </div>
+      </div>
+
+      <div id="quizPreviewBlock" style="display:none;">
+        <div class="quiz-topbar">
+          <div class="quiz-progress-text" id="quizProgressText">문제 1 / 5</div>
+          <div class="quiz-score-text" id="quizScoreText">점수 0</div>
+        </div>
+        <div class="quiz-timer-wrap" id="quizTimerWrap" style="display:none;"><div class="quiz-timer-bar" id="quizTimerBar"></div></div>
+
+        <div id="quizPlayArea">
+          <div class="quiz-question-card">
+            <div class="quiz-topic-tag" id="quizTopicTag">상식</div>
+            <div class="quiz-question-text" id="quizQuestionText">문제가 여기 나와요</div>
+          </div>
+          <button class="quiz-hint-btn" id="quizHintBtn" style="display:none;">💡 힌트 보기</button>
+          <div class="quiz-options" id="quizOptions"></div>
+          <div class="quiz-explain-box" id="quizExplainBox"></div>
+          <button class="quiz-next-btn" id="quizNextBtn">다음 문제 →</button>
+        </div>
+
+        <div class="quiz-result-frame" id="quizResultFrame" style="display:none;">
+          <div class="quiz-result-emoji" id="quizResultEmoji">🎉</div>
+          <div class="quiz-result-score" id="quizResultScore">4 / 5</div>
+          <div class="quiz-result-sub" id="quizResultSub">정답률 80%</div>
+          <div class="quiz-best-score" id="quizBestScore"></div>
+          <button onclick="restartQuiz()">다시 풀기</button>
+        </div>
       </div>
     </div>
 
@@ -529,7 +576,7 @@ firebase.initializeApp(firebaseConfig);
 const GAMES = [
   {id:'rps', name:'가위바위보', sub:'80~120줄 · 지금 만들 수 있어요', emoji:'✊', ready:true},
   {id:'rpg', name:'미니 RPG', sub:'준비 중', emoji:'🗡️', ready:false},
-  {id:'quiz', name:'퀴즈 게임', sub:'준비 중', emoji:'❓', ready:false},
+  {id:'quiz', name:'퀴즈 게임', sub:'상식·영화·과학·역사 · 지금 만들 수 있어요', emoji:'❓', ready:true},
   {id:'maze', name:'미로 게임', sub:'준비 중', emoji:'🧩', ready:false},
 ];
 
@@ -540,7 +587,19 @@ const CHARS = [
   {id:'robot', name:'로봇', emoji:'🤖'},
 ];
 
-const FEATURES = [
+const TOPICS = [
+  {id:'general', name:'상식', emoji:'🧠'},
+  {id:'movie', name:'영화', emoji:'🎬'},
+  {id:'science', name:'과학', emoji:'🔬'},
+  {id:'history', name:'역사', emoji:'🏛️'},
+];
+
+const COUNTS = [
+  {id:'5', name:'5문제', emoji:'5️⃣'},
+  {id:'10', name:'10문제', emoji:'🔟'},
+];
+
+const FEATURES_RPS = [
   {id:'score', name:'점수판', desc:'이길 때마다 점수가 쌓여요.', thinking:'점수 시스템 생성'},
   {id:'streak', name:'연승 기록', desc:'연속으로 이긴 횟수를 보여줘요.', thinking:'연승 카운터 생성'},
   {id:'sound', name:'효과음', desc:'이기고 질 때 짧은 소리가 나요.', thinking:'효과음 재생 로직 생성'},
@@ -548,11 +607,127 @@ const FEATURES = [
   {id:'best3', name:'3판 2선승제', desc:'무한 대결 대신 3판 안에 승부를 내요.', thinking:'라운드 제한 로직 생성'},
 ];
 
+const FEATURES_QUIZ = [
+  {id:'timer', name:'타이머', desc:'문제마다 15초 제한시간이 생겨요.', thinking:'타이머 로직 생성'},
+  {id:'hint', name:'힌트', desc:'문제당 한 번, 오답 하나를 미리 지워줘요.', thinking:'힌트 로직 생성'},
+  {id:'explain', name:'정답 해설', desc:'정답 확인 직후 왜 그런지 설명을 보여줘요.', thinking:'해설 표시 로직 생성'},
+  {id:'best', name:'최고 점수 기록', desc:'이 브라우저에서 가장 높았던 점수를 기억해요.', thinking:'최고 점수 저장 로직 생성'},
+];
+
 /* ---------------------------------------------------------
-   Firestore — 실제 코드/설명은 여기서 그때그때 받아옴
-   (get만 허용, list는 막혀있어서 통째로 못 긁어감)
+   퀴즈 문제 은행 — 실시간 AI로 새로 만드는 게 아니라, 미리 준비해둔 문제예요
 --------------------------------------------------------- */
-const db = (typeof firebase !== 'undefined') ? firebase.firestore() : null;
+const QUESTIONS = {
+  general: [
+    {q:'지구에서 가장 넓은 대양은 무엇일까요?', options:['태평양','대서양','인도양','북극해'], correct:0, explain:'태평양은 지구 전체 바다 면적의 약 절반을 차지하는 가장 넓은 대양이에요.'},
+    {q:'물의 화학식은 무엇일까요?', options:['CO2','H2O','O2','NaCl'], correct:1, explain:'물은 수소(H) 원자 2개와 산소(O) 원자 1개로 이루어져 있어서 H2O예요.'},
+    {q:'대한민국의 수도는 어디일까요?', options:['부산','인천','서울','대전'], correct:2, explain:'서울은 대한민국의 수도이자 최대 도시예요.'},
+    {q:'평년 기준으로 1년은 며칠일까요?', options:['364일','365일','366일','360일'], correct:1, explain:'평년은 365일이고, 4년마다 오는 윤년만 366일이에요.'},
+    {q:'하루는 몇 시간일까요?', options:['12시간','20시간','24시간','30시간'], correct:2, explain:'지구가 한 바퀴 자전하는 시간을 기준으로 하루는 24시간이에요.'},
+    {q:'사람 몸에서 가장 큰 장기는 무엇일까요?', options:['간','폐','피부','심장'], correct:2, explain:'피부는 사람 몸에서 가장 넓고 무게도 많이 나가는 기관이에요.'},
+    {q:'태양계에서 가장 큰 행성은 무엇일까요?', options:['지구','화성','목성','토성'], correct:2, explain:'목성은 태양계 행성 중 부피와 질량이 가장 큰 행성이에요.'},
+    {q:'무지개는 전통적으로 몇 가지 색으로 구분할까요?', options:['5가지','6가지','7가지','8가지'], correct:2, explain:'빨주노초파남보, 전통적으로 7가지 색으로 구분해요.'},
+    {q:'세계에서 가장 높은 산은 무엇일까요?', options:['백두산','에베레스트','한라산','후지산'], correct:1, explain:'에베레스트는 해발 약 8,849m로 세계에서 가장 높은 산이에요.'},
+    {q:'네 계절 중 기온이 가장 낮은 계절은 언제일까요?', options:['봄','여름','가을','겨울'], correct:3, explain:'겨울은 태양의 고도가 낮아지면서 기온이 가장 낮아지는 계절이에요.'},
+  ],
+  movie: [
+    {q:'애니메이션 "겨울왕국"에서 엘사의 여동생 이름은?', options:['안나','라푼젤','모아나','벨'], correct:0, explain:'안나는 엘사의 여동생으로, 언니를 구하기 위한 여정을 떠나요.'},
+    {q:'"타이타닉"에서 배가 부딪힌 것은 무엇일까요?', options:['암초','빙산','다른 배','고래'], correct:1, explain:'타이타닉호는 항해 중 거대한 빙산과 충돌해 침몰했어요.'},
+    {q:'"해리포터" 시리즈에서 주인공들이 다니는 학교 이름은?', options:['나니아','호그와트','나르니아','곤도르'], correct:1, explain:'호그와트 마법학교는 해리포터 시리즈의 주요 배경이에요.'},
+    {q:'"라이온 킹"에서 심바의 아버지 이름은?', options:['스카','무파사','티몬','품바'], correct:1, explain:'무파사는 심바의 아버지이자 프라이드 랜드의 왕이었어요.'},
+    {q:'"토이 스토리"에서 우디의 가장 친한 우주비행사 장난감 친구는?', options:['렉스','버즈 라이트이어','슬링키','미스터 포테이토 헤드'], correct:1, explain:'버즈 라이트이어는 우디와 함께 토이 스토리의 주인공 콤비예요.'},
+    {q:'"니모를 찾아서"에서 니모는 어떤 동물일까요?', options:['거북이','물고기','문어','상어'], correct:1, explain:'니모는 흰동가리(clownfish)라는 작은 물고기예요.'},
+    {q:'"스파이더맨"의 피터 파커를 문 것은 무엇일까요?', options:['거미','전갈','뱀','나비'], correct:0, explain:'방사능에 노출된 거미에게 물려 스파이더맨의 능력을 얻게 돼요.'},
+    {q:'"쥬라기 공원"에는 어떤 동물들이 등장할까요?', options:['공룡','외계인','로봇','좀비'], correct:0, explain:'쥬라기 공원은 복원된 공룡들이 사는 테마파크를 배경으로 해요.'},
+    {q:'디즈니 애니메이션 "인어공주"의 주인공 이름은?', options:['에리얼','벨','자스민','오로라'], correct:0, explain:'에리얼은 인간이 되고 싶어하는 인어공주예요.'},
+    {q:'"슈렉"의 주인공 슈렉은 어떤 존재일까요?', options:['마법사','오거','드래곤','요정'], correct:1, explain:'슈렉은 늪에 사는 오거(괴물)예요.'},
+  ],
+  science: [
+    {q:'사람이 숨쉬는 데 꼭 필요한 기체는?', options:['질소','산소','이산화탄소','수소'], correct:1, explain:'우리 몸은 산소를 들이마셔서 에너지를 만드는 데 사용해요.'},
+    {q:'식물이 광합성을 할 때 태양빛과 함께 필요한 기체는?', options:['산소','이산화탄소','질소','수소'], correct:1, explain:'식물은 이산화탄소와 물, 빛을 이용해 광합성을 해서 산소를 만들어내요.'},
+    {q:'사람 몸에서 온몸으로 피를 보내는 기관은?', options:['폐','간','심장','위'], correct:2, explain:'심장은 펌프처럼 수축과 이완을 반복하며 온몸에 피를 보내요.'},
+    {q:'얼음은 물보다 밀도가 어떨까요?', options:['높다','낮다','똑같다','알 수 없다'], correct:1, explain:'얼음은 물보다 밀도가 낮아서 물 위에 뜨는 거예요.'},
+    {q:'지구가 태양 주위를 한 바퀴 도는 데 걸리는 시간은 대략?', options:['30일','100일','365일','1000일'], correct:2, explain:'지구의 공전 주기는 약 365일로, 이게 1년의 기준이 돼요.'},
+    {q:'자석에는 몇 개의 극이 있을까요?', options:['1개','2개','3개','4개'], correct:1, explain:'자석은 N극과 S극, 두 개의 극을 가지고 있어요.'},
+    {q:'빛의 속도와 소리의 속도, 어느 쪽이 더 빠를까요?', options:['빛','소리','똑같다','상황마다 다르다'], correct:0, explain:'번개가 보이고 나서 천둥소리가 나중에 들리는 것도 이 때문이에요.'},
+    {q:'물이 얼어서 얼음이 되는 온도는(섭씨 기준)?', options:['0도','10도','영하 10도','100도'], correct:0, explain:'표준 대기압에서 물은 섭씨 0도에서 얼어요.'},
+    {q:'사람 몸에서 가장 큰 뼈는 무엇일까요?', options:['갈비뼈','척추','대퇴골(허벅지뼈)','두개골'], correct:2, explain:'대퇴골(넓적다리뼈)은 사람 몸에서 가장 크고 튼튼한 뼈예요.'},
+    {q:'무지개가 생기는 원리와 가장 관련 있는 것은?', options:['바람','빛의 굴절과 분산','기온 차이','자기장'], correct:1, explain:'빛이 물방울을 통과하면서 굴절·분산돼 여러 색으로 나뉘어 보이는 거예요.'},
+  ],
+  history: [
+    {q:'조선을 건국한 사람은 누구일까요?', options:['이성계','왕건','정도전','세종대왕'], correct:0, explain:'이성계는 고려를 무너뜨리고 1392년 조선을 세운 태조예요.'},
+    {q:'한글을 창제한 조선의 왕은?', options:['태종','세종대왕','정조','영조'], correct:1, explain:'세종대왕은 1443년 한글(훈민정음)을 창제했어요.'},
+    {q:'임진왜란 때 거북선을 활용해 활약한 장수는?', options:['이순신','권율','곽재우','강감찬'], correct:0, explain:'이순신 장군은 거북선과 뛰어난 전술로 임진왜란 해전을 승리로 이끌었어요.'},
+    {q:'고구려·백제·신라 세 나라가 있던 시기를 무엇이라 부를까요?', options:['삼국시대','남북국시대','고려시대','통일신라시대'], correct:0, explain:'세 나라가 한반도에서 함께 있던 시기를 삼국시대라고 불러요.'},
+    {q:'대한민국 임시정부가 수립된 해는 언제일까요?', options:['1897년','1910년','1919년','1945년'], correct:2, explain:'3.1운동 이후인 1919년, 상하이에서 대한민국 임시정부가 수립됐어요.'},
+    {q:'광복절은 몇 월 며칠일까요?', options:['8월 15일','3월 1일','10월 3일','6월 25일'], correct:0, explain:'1945년 8월 15일, 우리나라가 일제로부터 해방된 날을 기념하는 날이에요.'},
+    {q:'고려를 세운 사람은 누구일까요?', options:['이성계','왕건','견훤','궁예'], correct:1, explain:'왕건은 918년 고려를 세우고 후삼국을 통일했어요.'},
+    {q:'신라의 삼국통일에 큰 역할을 한 왕은?', options:['문무왕','진흥왕','선덕여왕','법흥왕'], correct:0, explain:'문무왕은 676년 당나라 세력을 몰아내며 삼국통일을 완성했어요.'},
+    {q:'세계 4대 문명 중 하나로 꼽히는 것은?', options:['마야 문명','이집트 문명','잉카 문명','그리스 문명'], correct:1, explain:'전통적으로 이집트·메소포타미아·인더스·황하 문명을 세계 4대 문명으로 꼽아요.'},
+    {q:'병인양요·신미양요가 일어났던 시기 조선을 다스린 인물은?', options:['흥선대원군','정조','순조','광해군'], correct:0, explain:'흥선대원군은 고종의 아버지로, 이 시기 실권을 잡고 통상 수교를 거부하는 정책을 폈어요.'},
+  ],
+};
+
+/* ---------------------------------------------------------
+   퀴즈 기능별 코드/설명 — 이 파일 안에 미리 담아둠(로컬 데이터)
+--------------------------------------------------------- */
+const FEATURE_CONTENT_QUIZ = {
+  timer: {
+    code:
+`<span class="tok-cmt">// 타이머 — 문제마다 15초 제한</span>
+<span class="tok-kw">let</span> timeLeft = <span class="tok-num">15</span>;
+<span class="tok-kw">const</span> timer = <span class="tok-fn">setInterval</span>(() => {
+  timeLeft--;
+  <span class="tok-kw">if</span> (timeLeft <= <span class="tok-num">0</span>) {
+    <span class="tok-fn">clearInterval</span>(timer);
+    <span class="tok-fn">checkAnswer</span>(-<span class="tok-num">1</span>, correctIndex); <span class="tok-cmt">// 시간초과 = 오답 처리</span>
+  }
+}, <span class="tok-num">1000</span>);`,
+    explain: 'setInterval로 1초마다 남은 시간을 줄여요. 0이 되면 자동으로 오답 처리하고 다음 문제로 넘어가요.'
+  },
+  hint: {
+    code:
+`<span class="tok-cmt">// 힌트 — 오답 하나를 화면에서 지워요</span>
+<span class="tok-kw">let</span> hintUsed = <span class="tok-kw">false</span>;
+<span class="tok-kw">function</span> <span class="tok-fn">useHint</span>(options, correctIndex) {
+  <span class="tok-kw">if</span> (hintUsed) <span class="tok-kw">return</span>;
+  hintUsed = <span class="tok-kw">true</span>;
+  <span class="tok-kw">const</span> wrongOnes = options
+    .map((_, i) => i)
+    .filter(i => i !== correctIndex);
+  <span class="tok-kw">const</span> pick = wrongOnes[Math.floor(Math.random() * wrongOnes.length)];
+  <span class="tok-fn">hideOption</span>(pick);
+}`,
+    explain: '정답이 아닌 보기들 중 하나를 무작위로 골라서 화면에서 지워줘요. 한 번 쓰면 hintUsed가 true가 돼서 문제당 한 번만 쓸 수 있어요.'
+  },
+  explain: {
+    code:
+`<span class="tok-cmt">// 정답을 고른 뒤 해설을 보여줘요</span>
+<span class="tok-kw">function</span> <span class="tok-fn">showExplain</span>(question) {
+  explainBox.textContent = question.explain;
+  explainBox.classList.add(<span class="tok-str">'show'</span>);
+}`,
+    explain: '미리 문제 데이터 안에 넣어둔 해설 문장을, 정답 확인 직후에 화면에 띄워줘요.'
+  },
+  best: {
+    code:
+`<span class="tok-cmt">// 최고 점수를 이 브라우저에 기억해둬요</span>
+<span class="tok-kw">function</span> <span class="tok-fn">saveBestScore</span>(score) {
+  <span class="tok-kw">const</span> prev = Number(localStorage.getItem(<span class="tok-str">'quizBest'</span>) || <span class="tok-num">0</span>);
+  <span class="tok-kw">if</span> (score > prev) {
+    localStorage.setItem(<span class="tok-str">'quizBest'</span>, score);
+  }
+}`,
+    explain: 'localStorage에 점수를 저장해둬서, 다음에 다시 풀어도 이 브라우저에서는 최고 점수를 계속 기억하고 있어요.'
+  }
+};
+
+/* ---------------------------------------------------------
+   Firestore — 가위바위보 기능의 실제 코드/설명은 여기서 그때그때 받아옴
+   (get만 허용, list는 막혀있어서 통째로 못 긁어감)
+   퀴즈 기능은 위 FEATURE_CONTENT_QUIZ 로컬 데이터를 씀
+--------------------------------------------------------- */
+const db = (typeof window.db !== 'undefined') ? window.db : null;
 const featureCache = {}; // id -> {thinking, code, before, after, explain}
 
 async function fetchFeatureContent(id){
@@ -570,8 +745,10 @@ async function fetchFeatureContent(id){
 --------------------------------------------------------- */
 let state = {
   game: 'rps',
-  char: 'cat',  // 다중선택(기능)은 기본 없음, 단일선택(게임/캐릭터)은 첫 옵션이 기본 — 물론 바꿀 수 있음
-  features: new Set(),  // 아무것도 기본으로 체크하지 않음 — 사용자가 고른 것만 반영
+  char: 'cat',
+  topic: 'general',
+  count: '5',
+  features: new Set(),
   step: 1,
 };
 
@@ -596,12 +773,14 @@ function goStep(n){
   });
   renderProgress();
   window.scrollTo({top:0, behavior:'smooth'});
+  if(n===2) renderStep2();
+  if(n===3) renderFeatures();
   if(n===4) runThinking();
   if(n===6) initPreview();
 }
 
 /* ---------------------------------------------------------
-   STEP 1
+   STEP 1 — 게임 종류 선택
 --------------------------------------------------------- */
 function renderGames(){
   const box = document.getElementById('gameOptions');
@@ -626,8 +805,30 @@ function renderGames(){
 document.getElementById('next1').onclick = ()=>goStep(2);
 
 /* ---------------------------------------------------------
-   STEP 2
+   STEP 2 — 게임 종류에 따라 다르게 렌더링
+   (가위바위보: 캐릭터 선택 / 퀴즈: 주제 + 문제 개수 선택)
 --------------------------------------------------------- */
+function renderStep2(){
+  const titleEl = document.getElementById('step2Title');
+  const descEl = document.getElementById('step2Desc');
+  const countBox = document.getElementById('countOptions');
+
+  if(state.game === 'quiz'){
+    titleEl.textContent = '어떤 주제로 풀어볼까요?';
+    descEl.textContent = '주제와 문제 개수를 골라주세요.';
+    countBox.style.display = 'flex';
+    renderTopics();
+    renderCounts();
+    document.getElementById('next2').disabled = false;
+  } else {
+    titleEl.textContent = '캐릭터를 선택하세요';
+    descEl.textContent = '미리보기 화면에 표시될 내 캐릭터예요.';
+    countBox.style.display = 'none';
+    renderChars();
+    document.getElementById('next2').disabled = false;
+  }
+}
+
 function renderChars(){
   const box = document.getElementById('charOptions');
   box.innerHTML = '';
@@ -638,19 +839,50 @@ function renderChars(){
       <div class="opt-emoji">${c.emoji}</div>
       <div class="opt-body"><div class="opt-name">${c.name}</div></div>
     `;
-    el.onclick = ()=>{ state.char=c.id; renderChars(); document.getElementById('next2').disabled=false; };
+    el.onclick = ()=>{ state.char=c.id; renderChars(); };
+    box.appendChild(el);
+  });
+}
+
+function renderTopics(){
+  const box = document.getElementById('charOptions');
+  box.innerHTML = '';
+  TOPICS.forEach(t=>{
+    const el = document.createElement('div');
+    el.className = 'opt' + (state.topic===t.id?' selected':'');
+    el.innerHTML = `
+      <div class="opt-emoji">${t.emoji}</div>
+      <div class="opt-body"><div class="opt-name">${t.name}</div></div>
+    `;
+    el.onclick = ()=>{ state.topic=t.id; renderTopics(); };
+    box.appendChild(el);
+  });
+}
+
+function renderCounts(){
+  const box = document.getElementById('countOptions');
+  box.innerHTML = '';
+  COUNTS.forEach(c=>{
+    const el = document.createElement('div');
+    el.className = 'opt' + (state.count===c.id?' selected':'');
+    el.innerHTML = `
+      <div class="opt-emoji">${c.emoji}</div>
+      <div class="opt-body"><div class="opt-name">${c.name}</div></div>
+    `;
+    el.onclick = ()=>{ state.count=c.id; renderCounts(); };
     box.appendChild(el);
   });
 }
 document.getElementById('next2').onclick = ()=>goStep(3);
 
 /* ---------------------------------------------------------
-   STEP 3
+   STEP 3 — 기능 선택 (게임 종류에 따라 목록이 다름)
 --------------------------------------------------------- */
 function renderFeatures(){
   const box = document.getElementById('featureOptions');
   box.innerHTML = '';
-  FEATURES.forEach(f=>{
+  const list = state.game === 'quiz' ? FEATURES_QUIZ : FEATURES_RPS;
+  list.forEach(f=>{
     const row = document.createElement('div');
     row.className = 'check-row';
     const on = state.features.has(f.id);
@@ -670,7 +902,7 @@ function renderFeatures(){
   });
 }
 document.getElementById('next3').onclick = ()=>{
-  if(window.gaEvent) gaEvent('service_generate_start', {content:'rps-builder', feature_count: state.features.size});
+  if(window.gaEvent) gaEvent('service_generate_start', {content:'game-builder-'+state.game, feature_count: state.features.size});
   goStep(4);
 };
 document.getElementById('next4').onclick = ()=>goStep(5);
@@ -682,18 +914,18 @@ function runThinking(){
   const box = document.getElementById('consoleBox');
   box.innerHTML = '';
   document.getElementById('next4').disabled = true;
+  const isQuiz = state.game === 'quiz';
+  const list = isQuiz ? FEATURES_QUIZ : FEATURES_RPS;
+  const chosen = list.filter(f=>state.features.has(f.id));
 
-  const chosen = FEATURES.filter(f=>state.features.has(f.id));
-
-  // 화면 연출과 동시에 실제 데이터도 Firestore에서 받아옴
-  const fetchJobs = Promise.all(chosen.map(f=>fetchFeatureContent(f.id).catch(err=>{
-    console.warn('fetch 실패:', f.id, err);
-    return null;
-  })));
+  // 가위바위보는 Firestore에서, 퀴즈는 로컬 데이터를 바로 사용
+  const fetchJobs = isQuiz
+    ? Promise.resolve()
+    : Promise.all(chosen.map(f=>fetchFeatureContent(f.id).catch(err=>{ console.warn('fetch 실패:', f.id, err); return null; })));
 
   const lines = [
-    {text:'게임 구조를 분석하고 있습니다...', ok:false},
-    {text:'가위바위보 기본 판정 로직 생성', ok:true},
+    {text: isQuiz ? '문제 은행을 분석하고 있습니다...' : '게임 구조를 분석하고 있습니다...', ok:false},
+    {text: isQuiz ? '정답 판정 로직 생성' : '가위바위보 기본 판정 로직 생성', ok:true},
     ...chosen.map(f=>({text:f.thinking, ok:true})),
     {text:'HTML 화면 구성', ok:true},
     {text:'CSS 스타일 적용', ok:true},
@@ -706,7 +938,7 @@ function runThinking(){
       fetchJobs.then(()=>{
         document.getElementById('next4').disabled = false;
         buildCodeFiles();
-        if(window.gaEvent) gaEvent('service_generate_complete', {content:'rps-builder', feature_count: state.features.size});
+        if(window.gaEvent) gaEvent('service_generate_complete', {content:'game-builder-'+state.game, feature_count: state.features.size});
       });
       return;
     }
@@ -727,36 +959,44 @@ function runThinking(){
    STEP 5 — 코드 + 해설
 --------------------------------------------------------- */
 function buildCodeFiles(){
-  const chosen = FEATURES.filter(f=>state.features.has(f.id));
+  const isQuiz = state.game === 'quiz';
+  const list = isQuiz ? FEATURES_QUIZ : FEATURES_RPS;
+  const chosen = list.filter(f=>state.features.has(f.id));
   const wrap = document.getElementById('codeFiles');
   const fullWrap = document.getElementById('fullCodeWrap');
   wrap.innerHTML = '';
   fullWrap.innerHTML = '';
 
-  const baseCode =
-`<span class="tok-cmt">// 가위바위보 기본 판정</span>
+  const baseCode = isQuiz
+    ? `<span class="tok-cmt">// 퀴즈 정답 판정</span>
+<span class="tok-kw">function</span> <span class="tok-fn">checkAnswer</span>(selectedIndex, correctIndex) {
+  <span class="tok-kw">if</span> (selectedIndex === correctIndex) <span class="tok-kw">return</span> <span class="tok-str">'correct'</span>;
+  <span class="tok-kw">return</span> <span class="tok-str">'wrong'</span>;
+}`
+    : `<span class="tok-cmt">// 가위바위보 기본 판정</span>
 <span class="tok-kw">function</span> <span class="tok-fn">judge</span>(me, cpu) {
   <span class="tok-kw">if</span> (me === cpu) <span class="tok-kw">return</span> <span class="tok-str">'draw'</span>;
   <span class="tok-kw">const</span> beats = { '✊':'✌️', '✌️':'🖐️', '🖐️':'✊' };
   <span class="tok-kw">return</span> beats[me] === cpu ? <span class="tok-str">'win'</span> : <span class="tok-str">'lose'</span>;
 }`;
-  const baseNote = 'me(내 선택)와 cpu(상대 선택)를 비교해서 비기는지, 이기는지, 지는지를 계산하는 부분이에요. beats 객체는 "무엇이 무엇을 이기는지" 규칙을 담고 있어요.';
+  const baseNote = isQuiz
+    ? '사용자가 고른 답(selectedIndex)과 진짜 정답(correctIndex)이 같은지 비교해서 정답인지 오답인지 알려주는 부분이에요.'
+    : 'me(내 선택)와 cpu(상대 선택)를 비교해서 비기는지, 이기는지, 지는지를 계산하는 부분이에요. beats 객체는 "무엇이 무엇을 이기는지" 규칙을 담고 있어요.';
 
-  const file = makeFileBlock('game.js', baseCode, [
-    {label:'게임 기본 판정 로직', text:baseNote}
+  const file = makeFileBlock(isQuiz ? 'quiz.js' : 'game.js', baseCode, [
+    {label:'기본 판정 로직', text:baseNote}
   ]);
   wrap.appendChild(file);
 
-  // 전체 코드 통합 블록에 쓸 섹션들 (기본 + 선택한 기능들)
-  const fullSections = [{ title:'game.js — 기본 판정', codeHtml: baseCode, note: baseNote }];
+  const fullSections = [{ title:(isQuiz?'quiz.js':'game.js') + ' — 기본 판정', codeHtml: baseCode, note: baseNote }];
 
   chosen.forEach(f=>{
-    const data = featureCache[f.id];
+    const data = isQuiz ? FEATURE_CONTENT_QUIZ[f.id] : featureCache[f.id];
     if(!data){
       const errBox = document.createElement('div');
       errBox.className = 'code-file';
       errBox.innerHTML = `<div class="code-file-head"><span><b>${f.name}.js</b> · 불러오기 실패</span></div>
-        <div style="padding:14px 16px;font-size:12.5px;color:var(--danger);">이 기능의 코드를 서버에서 불러오지 못했어요. 잠시 후 다시 시도해주세요.</div>`;
+        <div style="padding:14px 16px;font-size:12.5px;color:var(--danger);">이 기능의 코드를 불러오지 못했어요. 잠시 후 다시 시도해주세요.</div>`;
       wrap.appendChild(errBox);
       return;
     }
@@ -768,7 +1008,6 @@ function buildCodeFiles(){
     fullSections.push({ title: f.name + '.js', codeHtml: data.code, note: data.explain });
   });
 
-  // 전체 코드 통합 블록은 맨 위에 삽입
   fullWrap.appendChild(makeFullCodeBlock(fullSections));
 }
 
@@ -882,13 +1121,27 @@ function makeFileBlock(title, codeHtml, notes){
 }
 
 /* ---------------------------------------------------------
-   STEP 6 — 실제 동작하는 미리보기
+   STEP 6 — 실제 동작하는 미리보기 (게임 종류에 따라 분기)
 --------------------------------------------------------- */
 const CHAR_EMOJI = Object.fromEntries(CHARS.map(c=>[c.id,c.emoji]));
+const TOPIC_LABEL = Object.fromEntries(TOPICS.map(t=>[t.id, t.name]));
 let previewStats = {my:0, cpu:0, streak:0};
 let matchState = {my:0, cpu:0, over:false};
+let quiz = { questions:[], idx:0, score:0, timerId:null, timeLeft:15, hintUsedThisQ:false, answered:false, currentOptions:[] };
 
 function initPreview(){
+  const isQuiz = state.game === 'quiz';
+  document.getElementById('step6Title').textContent = isQuiz ? '내가 만든 퀴즈' : '내가 만든 가위바위보';
+  document.getElementById('step6Desc').textContent = isQuiz
+    ? '방금 그 코드가 실제로 이렇게 동작해요. 직접 풀어보세요.'
+    : '방금 그 코드가 실제로 이렇게 동작해요. 직접 눌러서 플레이해보세요.';
+  document.getElementById('rpsPreviewBlock').style.display = isQuiz ? 'none' : 'block';
+  document.getElementById('quizPreviewBlock').style.display = isQuiz ? 'block' : 'none';
+  if(isQuiz) initQuizPreview(); else initRpsPreview();
+}
+
+/* ---- 가위바위보 미리보기 ---- */
+function initRpsPreview(){
   previewStats = {my:0, cpu:0, streak:0};
   matchState = {my:0, cpu:0, over:false};
   choiceBusy = false;
@@ -933,12 +1186,9 @@ function play(myHand){
   cpuSlot.textContent = '❔';
   cpuSlot.classList.add('shaking');
 
-  // 1단계: 잠깐 흔들리며 긴장감 (700ms)
   setTimeout(() => {
     cpuSlot.classList.remove('shaking');
     cpuSlot.textContent = cpuHand;
-
-    // 2단계: 상대 손 공개 후 살짝 텀을 두고 결과 판정 (450ms)
     setTimeout(() => {
       resolveRound(myHand, cpuHand);
       choiceBusy = false;
@@ -1018,6 +1268,168 @@ function restartMatch(){
   renderMatchTally();
 }
 
+function renderStats(){
+  const row = document.getElementById('statRow');
+  const parts = [];
+  if(state.features.has('score')) parts.push(`<div><b>${previewStats.my}</b>승</div>`);
+  if(state.features.has('streak')) parts.push(`<div><b>${previewStats.streak}</b>연승</div>`);
+  row.innerHTML = parts.join('');
+}
+
+/* ---- 퀴즈 미리보기 ---- */
+function shuffleArray(arr){
+  const a = [...arr];
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+
+function initQuizPreview(){
+  const pool = QUESTIONS[state.topic] || [];
+  const count = Math.min(parseInt(state.count, 10) || 5, pool.length);
+  quiz.questions = shuffleArray(pool).slice(0, count);
+  quiz.idx = 0;
+  quiz.score = 0;
+  document.getElementById('quizResultFrame').style.display = 'none';
+  document.getElementById('quizPlayArea').style.display = 'block';
+  document.getElementById('quizTimerWrap').style.display = state.features.has('timer') ? 'block' : 'none';
+  showQuestion();
+}
+
+function showQuestion(){
+  clearInterval(quiz.timerId);
+  quiz.answered = false;
+  quiz.hintUsedThisQ = false;
+
+  const q = quiz.questions[quiz.idx];
+  document.getElementById('quizProgressText').textContent = `문제 ${quiz.idx+1} / ${quiz.questions.length}`;
+  document.getElementById('quizScoreText').textContent = `점수 ${quiz.score}`;
+  document.getElementById('quizTopicTag').textContent = TOPIC_LABEL[state.topic] || '퀴즈';
+  document.getElementById('quizQuestionText').textContent = q.q;
+  document.getElementById('quizExplainBox').classList.remove('show');
+  document.getElementById('quizNextBtn').classList.remove('show');
+
+  const order = shuffleArray(q.options.map((text,i)=>({text, isCorrect:i===q.correct})));
+  quiz.currentOptions = order;
+
+  const optBox = document.getElementById('quizOptions');
+  optBox.innerHTML = '';
+  order.forEach((opt, i)=>{
+    const btn = document.createElement('button');
+    btn.className = 'quiz-opt-btn';
+    btn.textContent = opt.text;
+    btn.onclick = ()=>selectAnswer(i);
+    optBox.appendChild(btn);
+  });
+
+  const hintBtn = document.getElementById('quizHintBtn');
+  if(state.features.has('hint')){
+    hintBtn.style.display = 'inline-block';
+    hintBtn.disabled = false;
+    hintBtn.textContent = '💡 힌트 보기';
+    hintBtn.onclick = useHint;
+  } else {
+    hintBtn.style.display = 'none';
+  }
+
+  if(state.features.has('timer')){
+    quiz.timeLeft = 15;
+    updateTimerBar();
+    quiz.timerId = setInterval(()=>{
+      quiz.timeLeft--;
+      updateTimerBar();
+      if(quiz.timeLeft <= 0){
+        clearInterval(quiz.timerId);
+        selectAnswer(-1);
+      }
+    }, 1000);
+  }
+}
+
+function updateTimerBar(){
+  const bar = document.getElementById('quizTimerBar');
+  const pct = Math.max(0, (quiz.timeLeft/15)*100);
+  bar.style.width = pct + '%';
+  bar.classList.toggle('warn', quiz.timeLeft <= 5);
+}
+
+function useHint(){
+  if(quiz.hintUsedThisQ || quiz.answered) return;
+  quiz.hintUsedThisQ = true;
+  document.getElementById('quizHintBtn').disabled = true;
+  const btns = [...document.querySelectorAll('.quiz-opt-btn')];
+  const wrongIdxs = quiz.currentOptions.map((o,i)=>i).filter(i=>!quiz.currentOptions[i].isCorrect && !btns[i].disabled);
+  if(!wrongIdxs.length) return;
+  const pick = wrongIdxs[Math.floor(Math.random()*wrongIdxs.length)];
+  btns[pick].style.opacity = '0.25';
+  btns[pick].disabled = true;
+}
+
+function selectAnswer(selectedIdx){
+  if(quiz.answered) return;
+  quiz.answered = true;
+  clearInterval(quiz.timerId);
+
+  const btns = [...document.querySelectorAll('.quiz-opt-btn')];
+  btns.forEach(b=>b.disabled = true);
+
+  const correctIdx = quiz.currentOptions.findIndex(o=>o.isCorrect);
+  const isCorrect = selectedIdx === correctIdx;
+
+  if(selectedIdx >= 0) btns[selectedIdx].classList.add(isCorrect ? 'correct' : 'wrong');
+  if(!isCorrect) btns[correctIdx].classList.add('correct');
+
+  if(isCorrect) quiz.score++;
+  document.getElementById('quizScoreText').textContent = `점수 ${quiz.score}`;
+
+  if(state.features.has('explain')){
+    const q = quiz.questions[quiz.idx];
+    const eb = document.getElementById('quizExplainBox');
+    eb.textContent = '💬 ' + q.explain;
+    eb.classList.add('show');
+  }
+
+  const nextBtn = document.getElementById('quizNextBtn');
+  nextBtn.textContent = (quiz.idx >= quiz.questions.length-1) ? '결과 보기 →' : '다음 문제 →';
+  nextBtn.classList.add('show');
+  nextBtn.onclick = nextQuestion;
+}
+
+function nextQuestion(){
+  quiz.idx++;
+  if(quiz.idx >= quiz.questions.length) showResults();
+  else showQuestion();
+}
+
+function showResults(){
+  document.getElementById('quizPlayArea').style.display = 'none';
+  const frame = document.getElementById('quizResultFrame');
+  frame.style.display = 'block';
+
+  const total = quiz.questions.length;
+  const pct = Math.round((quiz.score/total)*100);
+  document.getElementById('quizResultEmoji').textContent = pct>=80 ? '🎉' : pct>=50 ? '🙂' : '💪';
+  document.getElementById('quizResultScore').textContent = `${quiz.score} / ${total}`;
+  document.getElementById('quizResultSub').textContent = `정답률 ${pct}%`;
+
+  const bestEl = document.getElementById('quizBestScore');
+  if(state.features.has('best')){
+    const prevBest = Number(localStorage.getItem('quizBest_'+state.topic) || 0);
+    if(quiz.score > prevBest) localStorage.setItem('quizBest_'+state.topic, quiz.score);
+    const best = Math.max(prevBest, quiz.score);
+    bestEl.textContent = `이 주제 최고 점수: ${best} / ${total}`;
+    bestEl.style.display = 'block';
+  } else {
+    bestEl.style.display = 'none';
+  }
+}
+
+function restartQuiz(){
+  initQuizPreview();
+}
+
 function beep(freq){
   try{
     const ctx = new (window.AudioContext||window.webkitAudioContext)();
@@ -1029,24 +1441,16 @@ function beep(freq){
   }catch(e){}
 }
 
-function renderStats(){
-  const row = document.getElementById('statRow');
-  const parts = [];
-  if(state.features.has('score')) parts.push(`<div><b>${previewStats.my}</b>승</div>`);
-  if(state.features.has('streak')) parts.push(`<div><b>${previewStats.streak}</b>연승</div>`);
-  row.innerHTML = parts.join('');
-}
-
 function resetAll(){
-  state = {game:'rps', char:'cat', features:new Set(), step:1};
-  renderGames(); renderChars(); renderFeatures();
+  state = {game:'rps', char:'cat', topic:'general', count:'5', features:new Set(), step:1};
+  renderGames();
   document.getElementById('next1').disabled = false;
   document.getElementById('next2').disabled = false;
 }
 
 /* init */
 renderGames();
-renderChars();
+renderStep2();
 renderFeatures();
 renderProgress();
 document.getElementById('next1').disabled = false;
