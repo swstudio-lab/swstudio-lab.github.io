@@ -1,0 +1,1537 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>한국쓸데없는자격검정평가원 (K-USLE) · 나의 프로젝트 작업실</title>
+<link rel="icon" type="image/svg+xml" href="../../assets/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../../assets/favicon-32.png">
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/style.css">
+<script src="../../assets/clipboard-util.js"></script>
+<script src="../../assets/vendor/jspdf.umd.min.js"></script>
+<script src="../../assets/vendor/dicebear.bundle.js"></script>
+<style>
+  /*
+    안전망: assets/style.css가 어떤 이유로든 로드되지 않는 환경(로컬 미리보기 등)에서도
+    이 페이지가 사이트 공통 다크+골드 톤을 유지하도록, 같은 값을 이 페이지 안에도 한 번 더 정의함.
+    실제 사이트에 정상 배포되면 assets/style.css의 값이 그대로 쓰이고, 이 값은 안 쓰임(동일한 값이라 충돌 없음).
+  */
+  :root{
+    --bg:#0a0908; --surface:#15120e; --surface2:#1c1710; --border:#3a2e1a; --border-lit:#6b5326;
+    --gold:#e8b93f; --ember:#d9642f; --text:#eae4d6; --muted:#8f8879;
+  }
+  body{
+    margin:0; font-family:'Noto Sans KR',sans-serif; letter-spacing:-0.005em;
+    background:radial-gradient(ellipse 900px 500px at 50% -10%, rgba(232,185,63,0.08), transparent 60%), var(--bg);
+    color:var(--text); line-height:1.6;
+  }
+  .wrap{ max-width:640px; margin:0 auto; padding:0 20px 120px; }
+  .tool-header{ max-width:640px; margin:0 auto; padding:52px 20px 22px; text-align:center; }
+  .tool-header .eyebrow{ font-size:11px; font-weight:700; letter-spacing:.2em; color:var(--gold); margin-bottom:14px; }
+  .tool-header h1{
+    font-family:'Noto Sans KR',sans-serif; font-weight:900; letter-spacing:-0.02em; line-height:1.36;
+    font-size:clamp(23px,4.6vw,32px); margin:0 0 14px; color:var(--text);
+  }
+  .tool-header p{ color:var(--muted); font-size:13px; max-width:440px; margin:0 auto; line-height:1.7; letter-spacing:-0.005em; }
+
+  .screen{ display:none; }
+  .screen.active{ display:block; }
+
+  .panel{
+    background:var(--surface); border:1px solid var(--border); border-top:2px solid var(--border-lit);
+    border-radius:10px; padding:28px 24px;
+    box-shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 10px 24px rgba(0,0,0,.22);
+  }
+  .panel + .panel{ margin-top:14px; }
+
+  label.field{ display:block; margin-bottom:18px; }
+  label.field span{ display:block; font-size:12px; font-weight:700; color:var(--muted); margin-bottom:7px; letter-spacing:-0.005em; }
+  .field input, .field select{
+    width:100%; box-sizing:border-box; background:var(--bg); border:1px solid var(--border); color:var(--text);
+    border-radius:6px; padding:11px 12px; font-size:14px; font-family:inherit;
+  }
+  .field input:focus, .field select:focus{ outline:none; border-color:var(--gold); }
+
+  .btn{
+    background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:11px 18px;
+    font-size:13.5px; font-weight:600; letter-spacing:-0.005em; cursor:pointer; font-family:inherit;
+    transition:border-color .15s,color .15s,background .15s;
+  }
+  .btn:hover{ border-color:var(--gold); color:var(--gold); background:var(--surface); }
+  .btn.primary{
+    background:linear-gradient(90deg,var(--ember),var(--gold)); color:#1a1208; border:none; font-weight:800;
+    padding:13px 22px; box-shadow:0 6px 16px rgba(217,100,47,.22);
+  }
+  .btn.primary:hover{ color:#1a1208; filter:brightness(1.05); }
+  .btn.block{ width:100%; text-align:center; }
+  .btn:disabled{ opacity:.4; cursor:not-allowed; }
+  .btn-row{ display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
+  .btn-row .btn{ flex:1; min-width:120px; }
+
+  .avatar-reveal{ text-align:center; padding:8px 0 4px; }
+  .avatar-reveal .avatar-help{ font-size:12px; color:#a89c88; line-height:1.6; margin:0 0 16px; }
+  .avatar-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:6px; }
+  .avatar-choice{
+    position:relative; aspect-ratio:1; border-radius:10px; overflow:hidden; cursor:pointer;
+    border:2px solid var(--border); background:#20242b; transition:border-color .15s;
+  }
+  .avatar-choice img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .avatar-choice:hover{ border-color:var(--border-lit); }
+  .avatar-choice.selected{ border-color:var(--gold); box-shadow:0 0 0 2px rgba(232,185,63,.28); }
+  .avatar-choice.selected::after{
+    content:'✓'; position:absolute; top:4px; right:4px; width:18px; height:18px; border-radius:50%;
+    background:var(--gold); color:#1a1208; font-size:11px; font-weight:900; display:flex; align-items:center; justify-content:center;
+  }
+
+  /* 테마 선택 */
+  .theme-grid{ display:grid; grid-template-columns:1fr; gap:12px; }
+  .theme-card{
+    border:1px solid var(--border); border-left:3px solid var(--border-lit); border-radius:8px;
+    padding:18px 20px; cursor:pointer; background:var(--surface); transition:border-color .15s,background .15s;
+  }
+  .theme-card:hover{ border-color:var(--gold); border-left-color:var(--gold); background:var(--surface2); }
+  .theme-card h3{ margin:0 0 6px; font-size:16px; font-weight:800; letter-spacing:-0.01em; color:var(--text); }
+  .theme-card p{ margin:0; font-size:12px; color:#a89c88; line-height:1.6; letter-spacing:-0.005em; }
+  .theme-card .tag{ display:inline-block; font-size:10.5px; font-weight:700; color:var(--gold); border:1px solid var(--border-lit); border-radius:4px; padding:2px 9px; margin-bottom:9px; letter-spacing:-0.005em; }
+  .theme-card.disabled{ opacity:.4; cursor:not-allowed; border-left-color:var(--border); }
+  .theme-card.disabled:hover{ border-color:var(--border); border-left-color:var(--border); background:var(--surface); }
+  .theme-card.disabled .tag{ color:var(--muted); border-color:var(--border); }
+
+  /* 테마 A 미니게임 - 실제 엑셀 화면처럼 */
+  #stageA{ position:relative; border-radius:14px; overflow:hidden; height:360px; background:#fff; border:1px solid var(--border); user-select:none; }
+  .excel-window{ position:absolute; inset:0; display:flex; flex-direction:column; background:#fff; font-family:'Segoe UI','Noto Sans KR',Arial,sans-serif; }
+  .excel-ribbon{ background:#1c7244; height:30px; flex-shrink:0; display:flex; align-items:center; padding:0 10px; gap:12px; color:#fff; font-size:10.5px; }
+  .excel-ribbon .rb-tab{ opacity:.72; padding:2px 3px; }
+  .excel-ribbon .rb-tab.active{ opacity:1; font-weight:700; border-bottom:2px solid #fff; }
+  .excel-ribbon .rb-file{ margin-left:auto; opacity:.9; font-size:9.5px; font-family:'JetBrains Mono',monospace; }
+  .excel-toolbar{ background:#f3f2f1; height:22px; flex-shrink:0; border-bottom:1px solid #d4d2d0; display:flex; align-items:center; padding:0 10px; font-size:9px; color:#555; }
+  .formula-bar{ height:22px; flex-shrink:0; border-bottom:1px solid #d4d2d0; display:flex; align-items:center; gap:8px; padding:0 8px; font-size:10px; color:#333; background:#fff; }
+  .formula-bar .cellref{ border:1px solid #c8c8c8; border-radius:2px; padding:1px 8px; font-family:'JetBrains Mono',monospace; color:#1a1a1a; background:#fafafa; }
+  .formula-bar .fx{ font-style:italic; color:#1c7244; font-weight:700; }
+  .formula-bar .formula-text{ font-family:'JetBrains Mono',monospace; color:#444; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  .sheet-area{ flex:1; position:relative; overflow:hidden; background:#fff; }
+  .sheet-grid{ position:absolute; inset:0; display:grid; }
+  .sheet-grid .corner{ background:#f3f2f1; border-right:1px solid #d4d2d0; border-bottom:1px solid #d4d2d0; }
+  .sheet-grid .colhead{ background:#f3f2f1; border-right:1px solid #d4d2d0; border-bottom:1px solid #d4d2d0; font-size:9px; color:#616161; display:flex; align-items:center; justify-content:center; }
+  .sheet-grid .rowhead{ background:#f3f2f1; border-right:1px solid #d4d2d0; border-bottom:1px solid #e6e6e6; font-size:9px; color:#616161; display:flex; align-items:center; justify-content:center; }
+  .sheet-grid .cell{ border-right:1px solid #e6e6e6; border-bottom:1px solid #e6e6e6; font-size:9px; color:#1a1a1a; display:flex; align-items:center; padding-left:4px; overflow:hidden; white-space:nowrap; background:#fff; }
+  .sheet-grid .cell.selected{ outline:2px solid #1c7244; outline-offset:-2px; background:#eaf5ee; z-index:2; }
+  .excel-status{ height:18px; flex-shrink:0; background:#f3f2f1; border-top:1px solid #d4d2d0; font-size:8.5px; color:#666; display:flex; align-items:center; padding:0 10px; }
+
+  /* 테마 B - 스크롤 판독기 */
+  #stageB{ position:relative; border-radius:14px; overflow:hidden; height:360px; background:#101014; border:1px solid var(--border); user-select:none; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .feed-score-badge{ position:absolute; top:12px; right:14px; font-size:11.5px; font-weight:700; color:var(--gold); background:rgba(0,0,0,.4); padding:5px 12px; border-radius:20px; z-index:5; }
+  .feed-score-badge span{ font-family:'JetBrains Mono',monospace; }
+  .feed-card{
+    width:210px; height:210px; border-radius:20px; background:linear-gradient(160deg,var(--surface2),var(--surface));
+    border:1px solid var(--border-lit); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+    transition:transform .18s ease-in, opacity .18s ease-in; box-shadow:0 12px 26px rgba(0,0,0,.4);
+  }
+  .feed-card.swipe-out{ transform:translateY(-170%) rotate(-10deg); opacity:0; }
+  .feed-emoji{ font-size:56px; }
+  .feed-label{ font-size:14px; font-weight:800; color:var(--text); text-align:center; padding:0 16px; }
+  .feed-hint{ position:absolute; left:0; right:0; bottom:16px; text-align:center; font-size:11.5px; color:#fff; z-index:5; }
+  .feed-hint span{ background:rgba(20,20,20,.72); padding:6px 14px; border-radius:20px; display:inline-block; }
+
+  /* 테마 C - 침대 중력 밸런스 */
+  #stageC{ position:relative; border-radius:14px; overflow:hidden; height:380px; background:#101014; border:1px solid var(--border); user-select:none; touch-action:none; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; cursor:pointer; }
+  .balance-timer{ position:absolute; top:12px; left:0; right:0; text-align:center; font-family:'JetBrains Mono',monospace; font-size:20px; font-weight:700; color:var(--gold); z-index:5; }
+  .balance-track{ position:relative; width:78px; height:270px; border-radius:14px; background:var(--surface2); border:1px solid var(--border-lit); overflow:hidden; }
+  .zone-danger{ position:absolute; left:0; right:0; height:38%; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; color:#e0a596; text-align:center; padding:0 4px; line-height:1.3; }
+  .zone-danger.zone-top{ top:0; background:rgba(217,100,47,.22); }
+  .zone-danger.zone-bottom{ bottom:0; background:rgba(95,120,199,.22); color:#a9b8e0; }
+  .zone-gold{ position:absolute; left:0; right:0; top:38%; bottom:38%; background:rgba(232,185,63,.16); border-top:1px dashed rgba(232,185,63,.5); border-bottom:1px dashed rgba(232,185,63,.5); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; color:var(--gold); }
+  .balance-marker{ position:absolute; left:6px; right:6px; bottom:50%; height:14px; border-radius:7px; background:linear-gradient(90deg,var(--ember),var(--gold)); box-shadow:0 0 10px rgba(232,185,63,.6); transform:translateY(50%); transition:bottom .03s linear; }
+  .balance-hint{ font-size:11.5px; color:#a89c88; text-align:center; }
+  .watcher{ position:absolute; top:8px; right:10px; font-size:26px; filter:drop-shadow(0 2px 4px rgba(0,0,0,.35)); transition:transform .15s; z-index:6; }
+  .watcher.alert{ transform:scale(1.3); }
+  .stage-hint{ position:absolute; left:0; right:26px; bottom:24px; text-align:center; font-size:11.5px; color:#fff; z-index:6; }
+  .stage-hint span{ background:rgba(20,20,20,0.72); padding:6px 14px; border-radius:20px; display:inline-block; }
+  .excel-flash{ position:absolute; inset:0; background:#0d3a1f; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:5; opacity:0; pointer-events:none; }
+  .excel-flash.show{ opacity:1; transition:opacity .05s; }
+  .excel-flash .fgrid{ position:absolute; inset:0; display:grid; grid-template-columns:repeat(6,1fr); grid-template-rows:repeat(10,1fr); gap:1px; opacity:.5; }
+  .excel-flash .fgrid div{ background:#124a28; color:#2e8f56; font-size:7px; font-family:'JetBrains Mono',monospace; display:flex; align-items:center; padding-left:2px; overflow:hidden; }
+  .excel-flash .ms-readout{ position:relative; z-index:2; font-family:'JetBrains Mono',monospace; font-size:26px; color:#eafff0; background:rgba(0,0,0,.55); padding:14px 22px; border-radius:10px; }
+
+  /* 심사 연출 */
+  /* 심사 화면 - 심사위원 사진 + 말풍선 */
+  .judge-panel{ padding:14px; }
+  .judge-stage{ position:relative; border-radius:10px; overflow:hidden; height:380px; background:#000; opacity:1; transition:opacity .6s ease; }
+  .judge-stage.fadeout{ opacity:0; }
+  .judge-bg{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; filter:saturate(.85) brightness(.5) contrast(1.05); }
+  .judge-overlay{ position:absolute; inset:0; background:linear-gradient(180deg, rgba(8,7,6,.4) 0%, rgba(8,7,6,.55) 45%, rgba(8,7,6,.88) 100%); }
+  .bubble-layer{ position:absolute; inset:0; z-index:3; }
+  .judge-caption{ position:absolute; left:0; right:0; bottom:14px; text-align:center; font-size:10.5px; font-weight:700; letter-spacing:.16em; color:var(--gold); z-index:5; }
+
+  .speech-bubble{
+    position:absolute; max-width:190px; background:#fdfaf1; color:#221c14; font-size:12.5px; font-weight:700;
+    padding:10px 14px; border-radius:14px; line-height:1.42; letter-spacing:-0.01em;
+    box-shadow:0 10px 22px rgba(0,0,0,.45), 0 0 0 1px rgba(0,0,0,.06);
+    opacity:0; transform:scale(.5); transform-origin:18px 100%;
+    transition:opacity .3s ease, transform .3s cubic-bezier(.34,1.56,.64,1); z-index:4;
+  }
+  .speech-bubble::after{
+    content:''; position:absolute; bottom:-7px; left:20px; width:0; height:0;
+    border-width:8px 7px 0; border-style:solid; border-color:#fdfaf1 transparent transparent;
+  }
+  .speech-bubble.show{ opacity:1; transform:scale(1); }
+  .speech-bubble.final{ background:linear-gradient(135deg,#fff2c0,#e8b93f); font-weight:900; }
+  .speech-bubble.final::after{ border-color:#e8b93f transparent transparent; }
+
+  /* 결과 화면 */
+  .result-head{ text-align:center; margin-bottom:18px; }
+  .result-head .grade-badge{ display:inline-block; font-family:'Noto Sans KR',sans-serif; font-weight:900; letter-spacing:-0.01em; font-size:19px; padding:9px 20px; border-radius:6px; margin-bottom:10px; }
+  .grade-1{ background:linear-gradient(90deg,#e8b93f,#fff2c0); color:#2a1e00; }
+  .grade-2{ background:linear-gradient(90deg,#8fa3b0,#d8e2e8); color:#1a2530; }
+  .grade-fail{ background:#2a2a2a; color:#a3a3a3; border:1px solid #444; }
+  .result-head .comment{ font-size:12px; color:#a89c88; letter-spacing:-0.005em; }
+
+  .cert-canvases{ display:flex; flex-direction:column; gap:18px; }
+  .cert-block{ text-align:center; }
+  .cert-block .cap{ font-size:11px; font-weight:700; color:#a89c88; margin-bottom:9px; letter-spacing:.1em; }
+  canvas.certPreview{ width:100%; max-width:460px; height:auto; border-radius:8px; box-shadow:0 10px 26px rgba(0,0,0,.35); }
+  canvas#cardCanvas.certPreview{ max-width:340px; }
+
+  .stamp-picker{ display:flex; gap:8px; justify-content:center; margin:14px 0; flex-wrap:wrap; }
+  .stamp-opt{ border:1px solid var(--border); border-radius:20px; padding:6px 14px; font-size:12px; cursor:pointer; background:var(--surface); }
+  .stamp-opt.active{ border-color:var(--gold); color:var(--gold); }
+
+  .share-box{ display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+  .share-box input{ flex:1 1 100%; background:var(--bg); border:1px solid var(--border); color:var(--muted); border-radius:8px; padding:9px 10px; font-size:11.5px; font-family:'JetBrains Mono',monospace; }
+  .share-box .btn{ flex:1; min-width:0; white-space:nowrap; }
+
+  .shared-banner{ text-align:center; font-size:12.5px; color:var(--gold); background:var(--surface); border:1px solid var(--border-lit); border-radius:10px; padding:10px; margin-bottom:16px; }
+
+  .version-tag{ position:fixed; right:10px; bottom:8px; font-size:10px; color:#4a4a4a; font-family:'JetBrains Mono',monospace; z-index:40; }
+</style>
+</head>
+<body>
+
+<div class="tool-header">
+  <div class="eyebrow">K-USLE · 한국쓸데없는자격검정평가원</div>
+  <h1>당신의 뇌절력, 국가는 몰라도 저희는 압니다</h1>
+  <p>5초짜리 무소음 미니게임으로 자격증을 발급해드려요. 소리 없이도 할 수 있어요.</p>
+</div>
+
+<div class="wrap">
+
+  <!-- 공유링크로 들어온 경우 배너 -->
+  <div id="sharedBanner" class="shared-banner" style="display:none;">
+    친구가 보낸 자격증을 보고 계세요. 나도 도전하려면 아래에서 시작할 수 있어요.
+  </div>
+
+  <!-- 1. 수험표 작성 -->
+  <div class="screen" id="screen-entry">
+    <div class="panel">
+      <label class="field">
+        <span>이름 / 닉네임</span>
+        <input type="text" id="inpName" maxlength="12" placeholder="예: 김생존">
+      </label>
+      <label class="field">
+        <span>현재 내 상태</span>
+        <select id="inpStatus">
+          <option value="영혼은 퇴근하고 몸만 남아있음">영혼은 퇴근하고 몸만 남아있음</option>
+          <option value="도파민 가뭄 상태 (릴스 스크롤 급구)">도파민 가뭄 상태 (릴스 스크롤 급구)</option>
+          <option value="침대와 강력한 중력으로 결합됨">침대와 강력한 중력으로 결합됨</option>
+        </select>
+      </label>
+      <button class="btn primary block" id="btnEntry">수험표 작성 완료</button>
+    </div>
+  </div>
+
+  <!-- 아바타 선택 -->
+  <div class="screen" id="screen-avatar">
+    <div class="panel avatar-reveal">
+      <span class="eyebrow" style="color:var(--muted);">수험표 사진 선택</span>
+      <p class="avatar-help">마음에 드는 사진을 골라주세요. 안 고르셔도 왼쪽 위 사진으로 자동 진행돼요.<br>이 사진이 자격증에도 그대로 실려요.</p>
+      <div class="avatar-grid" id="avatarGrid"></div>
+      <div class="btn-row">
+        <button class="btn" id="btnRerollAvatar">다른 사진 뽑기</button>
+        <button class="btn primary" id="btnToTheme">이 사진으로 계속하기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. 테마 선택 -->
+  <div class="screen" id="screen-theme">
+    <div class="theme-grid">
+      <div class="theme-card" id="themeA">
+        <span class="tag">5초 · 무음 · PC/모바일</span>
+        <h3>오피스 생존계 — Alt+Tab 광속 스텔스</h3>
+        <p>감시 이모지가 '접근!'으로 바뀌는 순간 스페이스바 또는 화면을 눌러요. 반응속도로 등급이 갈려요.</p>
+      </div>
+      <div class="theme-card" id="themeB">
+        <span class="tag">6초 · 무음 · 클릭/터치</span>
+        <h3>디지털 중독계 — 도파민 3초 스크롤 판독기</h3>
+        <p>노잼·광고 짤만 골라서 스페이스바 또는 클릭으로 빠르게 튕겨내세요. 꿀잼 짤을 잘못 튕겨내면 감점이에요.</p>
+      </div>
+      <div class="theme-card" id="themeC">
+        <span class="tag">5초 · 무음 · 꾹 누르기</span>
+        <h3>집돌이/게으름계 — 침대 중력 5초 밸런스</h3>
+        <p>화면을 꾹 누르면 올라가고 떼면 내려가요. 5초 동안 황금 딴짓 영역에 게이지를 붙잡아두세요.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3-B. 테마 B 미니게임 -->
+  <div class="screen" id="screen-gameB">
+    <div class="panel">
+      <div id="stageB">
+        <div class="feed-score-badge">정밀 히트 <span id="feedScore">0</span></div>
+        <div class="feed-card" id="feedCard">
+          <div class="feed-emoji" id="feedEmoji">🐱</div>
+          <div class="feed-label" id="feedLabel">꿀잼 고양이 짤</div>
+        </div>
+        <div class="feed-hint"><span>노잼·광고면 튕겨내세요! (스페이스바 또는 화면 클릭)</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3-C. 테마 C 미니게임 -->
+  <div class="screen" id="screen-gameC">
+    <div class="panel">
+      <div id="stageC">
+        <div class="balance-timer" id="balanceTimer">5.0s</div>
+        <div class="balance-track">
+          <div class="zone-danger zone-top">업무 뇌 폭주 구간</div>
+          <div class="zone-gold">황금 딴짓 영역</div>
+          <div class="zone-danger zone-bottom">완전 취침 구간</div>
+          <div class="balance-marker" id="balanceMarker"></div>
+        </div>
+        <div class="balance-hint"><span>화면을 꾹 누르면 올라가고, 떼면 내려가요.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. 테마 A 미니게임 -->
+  <div class="screen" id="screen-gameA">
+    <div class="panel">
+      <div id="stageA">
+        <div class="excel-window">
+          <div class="excel-ribbon">
+            <span class="rb-tab active">홈</span><span class="rb-tab">삽입</span><span class="rb-tab">페이지 레이아웃</span><span class="rb-tab">수식</span><span class="rb-tab">데이터</span><span class="rb-tab">검토</span>
+            <span class="rb-file">3분기_실적_취합본_FINAL_진짜최종.xlsx</span>
+          </div>
+          <div class="excel-toolbar">저장&nbsp;&nbsp;실행취소&nbsp;&nbsp;맑은 고딕&nbsp;&nbsp;11pt&nbsp;&nbsp;가운데 맞춤&nbsp;&nbsp;쉼표 스타일</div>
+          <div class="formula-bar">
+            <span class="cellref" id="cellRef">C7</span>
+            <span class="fx">fx</span>
+            <span class="formula-text" id="formulaText">=VLOOKUP(B7,Sheet2!$A$1:$D$999,3,FALSE)</span>
+          </div>
+          <div class="sheet-area">
+            <div class="sheet-grid" id="sheetGrid"></div>
+          </div>
+          <div class="excel-status">준비 &nbsp;|&nbsp; 평균: 4,102 &nbsp;|&nbsp; 개수: 63 &nbsp;|&nbsp; 합계: 258,426 &nbsp;&nbsp; 100%</div>
+        </div>
+        <div class="watcher" id="watcherEmo">😌</div>
+        <div class="stage-hint" id="stageHint"><span>평화... 감시자가 딴짓을 눈치채기 전까지 자연스럽게 대기하세요.</span></div>
+        <div class="excel-flash" id="excelFlash">
+          <div class="fgrid" id="fgrid"></div>
+          <div class="ms-readout" id="msReadout">0ms</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. 심사 -->
+  <div class="screen" id="screen-judge">
+    <div class="panel judge-panel">
+      <div class="judge-stage" id="judgeStage">
+        <img src="assets/judges.jpg" class="judge-bg" id="judgeBg" alt="K-USLE 심사위원단">
+        <div class="judge-overlay"></div>
+        <div class="bubble-layer" id="bubbleLayer"></div>
+        <div class="judge-caption">K-USLE 심사위원 5인 긴급 소집 · 실시간 채점 중</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. 결과 -->
+  <div class="screen" id="screen-result">
+    <div class="result-head">
+      <span class="grade-badge" id="gradeBadge"></span>
+      <div class="comment" id="judgeComment"></div>
+    </div>
+
+    <div class="panel">
+      <div class="stamp-picker" id="stampPicker">
+        <div class="stamp-opt" data-word="쓸데없음">쓸데없음</div>
+        <div class="stamp-opt" data-word="참잘했어요">참잘했어요</div>
+        <div class="stamp-opt" data-word="퇴사기원">퇴사기원</div>
+      </div>
+
+      <div class="cert-canvases">
+        <div class="cert-block">
+          <div class="cap" id="a4Cap">A4 정식 자격증 (인쇄/PDF용)</div>
+          <canvas id="a4Canvas" class="certPreview" width="1240" height="1754"></canvas>
+          <div class="btn-row"><button class="btn primary block" id="btnDownloadA4">A4 PDF 다운로드</button></div>
+        </div>
+        <div class="cert-block">
+          <div class="cap" id="cardCap">모바일 자격증 카드 (인스타/SNS용)</div>
+          <canvas id="cardCanvas" class="certPreview" width="1020" height="643"></canvas>
+          <div class="btn-row"><button class="btn primary block" id="btnDownloadCard">카드 PNG 다운로드</button></div>
+        </div>
+      </div>
+
+      <div style="margin-top:18px;">
+        <div class="cap" style="font-size:11px;color:var(--muted);margin-bottom:6px;">친구에게 강제 수여하기</div>
+        <div class="share-box">
+          <input type="text" id="shareUrl" readonly>
+          <button class="btn" id="btnOpenShare">새 탭에서 열어보기</button>
+          <button class="btn" id="btnCopyShare">복사</button>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn block" id="btnRetry">다시 도전하기</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="version-tag">build 2026-07-29-01</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- 공용 유틸 ----------
+  const $ = (id)=>document.getElementById(id);
+  const rand = (min,max)=> Math.random()*(max-min)+min;
+  const randInt = (min,max)=> Math.floor(rand(min,max+1));
+  const pick = (arr)=> arr[randInt(0,arr.length-1)];
+
+  function showScreen(id){
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    $(id).classList.add('active');
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+
+  // ---------- DiceBear 아바타 (완전 오프라인 생성, 서버/네트워크 불필요) ----------
+  const AVATAR_CANDIDATE_STYLES = ['bottts','bottts','botttsNeutral','botttsNeutral','funEmoji','shapes'];
+  function svgToDataUrl(svgStr){
+    return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgStr)));
+  }
+  // DiceBear 번들(assets/vendor/dicebear.bundle.js)이 어떤 이유로든 로드되지 않았을 때도
+  // 깨진 이미지 아이콘 대신 최소한의 컬러 배지를 보여주기 위한 자체 폴백 (외부 의존성 없음)
+  function seedHash(seed){
+    let h = 0;
+    for(let i=0;i<seed.length;i++){ h = (h*31 + seed.charCodeAt(i)) | 0; }
+    return Math.abs(h);
+  }
+  function fallbackAvatarSvg(seed){
+    const h = seedHash(seed);
+    const hue = h % 360;
+    const bg = `hsl(${hue},50%,28%)`;
+    const fg = `hsl(${(hue+42)%360},70%,74%)`;
+    const initial = (seed.replace(/-.*/,'').trim()[0] || 'K').toUpperCase();
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+      <rect width="200" height="200" rx="26" fill="${bg}"/>
+      <circle cx="72" cy="92" r="13" fill="${fg}"/><circle cx="128" cy="92" r="13" fill="${fg}"/>
+      <path d="M64 132 Q100 158 136 132" stroke="${fg}" stroke-width="9" fill="none" stroke-linecap="round"/>
+      <text x="100" y="48" font-family="sans-serif" font-size="28" font-weight="900" fill="${fg}" text-anchor="middle">${initial}</text>
+    </svg>`;
+  }
+  function generateAvatarImage(styleKey, seed){
+    return new Promise((resolve)=>{
+      try{
+        const dice = window.DicebearAvatars;
+        const svg = (dice && dice.styles && dice.styles[styleKey])
+          ? dice.createAvatar(dice.styles[styleKey], { seed }).toString()
+          : fallbackAvatarSvg(seed);
+        const img = new Image();
+        img.onload = ()=> resolve(img);
+        img.onerror = ()=> resolve(null);
+        img.src = svgToDataUrl(svg);
+      }catch(e){ resolve(null); }
+    });
+  }
+
+  const PASS_COMMENTS = [
+    '만장일치. 이견 없음.',
+    '심사위원 전원, 화면 너머로 존경의 눈빛을 보냄.',
+    '1명이 반박하려 했으나 증거 앞에 침묵함.',
+    '이 정도면 신고가 아니라 신입니다.',
+    '국가는 몰라도 팀장님은 인정해야 하는 수준.'
+  ];
+  const FAIL_COMMENTS = [
+    '심사위원 전원 동시에 한숨.',
+    '회의 3초 만에 조기 종료.',
+    '증거 불충분. 아니, 사실 너무 충분해서 문제.',
+    '재시험을 강력히 권장함.'
+  ];
+  const FAIL_REASONS = [
+    '커피를 원두째 씹어먹다 적발됨',
+    'Alt+Tab 대신 Alt+F4를 누름',
+    '화면 안 보고 감으로 누름',
+    '마우스 배터리가 하필 그 순간 방전됨',
+    '경계 단계에서 이미 졸고 있었음',
+    '진짜로 업무 중이라 반응하지 못함',
+    '스페이스바 위치를 순간 잊어버림',
+    '알림창 닫다가 타이밍을 놓침',
+    '반사신경 대신 반성문을 제출함',
+    '너무 긴장한 나머지 숨을 참고 있었음'
+  ];
+  const FAIL_REASONS_B = [
+    '꿀잼 고양이 짤을 실수로 튕겨냄',
+    '광고를 3번 연속 그냥 넘김',
+    '스크롤하다 화면을 잠깐 놓침',
+    '노잼 짤에 오히려 정주행함',
+    '엄지손가락이 순간 버퍼링 걸림'
+  ];
+  const FAIL_REASONS_C = [
+    '결국 완전히 잠들어버림',
+    '갑자기 진짜 업무 모드로 각성해버림',
+    '손가락에 쥐가 나서 이탈함',
+    '황금 영역이 어딘지 못 찾음',
+    '너무 힘을 줘서 천장까지 치솟음'
+  ];
+
+  // 테마별 자격종목/검정명/발급코드
+  const QUALIFICATION_TITLE = {
+    A: '오피스 스텔스 & 광속 Alt+Tab',
+    B: '도파민 3초 스크롤 판독',
+    C: '침대 중력 5초 밸런스'
+  };
+  const EXAM_TITLE = {
+    A: '오피스 스텔스 및 무소음 딴짓 능력 검정',
+    B: '디지털 중독 및 도파민 스크롤 판독 검정',
+    C: '침대 중력 및 딴짓 밸런스 검정'
+  };
+  const THEME_CODE = { A:'STEALTH', B:'SCROLL', C:'BALANCE' };
+
+  function pad2(n){ return String(n).padStart(2,'0'); }
+  function todayKorean(d){ return `${d.getFullYear()}년 ${pad2(d.getMonth()+1)}월 ${pad2(d.getDate())}일`; }
+  function issueCode(themeCode){
+    const d = new Date();
+    const seq = String(randInt(1,999)).padStart(3,'0');
+    return `第 ${d.getFullYear()}-${pad2(d.getMonth()+1)}${pad2(d.getDate())}-${themeCode}-${seq}號`;
+  }
+  function passCode(themeCode, ok){
+    return `${ok ? 'PASS' : 'FAIL'}-${new Date().getFullYear()}-${themeCode}-${randInt(10,99)}`;
+  }
+
+  // ---------- 상태 ----------
+  let state = {
+    name:'', status:'', theme:'A', certAvatarImg:null, certAvatarStyle:'', certAvatarSeed:'',
+    reactionMs:null, early:false,
+    scrollHits:0, scrollMisses:0, scrollScore:0,
+    balancePercent:0,
+    grade:'fail', gradeLabel:'', gradeSub:'', qualificationTitle:'', examTitle:'',
+    judgeComment:'', failReason:'', stamp:'쓸데없음',
+    issueNo:'', passNo:'', dateStr:''
+  };
+
+  // ---------- 1. 수험표 ----------
+  let avatarCandidates = []; // [{styleKey, seed, img}]
+  let selectedAvatarIndex = 0;
+
+  async function generateAvatarCandidates(){
+    const grid = $('avatarGrid');
+    grid.innerHTML = '<div style="grid-column:1/-1;font-size:12px;color:var(--muted);padding:20px 0;">사진 뽑는 중...</div>';
+    // 후보마다 완전히 독립적인 큰 난수를 시드에 섞음.
+    // (이전엔 같은 salt에 인덱스 0~5만 붙여서, 폴백 아바타의 해시가 서로 거의 같은 값이 되어
+    //  6장이 눈으로 구분 안 되는 색으로 나오는 버그가 있었음)
+    const results = await Promise.all(AVATAR_CANDIDATE_STYLES.map((styleKey)=>{
+      const seed = `${state.name}-${randInt(1,99999999)}-${randInt(1,99999999)}`;
+      return generateAvatarImage(styleKey, seed).then(img=>({ styleKey, seed, img }));
+    }));
+    avatarCandidates = results;
+    selectedAvatarIndex = 0;
+    renderAvatarGrid();
+  }
+
+  function renderAvatarGrid(){
+    const grid = $('avatarGrid');
+    grid.innerHTML = '';
+    avatarCandidates.forEach((c, i)=>{
+      const el = document.createElement('div');
+      el.className = 'avatar-choice' + (i === selectedAvatarIndex ? ' selected' : '');
+      const img = document.createElement('img');
+      if(c.img){ img.src = c.img.src; }
+      img.alt = '수험표 사진 후보';
+      el.appendChild(img);
+      el.addEventListener('click', ()=>{ selectedAvatarIndex = i; renderAvatarGrid(); });
+      grid.appendChild(el);
+    });
+  }
+
+  $('btnEntry').addEventListener('click', async ()=>{
+    const name = $('inpName').value.trim();
+    if(!name){ $('inpName').focus(); $('inpName').style.borderColor = '#d9705f'; return; }
+    state.name = name;
+    state.status = $('inpStatus').value;
+    showScreen('screen-avatar');
+    await generateAvatarCandidates();
+  });
+  $('btnRerollAvatar').addEventListener('click', async ()=>{
+    await generateAvatarCandidates();
+  });
+  $('btnToTheme').addEventListener('click', ()=>{
+    const chosen = avatarCandidates[selectedAvatarIndex];
+    if(chosen){
+      state.certAvatarImg = chosen.img;
+      state.certAvatarStyle = chosen.styleKey;
+      state.certAvatarSeed = chosen.seed;
+    }
+    showScreen('screen-theme');
+  });
+
+  // ---------- 2. 테마 선택 ----------
+  $('themeA').addEventListener('click', ()=>{
+    state.theme = 'A';
+    showScreen('screen-gameA');
+    buildExcelSheet();
+    startThemeA();
+  });
+  $('themeB').addEventListener('click', ()=>{
+    state.theme = 'B';
+    showScreen('screen-gameB');
+    startThemeB();
+  });
+  $('themeC').addEventListener('click', ()=>{
+    state.theme = 'C';
+    showScreen('screen-gameC');
+    startThemeC();
+  });
+
+  // ---------- 3. 테마 A 미니게임 (실제 엑셀 화면처럼) ----------
+  const SHEET_CELL_POOL = [
+    '1,204,300','=SUM(B2:B12)','0.084','TRUE','FALSE','승인완료','대기','#N/A','2026-07',
+    '421,900','보류','13.2%','=AVERAGE(C2:C9)','거래처A','거래처B','9,102','완료','#REF!',
+    '','','','','', '3,204', '검토중', '=IF(B2>0,"OK","NG")'
+  ];
+  const COL_LETTERS = ['A','B','C','D','E','F','G'];
+  function buildExcelSheet(){
+    const grid = $('sheetGrid'); grid.innerHTML = '';
+    const rows = 11;
+    grid.style.gridTemplateColumns = `28px repeat(${COL_LETTERS.length},1fr)`;
+    grid.style.gridTemplateRows = `18px repeat(${rows-1},1fr)`;
+
+    const corner = document.createElement('div'); corner.className='corner'; grid.appendChild(corner);
+    COL_LETTERS.forEach(l=>{ const c=document.createElement('div'); c.className='colhead'; c.textContent=l; grid.appendChild(c); });
+
+    const selRow = randInt(2,8), selCol = randInt(1,5);
+    for(let r=1;r<rows;r++){
+      const rh = document.createElement('div'); rh.className='rowhead'; rh.textContent=r; grid.appendChild(rh);
+      for(let c=0;c<COL_LETTERS.length;c++){
+        const cell = document.createElement('div'); cell.className='cell';
+        if(r===selRow && c===selCol) cell.classList.add('selected');
+        cell.textContent = pick(SHEET_CELL_POOL);
+        grid.appendChild(cell);
+      }
+    }
+    $('cellRef').textContent = COL_LETTERS[selCol] + selRow;
+    $('formulaText').textContent = `=VLOOKUP(${COL_LETTERS[selCol-1]||'B'}${selRow},Sheet2!$A$1:$D$999,${randInt(2,4)},FALSE)`;
+
+    const fgrid = $('fgrid'); fgrid.innerHTML='';
+    for(let i=0;i<60;i++){
+      const c = document.createElement('div');
+      c.textContent = `=VLOOKUP(A${i+2},B:D,${randInt(1,3)},0)`;
+      fgrid.appendChild(c);
+    }
+  }
+
+  let phase = 'idle';
+  let calmTimer, cautionTimer, armedAt;
+  const watcherEmo = $('watcherEmo');
+  const stageHint = $('stageHint');
+
+  function setHint(text){ stageHint.querySelector('span').textContent = text; }
+
+  function startThemeA(){
+    phase = 'calm';
+    watcherEmo.textContent = '😌';
+    watcherEmo.classList.remove('alert');
+    setHint('평화... 감시자가 딴짓을 눈치채기 전까지 자연스럽게 대기하세요.');
+    $('excelFlash').classList.remove('show');
+
+    const t1 = rand(900,1900);
+    const t2 = rand(700,1500);
+    calmTimer = setTimeout(()=>{
+      phase = 'caution';
+      watcherEmo.textContent = '😐';
+      setHint('경계 중... 곧 들킬 것 같아요.');
+      cautionTimer = setTimeout(()=>{
+        phase = 'danger';
+        watcherEmo.textContent = '😳';
+        watcherEmo.classList.add('alert');
+        setHint('지금! 스페이스바 또는 화면을 누르세요!');
+        armedAt = performance.now();
+      }, t2);
+    }, t1);
+  }
+
+  function handleThemeAInput(e){
+    if(phase === 'idle' || phase === 'done') return;
+    if(e.type === 'keydown' && e.code !== 'Space') return;
+    if(e.type === 'keydown') e.preventDefault();
+
+    if(phase === 'calm' || phase === 'caution'){
+      clearTimeout(calmTimer); clearTimeout(cautionTimer);
+      finishThemeA({early:true, ms:null});
+    } else if(phase === 'danger'){
+      const ms = Math.round(performance.now() - armedAt);
+      finishThemeA({early:false, ms});
+    }
+  }
+  document.addEventListener('keydown', handleThemeAInput);
+  $('stageA').addEventListener('click', handleThemeAInput);
+
+  function finishThemeA({early, ms}){
+    phase = 'done';
+    state.early = early;
+    state.reactionMs = ms;
+
+    $('msReadout').textContent = early ? '조기 클릭 감지' : `${ms}ms`;
+    $('excelFlash').classList.add('show');
+
+    setTimeout(()=>{
+      computeGrade();
+      showScreen('screen-judge');
+      runJudgeSequence();
+    }, 1000);
+  }
+
+  // ---------- 3-B. 테마 B 미니게임 (스크롤 판독기) ----------
+  const FEED_FUN = [
+    {emo:'🐱', label:'꿀잼 고양이 짤'},
+    {emo:'🤣', label:'레전드 짤 발견'},
+    {emo:'😂', label:'이거 실화냐 짤'},
+    {emo:'🐶', label:'댕댕이 개그맨'},
+    {emo:'🎉', label:'오늘의 개꿀잼'}
+  ];
+  const FEED_JUNK = [
+    {emo:'📢', label:'광고입니다'},
+    {emo:'🛒', label:'지금 사면 반값!'},
+    {emo:'😐', label:'그냥 노잼'},
+    {emo:'📰', label:'구독 좋아요 알림설정'},
+    {emo:'🔁', label:'예전에 봤던 재탕'},
+    {emo:'🐌', label:'로딩만 하다 끝남'},
+    {emo:'📋', label:'설문조사 참여해주세요'}
+  ];
+  const FEED_TOTAL = 16;
+  const FEED_INTERVAL = 420;
+
+  let feedQueue = [], feedIndex = 0, feedHits = 0, feedMisses = 0, feedActive = false, feedCurrentIsFun = false, feedTimer = null;
+
+  function buildFeedQueue(){
+    const q = [];
+    for(let i=0;i<FEED_TOTAL;i++){
+      const isFun = Math.random() < 0.28;
+      q.push({ isFun, item: pick(isFun ? FEED_FUN : FEED_JUNK) });
+    }
+    return q;
+  }
+
+  function startThemeB(){
+    feedQueue = buildFeedQueue();
+    feedIndex = 0; feedHits = 0; feedMisses = 0; feedActive = true;
+    $('feedScore').textContent = '0';
+    showFeedCard();
+  }
+
+  function showFeedCard(){
+    if(feedIndex >= feedQueue.length){ finishThemeB(); return; }
+    const cur = feedQueue[feedIndex];
+    feedCurrentIsFun = cur.isFun;
+    $('feedCard').classList.remove('swipe-out');
+    $('feedEmoji').textContent = cur.item.emo;
+    $('feedLabel').textContent = cur.item.label;
+    clearTimeout(feedTimer);
+    feedTimer = setTimeout(()=>{
+      // 시간 안에 못 튕겨낸 카드는 그냥 다음으로 넘어감 (놓친 것 자체는 감점 아님)
+      feedIndex++;
+      showFeedCard();
+    }, FEED_INTERVAL);
+  }
+
+  function handleFeedSwipe(){
+    if(!feedActive) return;
+    clearTimeout(feedTimer);
+    $('feedCard').classList.add('swipe-out');
+    if(feedCurrentIsFun){ feedMisses++; } else { feedHits++; $('feedScore').textContent = String(feedHits); }
+    feedIndex++;
+    setTimeout(showFeedCard, 130);
+  }
+
+  function handleFeedInput(e){
+    if(!feedActive) return;
+    if(e.type === 'keydown' && e.code !== 'Space') return;
+    if(e.type === 'keydown') e.preventDefault();
+    handleFeedSwipe();
+  }
+  document.addEventListener('keydown', handleFeedInput);
+  $('stageB').addEventListener('click', handleFeedInput);
+
+  function finishThemeB(){
+    feedActive = false;
+    state.scrollHits = feedHits;
+    state.scrollMisses = feedMisses;
+    state.scrollScore = feedHits - feedMisses*2;
+    setTimeout(()=>{
+      computeGrade();
+      showScreen('screen-judge');
+      runJudgeSequence();
+    }, 500);
+  }
+
+  // ---------- 3-C. 테마 C 미니게임 (침대 중력 밸런스) ----------
+  const BALANCE_ZONE = [38, 62];
+  const BALANCE_DURATION = 5000;
+  let balanceRAF = null, balancePos = 50, balanceHolding = false, balanceStart = 0, balanceLastTs = 0, balanceInZoneMs = 0, balanceActive = false;
+
+  function startThemeC(){
+    balancePos = 50; balanceInZoneMs = 0; balanceHolding = false; balanceActive = true;
+    balanceStart = performance.now(); balanceLastTs = balanceStart;
+    updateBalanceUI(0);
+    balanceRAF = requestAnimationFrame(balanceTick);
+  }
+
+  function balanceTick(ts){
+    if(!balanceActive) return;
+    const dt = Math.min(48, ts - balanceLastTs);
+    balanceLastTs = ts;
+    const elapsed = ts - balanceStart;
+
+    const speed = balanceHolding ? 0.062 : -0.05;
+    const noise = (Math.random()-0.5)*0.012;
+    balancePos = Math.max(0, Math.min(100, balancePos + (speed+noise)*dt));
+
+    if(balancePos > BALANCE_ZONE[0] && balancePos < BALANCE_ZONE[1]){ balanceInZoneMs += dt; }
+
+    updateBalanceUI(elapsed);
+
+    if(elapsed >= BALANCE_DURATION){ finishThemeC(); return; }
+    balanceRAF = requestAnimationFrame(balanceTick);
+  }
+
+  function updateBalanceUI(elapsed){
+    $('balanceMarker').style.bottom = balancePos + '%';
+    const remain = Math.max(0, (BALANCE_DURATION - elapsed)/1000);
+    $('balanceTimer').textContent = remain.toFixed(1) + 's';
+  }
+
+  function setBalanceHold(down){
+    return (e)=>{
+      if(!balanceActive) return;
+      if(e.type.indexOf('touch') === 0) e.preventDefault();
+      balanceHolding = down;
+    };
+  }
+  $('stageC').addEventListener('mousedown', setBalanceHold(true));
+  $('stageC').addEventListener('mouseup', setBalanceHold(false));
+  $('stageC').addEventListener('mouseleave', setBalanceHold(false));
+  $('stageC').addEventListener('touchstart', setBalanceHold(true), {passive:false});
+  $('stageC').addEventListener('touchend', setBalanceHold(false));
+
+  function finishThemeC(){
+    balanceActive = false;
+    if(balanceRAF) cancelAnimationFrame(balanceRAF);
+    state.balancePercent = Math.round((balanceInZoneMs / BALANCE_DURATION) * 100);
+    setTimeout(()=>{
+      computeGrade();
+      showScreen('screen-judge');
+      runJudgeSequence();
+    }, 500);
+  }
+
+  function computeGrade(){
+    state.qualificationTitle = QUALIFICATION_TITLE[state.theme];
+    state.examTitle = EXAM_TITLE[state.theme];
+    const themeCode = THEME_CODE[state.theme];
+
+    if(state.theme === 'A'){
+      if(state.early || state.reactionMs === null || state.reactionMs > 450){
+        state.grade = 'fail'; state.gradeLabel = '낙방'; state.gradeSub = '시말서 작성 대상자';
+        state.failReason = pick(FAIL_REASONS); state.judgeComment = pick(FAIL_COMMENTS);
+      } else if(state.reactionMs <= 200){
+        state.grade = '1'; state.gradeLabel = '[전설의 명장] 1급';
+        state.gradeSub = `${(state.reactionMs/1000).toFixed(2)}초 빛의 Alt+Tab 마스터`;
+        state.judgeComment = pick(PASS_COMMENTS);
+      } else {
+        state.grade = '2'; state.gradeLabel = '[숙련] 2급'; state.gradeSub = '턱밑까지 추격당했으나 생존';
+        state.judgeComment = pick(PASS_COMMENTS);
+      }
+    } else if(state.theme === 'B'){
+      const score = state.scrollScore;
+      if(score >= 8){
+        state.grade = '1'; state.gradeLabel = '[도파민 중독] 1급';
+        state.gradeSub = `정밀 히트 ${state.scrollHits}회`;
+        state.judgeComment = pick(PASS_COMMENTS);
+      } else if(score >= 4){
+        state.grade = '2'; state.gradeLabel = '[숙련] 알고리즘 탐색가 2급';
+        state.gradeSub = `정밀 히트 ${state.scrollHits}회`;
+        state.judgeComment = pick(PASS_COMMENTS);
+      } else {
+        state.grade = 'fail'; state.gradeLabel = '낙방'; state.gradeSub = '알고리즘에게 손절당함';
+        state.failReason = pick(FAIL_REASONS_B); state.judgeComment = pick(FAIL_COMMENTS);
+      }
+    } else {
+      const pct = state.balancePercent;
+      if(pct >= 80){
+        state.grade = '1'; state.gradeLabel = '[물아일체] 황금 딴짓 마스터 1급';
+        state.gradeSub = `황금 영역 유지율 ${pct}%`;
+        state.judgeComment = pick(PASS_COMMENTS);
+      } else if(pct >= 40){
+        state.grade = '2'; state.gradeLabel = '[숙련] 딴짓 밸런서 2급';
+        state.gradeSub = `황금 영역 유지율 ${pct}%`;
+        state.judgeComment = pick(PASS_COMMENTS);
+      } else {
+        state.grade = 'fail'; state.gradeLabel = '낙방'; state.gradeSub = `황금 영역 유지율 ${pct}%`;
+        state.failReason = pick(FAIL_REASONS_C); state.judgeComment = pick(FAIL_COMMENTS);
+      }
+    }
+    state.issueNo = issueCode(themeCode);
+    state.passNo = passCode(themeCode, state.grade !== 'fail');
+    state.dateStr = todayKorean(new Date());
+  }
+
+  // ---------- 4. 심사 연출 (심사위원 사진 + 말풍선) ----------
+  const JUDGE_BUBBLES_PASS = [
+    '어... 이 사람 촉이 예사롭지 않은데?',
+    '잠깐, 이 정도 감각이면 이 바닥 짬이 좀 되는데?',
+    '손목 스냅 각도가... 이건 실전에서 단련된 거야.',
+    '이 정도면 사내 은둔고수 아니야?',
+    '나 지금 소름 돋았어.',
+    '이거 반칙 아니야? 인간이 이렇게 빠를 수가 있나.'
+  ];
+  const JUDGE_BUBBLES_PASS_FINAL = [
+    '이 자격증... 합격 줄 수밖에 없겠어.',
+    '합격! 당장 이 사람한테 도장 찍어줘!'
+  ];
+  const JUDGE_BUBBLES_FAIL = [
+    '어... 이건 좀 아닌 것 같은데?',
+    '이 타이밍은 반사신경이 아니라 그냥 운이야.',
+    '잠깐만, 방금 존 거 아니야?',
+    '이걸 통과시키면 우리가 욕먹어.',
+    '오히려 재능이... 없는 쪽으로 특이한데?'
+  ];
+  const JUDGE_BUBBLES_FAIL_FINAL = [
+    '미안하지만 이건 재시험이야.',
+    '불합격. 다음 생에 만나자.'
+  ];
+  const BUBBLE_SLOTS = [
+    {left:'4%',  top:'6%'}, {left:'54%', top:'2%'}, {left:'26%', top:'16%'},
+    {left:'62%', top:'22%'}, {left:'8%',  top:'30%'}, {left:'46%', top:'34%'}
+  ];
+
+  function shuffle(arr){
+    const a = arr.slice();
+    for(let i=a.length-1;i>0;i--){ const j=randInt(0,i); [a[i],a[j]]=[a[j],a[i]]; }
+    return a;
+  }
+
+  function runJudgeSequence(){
+    const ok = state.grade !== 'fail';
+    const bubbleLayer = $('bubbleLayer');
+    bubbleLayer.innerHTML = '';
+    $('judgeStage').classList.remove('fadeout');
+
+    const buildUp = shuffle(ok ? JUDGE_BUBBLES_PASS : JUDGE_BUBBLES_FAIL).slice(0,3);
+    const final = pick(ok ? JUDGE_BUBBLES_PASS_FINAL : JUDGE_BUBBLES_FAIL_FINAL);
+    const lines = [...buildUp, final];
+    const slots = shuffle(BUBBLE_SLOTS).slice(0, lines.length);
+
+    // 말풍선 사이 간격을 넉넉하게 잡아서(1~1.3초) 화면이 너무 빨리 지나가지 않도록 함
+    const delays = [];
+    let acc = 500;
+    lines.forEach(()=>{ delays.push(acc); acc += rand(1000,1300); });
+
+    lines.forEach((text, i)=>{
+      setTimeout(()=>{
+        const el = document.createElement('div');
+        el.className = 'speech-bubble' + (i === lines.length-1 ? ' final' : '');
+        el.textContent = text;
+        el.style.left = slots[i].left;
+        el.style.top = slots[i].top;
+        bubbleLayer.appendChild(el);
+        requestAnimationFrame(()=> el.classList.add('show'));
+      }, delays[i]);
+    });
+
+    // 마지막(결정타) 말풍선이 뜬 뒤에도 한동안 화면에 머물도록 홀드 시간을 넉넉히 둠
+    const holdAfterLast = 2400;
+    const totalDelay = delays[delays.length-1] + holdAfterLast;
+    setTimeout(()=>{
+      $('judgeStage').classList.add('fadeout');
+      setTimeout(()=>{
+        renderResult();
+        showScreen('screen-result');
+      }, 700);
+    }, totalDelay);
+  }
+
+  // 공유 링크로 들어온 경우, 저장된 스타일+시드로 동일한 아바타를 그대로 재생성
+  async function restoreCertAvatar(styleKey, seed){
+    state.certAvatarImg = await generateAvatarImage(styleKey, seed);
+    state.certAvatarStyle = styleKey;
+    state.certAvatarSeed = seed;
+  }
+
+  // ---------- 5. 결과 / 캔버스 렌더 ----------
+  const a4Canvas = $('a4Canvas');
+  const cardCanvas = $('cardCanvas');
+
+  function renderResult(){
+    const ok = state.grade !== 'fail';
+    $('gradeBadge').textContent = ok ? state.gradeLabel : '낙방';
+    $('gradeBadge').className = 'grade-badge ' + (state.grade==='1' ? 'grade-1' : state.grade==='2' ? 'grade-2' : 'grade-fail');
+    $('judgeComment').textContent = `심사위원 코멘트: ${state.judgeComment}`;
+    $('a4Cap').textContent = ok ? 'A4 정식 자격증 (인쇄/PDF용)' : 'A4 불합격 통지서 (인쇄/PDF용)';
+    $('cardCap').textContent = ok ? '모바일 자격증 카드 (인스타/SNS용)' : '모바일 결과 카드 (인스타/SNS용)';
+
+    document.querySelectorAll('.stamp-opt').forEach(el=>{
+      el.classList.toggle('active', el.dataset.word === state.stamp);
+    });
+
+    drawA4(a4Canvas, state);
+    drawCard(cardCanvas, state);
+    updateShareUrl();
+  }
+
+  document.querySelectorAll('.stamp-opt').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      state.stamp = el.dataset.word;
+      document.querySelectorAll('.stamp-opt').forEach(o=>o.classList.remove('active'));
+      el.classList.add('active');
+      drawA4(a4Canvas, state);
+      drawCard(cardCanvas, state);
+      updateShareUrl();
+    });
+  });
+
+  // 스탬프(직인) 그리기 - A4/카드 공용
+  // 이중 테두리 사이 보안패턴 밴드 - 공문서 특유의 눈금무늬 느낌
+  function drawSecurityBand(ctx, ox, oy, iw, ih){
+    ctx.save();
+    ctx.strokeStyle = 'rgba(58,58,58,0.32)';
+    ctx.lineWidth = 0.8;
+    const step = 7;
+    for(let x = ox+12; x < ox+iw-12; x += step){
+      const wob = Math.sin(x*0.35)*4;
+      ctx.beginPath(); ctx.moveTo(x, oy+3); ctx.lineTo(x, oy+9+wob); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x, oy+ih-3); ctx.lineTo(x, oy+ih-9-wob); ctx.stroke();
+    }
+    for(let y = oy+12; y < oy+ih-12; y += step){
+      const wob = Math.sin(y*0.35)*4;
+      ctx.beginPath(); ctx.moveTo(ox+3, y); ctx.lineTo(ox+9+wob, y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(ox+iw-3, y); ctx.lineTo(ox+iw-9-wob, y); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // 사각형 테두리를 빙 둘러 글자를 배치 (실제 사각 관인/법인인감이 흔히 쓰는 방식).
+  // 왼쪽 위 모서리에서 시계방향으로 위→오른쪽→아래→왼쪽 순서로 글자를 깐다.
+  function drawRectPerimeterText(ctx, text, half, inset, font, color){
+    const s = half - inset;
+    const side = s*2;
+    const perim = side*4;
+    const n = text.length;
+    if(n===0) return;
+    const step = perim/n;
+    ctx.save();
+    ctx.fillStyle = color; ctx.font = font; ctx.textAlign='center'; ctx.textBaseline='middle';
+    for(let i=0;i<n;i++){
+      let d = step*i + step/2;
+      let x,y,rot;
+      if(d < side){ x=-s+d; y=-s; rot=0; }
+      else if(d < side*2){ d-=side; x=s; y=-s+d; rot=Math.PI/2; }
+      else if(d < side*3){ d-=side*2; x=s-d; y=s; rot=Math.PI; }
+      else { d-=side*3; x=-s; y=s-d; rot=-Math.PI/2; }
+      ctx.save();
+      ctx.translate(x,y); ctx.rotate(rot);
+      ctx.fillText(text[i], 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  // 중앙 문구 - 글자 수가 많으면(참잘했어요 등) 자동으로 폰트 크기를 줄여서 한 줄에 맞춤
+  function drawStampCenterWord(ctx, word, half){
+    const maxWidth = half*1.5;
+    let fontSize = Math.round(half*0.36);
+    ctx.font = `900 ${fontSize}px 'Noto Sans KR',sans-serif`;
+    while(ctx.measureText(word).width > maxWidth && fontSize > half*0.18){
+      fontSize -= 2;
+      ctx.font = `900 ${fontSize}px 'Noto Sans KR',sans-serif`;
+    }
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(word, 0, half*0.07);
+  }
+
+  // 실제 관공서/법인 사각인(정사각형 도장) 느낌. onPaper=true면 종이 위에 잉크가 스민 것처럼 multiply 블렌드를 씀
+  // (단, 어두운 카드 배경에서 multiply를 쓰면 빨간색이 거의 검게 죽어버려서 카드에서는 일반 블렌드를 씀)
+  // half = 도장 한 변 길이의 절반 (즉 도장 전체 크기는 half*2 정사각형)
+  function drawStamp(ctx, cx, cy, half, word, onPaper){
+    ctx.save();
+    if(onPaper) ctx.globalCompositeOperation = 'multiply';
+    ctx.globalAlpha = 0.88;
+    const red = '#b93226';
+    ctx.strokeStyle = red; ctx.fillStyle = red;
+    ctx.translate(cx, cy);
+    ctx.rotate(-0.05); // 사각 도장은 살짝만 기울여야 자연스러움
+
+    // 바깥 굵은 정사각 테두리
+    ctx.lineWidth = Math.max(3, half*0.05);
+    ctx.strokeRect(-half, -half, half*2, half*2);
+    // 안쪽 얇은 보조 테두리
+    ctx.lineWidth = Math.max(1, half*0.014);
+    const inset1 = half*0.84;
+    ctx.strokeRect(-inset1, -inset1, inset1*2, inset1*2);
+
+    // 기관명이 테두리 안쪽을 한 바퀴 도는, 실제 각인다운 배치
+    drawRectPerimeterText(ctx, '한국쓸데없는자격검정평가원', half, half*0.17,
+      `bold ${Math.max(9, Math.round(half*0.072))}px 'Noto Sans KR',sans-serif`, red);
+
+    // 중앙 문구
+    drawStampCenterWord(ctx, word, half);
+
+    // 네 모서리 자잘한 점 장식
+    const co = half*0.66;
+    [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([sx,sy])=>{
+      ctx.beginPath();
+      ctx.arc(sx*co, sy*co, Math.max(0.8, half*0.02), 0, Math.PI*2);
+      ctx.fill();
+    });
+
+    // 잉크 얼룩 텍스처 - 도장이 눌린 자국처럼 살짝 불균일하게
+    ctx.globalAlpha = 0.15;
+    for(let i=0;i<18;i++){
+      const rx = (Math.random()*2-1)*half*0.94;
+      const ry = (Math.random()*2-1)*half*0.94;
+      ctx.beginPath();
+      ctx.arc(rx, ry, Math.random()*half*0.045+0.8, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawAvatarBox(ctx, x, y, w, h, img, bg, border, grayscale){
+    ctx.save();
+    ctx.fillStyle = bg; ctx.strokeStyle = border; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.rect(x,y,w,h); ctx.fill(); ctx.stroke();
+    if(img && img.width){
+      const pad = Math.min(w,h)*0.08;
+      const bx=x+pad, by=y+pad, bw=w-pad*2, bh=h-pad*2;
+      const scale = Math.min(bw/img.width, bh/img.height);
+      const iw = img.width*scale, ih = img.height*scale;
+      if(grayscale){ ctx.filter = 'grayscale(1) brightness(0.82)'; }
+      ctx.drawImage(img, bx+(bw-iw)/2, by+(bh-ih)/2, iw, ih);
+      ctx.filter = 'none';
+    } else {
+      ctx.fillStyle = '#999'; ctx.font = `${Math.round(Math.min(w,h)*0.45)}px sans-serif`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('?', x+w/2, y+h/2);
+    }
+    ctx.restore();
+  }
+
+  // 등급별로 사진에 다른 장식을 얹어서 한눈에 등급 차이가 보이게 함
+  // 1급: 금관 / 2급: 은메달 리본 / 낙방: 대각선 낙방 도장 (사진 자체도 흑백 처리됨)
+  function decorateAvatarByGrade(ctx, x, y, w, h, grade){
+    ctx.save();
+    if(grade === '1'){
+      const cw = w*0.62, ch = h*0.24;
+      const cx0 = x + w/2 - cw/2, cy0 = y - ch*0.48;
+      ctx.fillStyle = '#f0c94a'; ctx.strokeStyle = '#8a6b1e'; ctx.lineWidth = Math.max(1, w*0.01);
+      ctx.beginPath();
+      ctx.moveTo(cx0, cy0+ch);
+      ctx.lineTo(cx0, cy0+ch*0.32);
+      ctx.lineTo(cx0+cw*0.22, cy0+ch*0.66);
+      ctx.lineTo(cx0+cw*0.5, cy0);
+      ctx.lineTo(cx0+cw*0.78, cy0+ch*0.66);
+      ctx.lineTo(cx0+cw, cy0+ch*0.32);
+      ctx.lineTo(cx0+cw, cy0+ch);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#b93226';
+      [[0.5,0.14],[0.22,0.5],[0.78,0.5]].forEach(([tx,ty])=>{
+        ctx.beginPath(); ctx.arc(cx0+cw*tx, cy0+ch*ty, w*0.017, 0, Math.PI*2); ctx.fill();
+      });
+    } else if(grade === '2'){
+      const mr = w*0.13, mx = x + w*0.86, my = y + h*0.88;
+      ctx.fillStyle = '#c9d3da'; ctx.strokeStyle = '#6c7a84'; ctx.lineWidth = Math.max(1, w*0.007);
+      ctx.beginPath(); ctx.moveTo(mx-mr*0.5,my); ctx.lineTo(mx-mr*0.95,my+mr*1.4); ctx.lineTo(mx-mr*0.05,my+mr*0.7); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(mx+mr*0.5,my); ctx.lineTo(mx+mr*0.95,my+mr*1.4); ctx.lineTo(mx+mr*0.05,my+mr*0.7); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.arc(mx,my,mr,0,Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#5c6874'; ctx.font = `900 ${Math.round(mr*1.15)}px 'Noto Sans KR',sans-serif`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('2', mx, my+mr*0.08);
+    } else {
+      ctx.globalAlpha = 0.88;
+      ctx.strokeStyle = '#8a2e22'; ctx.fillStyle = '#8a2e22';
+      ctx.lineWidth = Math.max(2, w*0.02);
+      ctx.translate(x+w/2, y+h/2);
+      ctx.rotate(-0.26);
+      ctx.strokeRect(-w*0.42, -h*0.13, w*0.84, h*0.26);
+      ctx.font = `900 ${Math.round(h*0.15)}px 'Noto Sans KR',sans-serif`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('낙방', 0, 0);
+    }
+    ctx.restore();
+  }
+
+  // 테마별로 다른 "측정 능력" 한 줄 요약 / 서술 문장을 만들어줌
+  function getMeasureLine(st){
+    if(st.theme === 'A') return `시각적 상사 감지 반응속도 ${(st.reactionMs/1000).toFixed(2)}초`;
+    if(st.theme === 'B') return `노잼·광고 정밀 판독 ${st.scrollHits}회 (실수 ${st.scrollMisses}회)`;
+    return `황금 딴짓 영역 유지율 ${st.balancePercent}%`;
+  }
+  function getMeasureDesc(st){
+    if(st.theme === 'A') return `상기인은 무소음 환경에서 경고 신호 발생 시 ${(st.reactionMs/1000).toFixed(2)}초 만에 화면을 전환하는 생존 순발력을 입증하였음.`;
+    if(st.theme === 'B') return `상기인은 찰나의 순간에도 꿀잼 콘텐츠와 노잼·광고를 정확히 구분해내는 판독력을 입증하였음.`;
+    return `상기인은 업무 뇌와 휴식 뇌 사이, 아슬아슬한 지점에서 균형을 유지하는 밸런스 감각을 입증하였음.`;
+  }
+  function getCardStatLine(st){
+    if(st.theme === 'A') return `반응속도: ${(st.reactionMs/1000).toFixed(2)}초 | 무소음 생존력 100% 입증됨`;
+    if(st.theme === 'B') return `정밀 판독 ${st.scrollHits}회 | 도파민 내성 100% 입증됨`;
+    return `황금영역 유지율 ${st.balancePercent}% | 밸런스 감각 100% 입증됨`;
+  }
+
+  // ----- A4 자격증 -----
+  function drawA4(canvas, st){
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const ok = st.grade !== 'fail';
+    ctx.clearRect(0,0,W,H);
+
+    // 배경
+    ctx.fillStyle = '#f7f3e8';
+    ctx.fillRect(0,0,W,H);
+
+    // 워터마크
+    ctx.save();
+    ctx.globalAlpha = 0.045;
+    ctx.fillStyle = '#000';
+    ctx.font = `900 70px 'Noto Sans KR',sans-serif`;
+    ctx.translate(W/2,H/2); ctx.rotate(-Math.PI/8);
+    for(let y=-H;y<H;y+=150){
+      for(let x=-W;x<W;x+=280){ ctx.fillText('자격증', x, y); }
+    }
+    ctx.restore();
+
+    // 이중 테두리
+    ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 5;
+    ctx.strokeRect(38,38,W-76,H-76);
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(56,56,W-112,H-112);
+    drawSecurityBand(ctx, 38, 38, W-76, H-76);
+
+    // 상단
+    ctx.fillStyle = '#555'; ctx.font = `13px 'JetBrains Mono',monospace`;
+    ctx.textAlign='left'; ctx.fillText(`발급번호: ${st.issueNo}`, 90, 105);
+    ctx.textAlign='right'; ctx.fillText(ok ? '국가공인(아님) 자격증' : '국가공인(아님) 심사결과 통지', W-90, 105);
+
+    // 타이틀 - 낙방이면 '자격증'이 아니라 '통지서'로 구분
+    ctx.textAlign='center';
+    ctx.fillStyle = '#666'; ctx.font = `15px 'Noto Sans KR',sans-serif`;
+    ctx.fillText('대 한 민 국   뇌 절 기 술 자 격 검 정', W/2, 165);
+    ctx.fillStyle = '#1c1c1c'; ctx.font = `900 46px 'Noto Sans KR',sans-serif`;
+    ctx.fillText(ok ? '자 격 증 록 령' : '불 합 격 통 지 서', W/2, 225);
+
+    // 증명사진 (등급별 장식 포함)
+    const px=100, py=280, pw=180, ph=220;
+    drawAvatarBox(ctx, px, py, pw, ph, st.certAvatarImg, '#eee8d8', '#999', !ok);
+    decorateAvatarByGrade(ctx, px, py, pw, ph, st.grade);
+    ctx.save();
+    ctx.fillStyle = '#888'; ctx.font = `12px 'Noto Sans KR',sans-serif`;
+    ctx.textAlign='center';
+    ctx.translate(px+pw+26, py+ph/2);
+    ctx.rotate(Math.PI/2);
+    ctx.fillText('증 명 사 진', 0, 0);
+    ctx.restore();
+
+    // 정보 테이블
+    const infoX = px+pw+70, infoRight = W-100;
+    const rows = [
+      ['성        명', `${st.name} (K-USLE Survivor)`],
+      ['응 시 일 자', st.dateStr],
+      ['자 격 종 목', st.qualificationTitle],
+      ['자 격 등 급', ok ? st.gradeLabel + ' (' + (st.grade==='1'?'Master':'Certified') + ')' : '낙방 (Not Certified)'],
+      [ok?'합 격 번 호':'응 시 번 호', st.passNo]
+    ];
+    let ry = py+18;
+    ctx.textAlign='left';
+    rows.forEach(([label,val])=>{
+      ctx.fillStyle = '#666'; ctx.font = `bold 15px 'Noto Sans KR',sans-serif`;
+      ctx.fillText(label, infoX, ry);
+      ctx.fillStyle = '#1c1c1c'; ctx.font = `15px 'Noto Sans KR',sans-serif`;
+      ctx.fillText(val, infoX+140, ry);
+      ctx.strokeStyle = '#ddd6c0'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(infoX,ry+14); ctx.lineTo(infoRight,ry+14); ctx.stroke();
+      ry += 40;
+    });
+
+    // 측정 능력 박스
+    const boxY = py+ph+30, boxH = 130;
+    ctx.fillStyle = '#eef2f6'; ctx.fillRect(90, boxY, W-180, boxH);
+    ctx.strokeStyle = '#c7d3dc'; ctx.strokeRect(90, boxY, W-180, boxH);
+    ctx.fillStyle = '#33475a'; ctx.font = `bold 15px 'Noto Sans KR',sans-serif`;
+    ctx.fillText('검정 등급 및 측정 능력', 112, boxY+30);
+    ctx.font = `bold 18px 'Noto Sans KR',sans-serif`;
+    const measureLine = ok ? getMeasureLine(st) : `측정 실패 사유: ${st.failReason}`;
+    ctx.fillText(measureLine, 112, boxY+62);
+    ctx.fillStyle = '#5a6b78'; ctx.font = `13px 'Noto Sans KR',sans-serif`;
+    wrapText(ctx, ok ? getMeasureDesc(st) : `상기인은 딴짓 감지 테스트 중 위 사유로 검정 기준에 도달하지 못하였음을 증명함.`,
+      112, boxY+90, W-260, 20);
+
+    // 본문
+    ctx.textAlign='center'; ctx.fillStyle='#333'; ctx.font=`15px 'Noto Sans KR',sans-serif`;
+    const bodyY = boxY+boxH+55;
+    if(ok){
+      ctx.fillText('위 사람은 한국쓸데없는자격검정평가원에서 시행한', W/2, bodyY);
+      ctx.fillText(`[${st.examTitle}]에 최종 합격하였으므로`, W/2, bodyY+26);
+      ctx.fillText('이에 자격증을 정식 수여합니다.', W/2, bodyY+52);
+    } else {
+      ctx.fillText('위 사람은 한국쓸데없는자격검정평가원에서 시행한', W/2, bodyY);
+      ctx.fillText(`[${st.examTitle}]에 응시하였으나`, W/2, bodyY+26);
+      ctx.fillText('최종 불합격하였음을 증명합니다.', W/2, bodyY+52);
+    }
+
+    // 날짜 & 발급기관 & 도장
+    ctx.font = `bold 20px 'JetBrains Mono',monospace`; ctx.fillStyle='#222';
+    ctx.fillText(st.dateStr.replace(/(\d)/g,'$1 ').trim(), W/2, bodyY+110);
+    ctx.font = `900 24px 'Noto Sans KR',sans-serif`;
+    ctx.fillText('한 국 쓸 데 없 는 자 격 검 정 평 가 원 장', W/2, bodyY+150);
+
+    drawStamp(ctx, W/2+280, bodyY+155, 95, st.stamp, true);
+  }
+
+  function wrapText(ctx, text, x, y, maxWidth, lineHeight){
+    let line = '';
+    let yy = y;
+    for(const ch of text){
+      const test = line + ch;
+      if(ctx.measureText(test).width > maxWidth && line){
+        ctx.fillText(line, x, yy);
+        line = ch; yy += lineHeight;
+      } else { line = test; }
+    }
+    ctx.fillText(line, x, yy);
+  }
+
+  // ----- 모바일 카드 -----
+  function drawCard(canvas, st){
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const ok = st.grade !== 'fail';
+    ctx.clearRect(0,0,W,H);
+
+    // 라운드 클립
+    const r = 34;
+    ctx.save();
+    roundRectPath(ctx,0,0,W,H,r); ctx.clip();
+
+    // 배경 그라데이션
+    const bg = ctx.createLinearGradient(0,0,W,H);
+    if(ok){
+      bg.addColorStop(0,'#0a1a3a'); bg.addColorStop(0.5,'#16296b'); bg.addColorStop(1,'#0a1330');
+    } else {
+      bg.addColorStop(0,'#1c1c1c'); bg.addColorStop(0.5,'#2b2b2b'); bg.addColorStop(1,'#101010');
+    }
+    ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
+
+    // 홀로그램 대각선 밴드
+    ctx.save();
+    ctx.globalAlpha = 0.08;
+    ctx.translate(W/2,H/2); ctx.rotate(-Math.PI/8); ctx.translate(-W/2,-H/2);
+    for(let x=-W; x<W*2; x+=46){
+      ctx.fillStyle = x % 92 === 0 ? '#ffe9a8' : '#8fd8ff';
+      ctx.fillRect(x,-H,20,H*3);
+    }
+    ctx.restore();
+
+    // 상단 라벨 + 우상단 IC칩
+    ctx.fillStyle = '#e8c877'; ctx.font = `bold 20px 'JetBrains Mono',monospace`;
+    ctx.textAlign='left'; ctx.fillText('K-USLE CERTIFICATE', 44, 60);
+
+    drawChip(ctx, W-140, 34, 70, 44);
+
+    // 증명사진
+    drawAvatarBox(ctx, 44, 96, 150, 190, st.certAvatarImg, 'rgba(255,255,255,0.9)', 'rgba(255,255,255,0.6)', !ok);
+    decorateAvatarByGrade(ctx, 44, 96, 150, 190, st.grade);
+
+    // 텍스트 정보
+    const tx = 224;
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = `bold 13px 'JetBrains Mono',monospace`;
+    ctx.fillText('NAME', tx, 118);
+    ctx.fillStyle = '#fff'; ctx.font = `bold 32px 'Noto Sans KR',sans-serif`;
+    ctx.fillText(st.name, tx, 156);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = `bold 13px 'JetBrains Mono',monospace`;
+    ctx.fillText('QUALIFICATION', tx, 190);
+    ctx.fillStyle = '#e8c877'; ctx.font = `bold 19px 'Noto Sans KR',sans-serif`;
+    ctx.fillText(st.qualificationTitle, tx, 216);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = `bold 13px 'JetBrains Mono',monospace`;
+    ctx.fillText('ISSUE CODE', tx, 250);
+    ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = `16px 'JetBrains Mono',monospace`;
+    ctx.fillText(st.passNo, tx, 274);
+
+    // 등급 배지
+    const badgeText = ok ? `${st.gradeLabel}` : '낙방 (Not Certified)';
+    ctx.font = `900 22px 'Noto Sans KR',sans-serif`;
+    const bw = ctx.measureText(badgeText).width + 48;
+    ctx.fillStyle = ok ? (st.grade==='1' ? 'rgba(232,185,63,0.18)' : 'rgba(150,180,200,0.18)') : 'rgba(200,90,80,0.18)';
+    roundRectPath(ctx, tx, 296, bw, 50, 25); ctx.fill();
+    ctx.fillStyle = ok ? '#f4d789' : '#e08a7c';
+    ctx.textAlign='left';
+    ctx.fillText(badgeText, tx+24, 328);
+
+    // 하단 스탯
+    ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = `13px 'Noto Sans KR',sans-serif`;
+    const statLine = ok ? getCardStatLine(st) : `사유: ${st.failReason}`;
+    ctx.fillText(statLine, 44, H-70);
+
+    // 하단 발급기관 + 스탬프
+    ctx.fillStyle = 'rgba(255,255,255,0.65)'; ctx.font = `bold 15px 'Noto Sans KR',sans-serif`;
+    ctx.fillText('한국쓸데없는자격검정평가원', 44, H-32);
+
+    ctx.restore(); // clip 해제 전에 스탬프는 카드 안쪽에 그려야 하므로 clip 유지 상태에서 그림
+    ctx.save();
+    roundRectPath(ctx,0,0,W,H,r); ctx.clip();
+    drawStamp(ctx, W-115, H-100, 62, st.stamp, false);
+    ctx.restore();
+
+    // 카드 테두리
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth=2;
+    roundRectPath(ctx,1,1,W-2,H-2,r); ctx.stroke();
+  }
+
+  function roundRectPath(ctx,x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
+  function drawChip(ctx,x,y,w,h){
+    ctx.save();
+    const g = ctx.createLinearGradient(x,y,x+w,y+h);
+    g.addColorStop(0,'#f3d888'); g.addColorStop(1,'#b8912f');
+    ctx.fillStyle = g;
+    roundRectPath(ctx,x,y,w,h,8); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth=1.2;
+    for(let i=1;i<4;i++){
+      ctx.beginPath(); ctx.moveTo(x, y+h*i/4); ctx.lineTo(x+w, y+h*i/4); ctx.stroke();
+    }
+    ctx.beginPath(); ctx.moveTo(x+w/2,y); ctx.lineTo(x+w/2,y+h); ctx.stroke();
+    ctx.restore();
+  }
+
+  // ---------- 다운로드 ----------
+  $('btnDownloadA4').addEventListener('click', ()=>{
+    const btn = $('btnDownloadA4');
+    try{
+      if(!window.jspdf || !window.jspdf.jsPDF){
+        throw new Error('jsPDF 라이브러리(assets/vendor/jspdf.umd.min.js)를 찾을 수 없어요.');
+      }
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+      const dataUrl = a4Canvas.toDataURL('image/jpeg', 0.95);
+      pdf.addImage(dataUrl, 'JPEG', 0, 0, 210, 297);
+      pdf.save(`K-USLE_${state.grade!=='fail'?'자격증':'통지서'}_${state.name || 'result'}.pdf`);
+    }catch(e){
+      console.error('PDF 다운로드 실패:', e);
+      const orig = btn.textContent;
+      btn.textContent = '다운로드 실패 (콘솔 확인)';
+      setTimeout(()=>{ btn.textContent = orig; }, 2200);
+    }
+  });
+
+  $('btnDownloadCard').addEventListener('click', ()=>{
+    const btn = $('btnDownloadCard');
+    try{
+      const link = document.createElement('a');
+      link.download = `K-USLE_${state.grade!=='fail'?'카드':'결과카드'}_${state.name || 'result'}.png`;
+      link.href = cardCanvas.toDataURL('image/png');
+      link.click();
+    }catch(e){
+      console.error('카드 다운로드 실패:', e);
+      const orig = btn.textContent;
+      btn.textContent = '다운로드 실패 (콘솔 확인)';
+      setTimeout(()=>{ btn.textContent = orig; }, 2200);
+    }
+  });
+
+  // ---------- 공유 링크 ----------
+  // 아바타 이미지 자체는 전송하지 않고, 어떤 스타일+시드였는지만 보내요.
+  // 받는 쪽 브라우저가 같은 값으로 다시 생성하면 100% 동일한(내가 고른 그) 사진이 나와요.
+  function updateShareUrl(){
+    const payload = {
+      n: state.name, s: state.status,
+      avs: state.certAvatarStyle, avd: state.certAvatarSeed,
+      g: state.grade, gl: state.gradeLabel, gs: state.gradeSub,
+      ms: state.reactionMs, early: state.early,
+      jc: state.judgeComment, fr: state.failReason, st: state.stamp,
+      iss: state.issueNo, pass: state.passNo, dt: state.dateStr
+    };
+    try{
+      const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+      const url = `${location.origin}${location.pathname}?d=${encoded}`;
+      $('shareUrl').value = url;
+    }catch(e){
+      $('shareUrl').value = location.href;
+    }
+  }
+  $('btnOpenShare').addEventListener('click', ()=>{
+    const url = $('shareUrl').value;
+    if(url) window.open(url, '_blank');
+  });
+  $('btnCopyShare').addEventListener('click', async ()=>{
+    let ok = false;
+    if(window.copyTextToClipboard){ ok = await window.copyTextToClipboard($('shareUrl').value); }
+    else { $('shareUrl').select(); ok = document.execCommand('copy'); }
+    $('btnCopyShare').textContent = ok ? '복사됨!' : '복사 실패';
+    setTimeout(()=>{ $('btnCopyShare').textContent = '복사'; }, 1500);
+  });
+
+  // ---------- 다시 도전 ----------
+  $('btnRetry').addEventListener('click', ()=>{
+    history.replaceState(null,'',location.pathname);
+    $('inpName').value=''; $('inpName').style.borderColor='var(--border)';
+    showScreen('screen-entry');
+  });
+
+  // ---------- 진입: 공유 링크로 들어온 경우 ----------
+  async function tryLoadShared(){
+    const params = new URLSearchParams(location.search);
+    const d = params.get('d');
+    if(!d) return false;
+    try{
+      const payload = JSON.parse(decodeURIComponent(escape(atob(d))));
+      state.name = payload.n; state.status = payload.s;
+      state.grade = payload.g; state.gradeLabel = payload.gl; state.gradeSub = payload.gs;
+      state.reactionMs = payload.ms; state.early = payload.early;
+      state.judgeComment = payload.jc; state.failReason = payload.fr; state.stamp = payload.st || '쓸데없음';
+      state.issueNo = payload.iss; state.passNo = payload.pass; state.dateStr = payload.dt;
+
+      await restoreCertAvatar(payload.avs || 'bottts', payload.avd || `${state.name}-shared`);
+      $('sharedBanner').style.display = 'block';
+      renderResult();
+      showScreen('screen-result');
+      return true;
+    }catch(e){
+      return false;
+    }
+  }
+
+  // ---------- 시작 ----------
+  (async ()=>{
+    if(!(await tryLoadShared())){
+      showScreen('screen-entry');
+    }
+  })();
+})();
+</script>
+</body>
+</html>

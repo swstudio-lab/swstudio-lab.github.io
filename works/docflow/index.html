@@ -10,7 +10,17 @@
 <meta name="description" content="문서 이미지를 업로드하고 필요한 처리만 체크하면 한 번에 정리해주는 도구. 서버 업로드 없이 브라우저 안에서만 처리돼요.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=JetBrains+Mono&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Noto+Serif+KR:wght@700;900&family=Nanum+Pen+Script&family=Gamja+Flower&family=East+Sea+Dokdo&family=JetBrains+Mono&display=swap" rel="stylesheet">
+<style>
+/* KCC안중근체 — 한국저작권위원회 공개 무료 상업용 웹폰트 (붓글씨체, 도장 타원형/원형에 사용) */
+@font-face {
+  font-family: 'KCCAhnjunggeun';
+  src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_2302@1.0/KCCAhnjunggeun.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+</style>
 <link rel="stylesheet" href="../../assets/immersive-theme.css">
 <style>
   body{
@@ -27,8 +37,55 @@
     border-radius:20px;padding:3px 10px;margin-top:10px;
   }
 
+  .notice-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:999;
+    display:none;align-items:center;justify-content:center;padding:20px;
+  }
+  .notice-overlay.show{display:flex;}
+  .notice-modal{
+    background:var(--panel);border:1px solid var(--line);border-radius:16px;
+    padding:24px 22px;max-width:420px;width:100%;
+  }
+  .notice-title{font-family:var(--display);font-size:17px;font-weight:800;color:var(--gold);margin-bottom:14px;}
+  .notice-list{list-style:none;padding:0;margin:0 0 18px;display:flex;flex-direction:column;gap:12px;}
+  .notice-list li{font-size:12.5px;color:var(--ink);line-height:1.7;}
+  .notice-list b{color:var(--gold);}
+
   .section{margin-bottom:26px;}
   .section-title{font-size:14px;font-weight:700;color:var(--ink);margin-bottom:10px;}
+
+  /* 모드 전환 */
+  .mode-toggle{display:flex;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:26px;}
+  .mode-btn{flex:1;background:none;border:none;border-radius:9px;padding:10px 8px;font-size:12.5px;font-weight:600;
+    color:var(--muted);cursor:pointer;font-family:inherit;transition:all .15s ease;}
+  .mode-btn.active{background:var(--gold);color:#0b0b0e;}
+
+  /* 생성 모드 내부 탭 */
+  .gen-tab-row, .sig-subtab-row{display:flex;gap:8px;margin-bottom:18px;}
+  .gen-tab, .sig-subtab{
+    background:var(--panel);border:1.5px solid var(--line);border-radius:10px;padding:10px 16px;
+    font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;font-family:inherit;
+  }
+  .gen-tab.active, .sig-subtab.active{border-color:var(--gold);background:rgba(224,169,74,0.1);color:var(--gold);}
+
+  .gen-input{
+    width:100%;background:var(--panel);border:1.5px solid var(--line);border-radius:10px;
+    padding:12px 14px;font-size:14px;color:var(--ink);font-family:inherit;box-sizing:border-box;
+  }
+  .gen-input:focus{outline:none;border-color:var(--gold-dim);}
+  .gen-hint{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6;}
+
+  .font-option-row{display:flex;flex-direction:column;gap:8px;}
+  .font-option{
+    background:var(--panel);border:1.5px solid var(--line);border-radius:10px;padding:14px 16px;
+    cursor:pointer;font-size:22px;color:var(--ink);text-align:center;
+  }
+  .font-option.selected{border-color:var(--gold);background:rgba(224,169,74,0.08);}
+
+  .sig-draw-canvas{
+    width:100%;aspect-ratio:5/2;background:#fff;border-radius:12px;touch-action:none;display:block;cursor:crosshair;
+  }
+  .draw-toolbar{display:flex;gap:8px;margin-top:10px;}
 
   /* 프리셋 */
   .preset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;}
@@ -90,11 +147,11 @@
   /* 미리보기 */
   .preview-wrap{display:none;margin-top:26px;}
   .preview-wrap.show{display:block;}
-  .preview-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .preview-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start;}
   @media(max-width:560px){ .preview-grid{grid-template-columns:1fr;} }
   .preview-box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center;}
   .preview-label{font-size:11px;color:var(--muted);margin-bottom:8px;}
-  .preview-box img, .preview-box canvas{max-width:100%;border-radius:8px;background:
+  .preview-box img, .preview-box canvas{max-width:100%;height:auto;display:block;margin:0 auto;border-radius:8px;background:
     repeating-conic-gradient(#2a2a32 0% 25%, #1c1c22 0% 50%) 50% / 16px 16px;}
 
   .warning-box{
@@ -113,12 +170,32 @@
 </head>
 <body>
 
+<div class="notice-overlay" id="noticeOverlay">
+  <div class="notice-modal">
+    <div class="notice-title">📄 DocFlow 이용 안내</div>
+    <ul class="notice-list">
+      <li>🔒 모든 처리는 이 브라우저 안에서만 이뤄지고, 서버로 업로드되지 않아요.</li>
+      <li>✍️ 도장·서명 <b>추출</b> 기능은 본인 소유이거나 사용 권한이 있는 도장·서명에만 사용해주세요. 타인의 도장·서명을 무단으로 사용하면 법적 문제가 될 수 있어요.</li>
+      <li>🖋 도장·서명 <b>생성</b> 기능은 실제 인감·등록 용도가 아닌 참고용이에요.</li>
+    </ul>
+    <button class="btn-primary" id="noticeCloseBtn" style="margin-top:6px;">확인했어요</button>
+  </div>
+</div>
+
 <div class="wrap">
   <div class="top">
     <div class="top-title">📄 DocFlow</div>
+    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-07-29-06</div>
     <div class="top-sub">문서 이미지를 업로드하고 필요한 처리만 체크하면 한 번에 정리해드려요.</div>
     <div class="badge-local">🔒 이 페이지에서 하는 모든 처리는 브라우저 안에서만 이뤄져요 — 서버로 업로드되지 않아요</div>
   </div>
+
+  <div class="mode-toggle" id="modeToggle">
+    <button class="mode-btn active" data-mode="extract">이미지 업로드해서 처리하기</button>
+    <button class="mode-btn" data-mode="generate">이름 입력해서 만들기</button>
+  </div>
+
+  <div id="extractMode">
 
   <div class="section">
     <div class="section-title">무엇을 하시겠어요?</div>
@@ -129,10 +206,20 @@
     <div class="section-title">1. 이미지 업로드</div>
     <div class="drop-zone" id="dropZone">
       <div class="drop-zone-icon">📁</div>
-      <div class="drop-zone-text">클릭하거나 파일을 끌어다 놓으세요 (JPG, PNG)</div>
-      <input type="file" id="fileInput" accept="image/*" style="display:none;">
+      <div class="drop-zone-text">클릭하거나 파일을 끌어다 놓으세요 (JPG, PNG, PDF)</div>
+      <input type="file" id="fileInput" accept="image/*,.pdf,application/pdf" style="display:none;">
     </div>
     <div class="file-badge" id="fileBadge"></div>
+  </div>
+
+  <div class="section" id="sigSelectSection" style="display:none;">
+    <div class="section-title">✍️ 서명 영역 선택</div>
+    <div class="gen-hint" style="margin-bottom:10px;">이미지에서 서명이 있는 부분을 마우스로 드래그해서 선택해주세요. 선택한 영역만 배경이 투명하게 오려내져요.</div>
+    <div id="sigSelectWrap" style="position:relative;display:inline-block;max-width:100%;touch-action:none;cursor:crosshair;">
+      <img id="sigSelectImg" style="max-width:100%;display:block;border-radius:8px;user-select:none;-webkit-user-drag:none;">
+      <div id="sigSelectBox" style="position:absolute;left:0;top:0;width:0;height:0;border:2px dashed var(--gold);background:rgba(224,169,74,0.15);display:none;pointer-events:none;"></div>
+    </div>
+    <div class="gen-hint" id="sigSelectStatus" style="margin-top:8px;"></div>
   </div>
 
   <div class="section">
@@ -163,41 +250,148 @@
     <button class="btn-primary" id="downloadBtn" style="margin-top:14px;">⬇ 다운로드</button>
   </div>
 
+  </div><!-- /extractMode -->
+
+  <div id="generateMode" style="display:none;">
+
+    <div class="section">
+      <div class="section-title">무엇을 만들까요?</div>
+      <div class="gen-tab-row" id="genTabRow">
+        <button class="gen-tab active" data-gen="stamp">🔴 도장</button>
+        <button class="gen-tab" data-gen="signature">✍️ 서명</button>
+      </div>
+    </div>
+
+    <!-- 도장 생성 -->
+    <div id="genStamp">
+      <div class="section">
+        <div class="section-title">1. 이름 입력</div>
+        <input type="text" id="stampNameInput" maxlength="6" placeholder="예: 홍길동" class="gen-input">
+        <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12.5px;color:var(--muted);cursor:pointer;">
+          <input type="checkbox" id="stampAppendInCheck" checked style="width:16px;height:16px;accent-color:var(--gold);">
+          이름 뒤에 '인'(한글) / '印'(한자) 자동으로 붙이기
+        </label>
+        <div class="gen-hint">글자 수에 따라 배치가 자동으로 달라져요. 실제 인감·등록 용도가 아닌, 간단한 참고용 도장이에요.</div>
+      </div>
+      <div class="section">
+        <div class="section-title">2. 모양</div>
+        <div class="format-row" id="stampShapeRow"></div>
+      </div>
+      <div class="section">
+        <div class="section-title">3. 스타일</div>
+        <div class="format-row" id="stampStyleRow"></div>
+      </div>
+      <button class="btn-primary" id="stampGenBtn">도장 만들기</button>
+      <div class="preview-wrap" id="stampPreviewWrap">
+        <div class="preview-box" style="max-width:280px;margin:0 auto;">
+          <div class="preview-label">미리보기</div>
+          <canvas id="stampCanvas"></canvas>
+        </div>
+        <button class="btn-primary" id="stampDownloadBtn" style="margin-top:14px;">⬇ 다운로드</button>
+      </div>
+    </div>
+
+    <!-- 서명 생성 -->
+    <div id="genSignature" style="display:none;">
+      <div class="section">
+        <div class="sig-subtab-row" id="sigSubtabRow">
+          <button class="sig-subtab active" data-sig="font">폰트로 만들기</button>
+          <button class="sig-subtab" data-sig="draw">직접 그리기</button>
+        </div>
+      </div>
+
+      <div id="sigFontPanel">
+        <div class="section">
+          <div class="section-title">1. 이름 입력</div>
+          <input type="text" id="sigNameInput" maxlength="8" placeholder="예: 홍길동" class="gen-input">
+        </div>
+        <div class="section">
+          <div class="section-title">2. 글씨체 선택</div>
+          <div class="font-option-row" id="sigFontRow"></div>
+        </div>
+        <button class="btn-primary" id="sigFontGenBtn">서명 만들기</button>
+        <div class="preview-wrap" id="sigFontPreviewWrap">
+          <div class="preview-box">
+            <div class="preview-label">미리보기</div>
+            <canvas id="sigFontCanvas"></canvas>
+          </div>
+          <button class="btn-primary" id="sigFontDownloadBtn" style="margin-top:14px;">⬇ 다운로드</button>
+        </div>
+      </div>
+
+      <div id="sigDrawPanel" style="display:none;">
+        <div class="section">
+          <div class="section-title">마우스나 손가락으로 직접 서명을 그려주세요</div>
+          <canvas id="sigDrawCanvas" class="sig-draw-canvas"></canvas>
+          <div class="draw-toolbar">
+            <button class="btn-ghost" id="sigClearBtn">지우기</button>
+            <button class="btn-primary" id="sigDrawDownloadBtn" style="margin-top:0;">⬇ 다운로드</button>
+          </div>
+          <div class="gen-hint">그린 서명은 배경을 투명하게 잘라내서 PNG로 저장돼요.</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /generateMode -->
+
   <footer>DocFlow · 지금은 일부 기능만 열려있어요, 계속 추가할 예정이에요</footer>
 </div>
 
 <script src="../../assets/vendor/jspdf.umd.min.js"></script>
+<script src="../../assets/vendor/pdf.min.js"></script>
+<script>
+  if (window.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '../../assets/vendor/pdf.worker.min.js';
+  }
+</script>
 <script src="../../assets/clipboard-util.js"></script>
 <script>
 /* ---------------------------------------------------------
    데이터 정의
 --------------------------------------------------------- */
+/* ---------------------------------------------------------
+   첫 방문 안내 모달 — 한 번 확인하면 다시 안 뜨게 로컬스토리지에 기억
+--------------------------------------------------------- */
+(function initNotice(){
+  const KEY = 'docflow_notice_seen_v1';
+  const overlay = document.getElementById('noticeOverlay');
+  try{
+    if(!localStorage.getItem(KEY)) overlay.classList.add('show');
+  }catch(e){
+    overlay.classList.add('show'); // 저장 실패해도 안내는 보여줌
+  }
+  document.getElementById('noticeCloseBtn').addEventListener('click', ()=>{
+    overlay.classList.remove('show');
+    try{ localStorage.setItem(KEY, '1'); }catch(e){}
+  });
+})();
+
 const SECTIONS = [
   { title:'이미지 보정', items:[
-    {id:'deskew', name:'기울기 자동 보정', desc:'기울어진 문서를 똑바로 맞춰요.', ready:false},
+    {id:'deskew', name:'기울기 자동 보정', desc:'기울어진 문서를 똑바로 맞춰요. (배경이 있는 사진이면 "문서 자동 크롭"도 같이 체크해주세요)', ready:true},
     {id:'trimMargin', name:'여백 자동 제거', desc:'문서 바깥의 불필요한 여백을 잘라내요.', ready:true},
     {id:'denoise', name:'노이즈 제거', desc:'스캔할 때 생기는 잡티·얼룩을 부드럽게 줄여요.', ready:true},
-    {id:'autoCrop', name:'문서 자동 크롭', desc:'사진 속 종이 영역만 찾아서 잘라내요.', ready:false},
+    {id:'autoCrop', name:'문서 자동 크롭', desc:'사진 속 종이 영역만 찾아서 잘라내요.', ready:true},
   ]},
   { title:'문서 정리', items:[
-    {id:'removeLines', name:'표 선 제거', desc:'표의 테두리 선을 지워요.', ready:false},
+    {id:'removeLines', name:'표 선 제거', desc:'표의 테두리 선을 지워요. (배경이 어두운 사진이면 "문서 자동 크롭"을 먼저 체크해주세요 — 어두운 배경도 선으로 오인될 수 있어요)', ready:true},
     {id:'removeBg', name:'배경 제거', desc:'문서 주변의 복잡한 배경을 지워요.', ready:false},
     {id:'grayscale', name:'흑백 변환', desc:'컬러 이미지를 흑백으로 바꿔요.', ready:true},
     {id:'contrast', name:'명암 보정', desc:'밝고 어두운 부분의 대비를 자동으로 맞춰요.', ready:true},
     {id:'sharpen', name:'선명도 향상', desc:'살짝 흐릿한 이미지를 또렷하게 만들어요.', ready:true},
   ]},
   { title:'객체 추출', items:[
-    {id:'stampExtract', name:'도장 추출', desc:'빨간 도장만 배경 투명하게 오려내요.', ready:true},
-    {id:'signatureExtract', name:'서명 추출', desc:'서명 영역만 오려내요.', ready:false},
+    {id:'stampExtract', name:'도장 추출', desc:'빨간 도장만 배경 투명하게 오려내요. (본인 소유·사용 권한이 있는 도장만 사용해주세요)', ready:true},
+    {id:'signatureExtract', name:'서명 추출', desc:'선택한 영역의 서명만 배경 투명하게 오려내요. (본인 소유·사용 권한이 있는 서명만 사용해주세요)', ready:true},
   ]},
 ];
 
 const PRESETS = [
-  {id:'stamp', name:'도장 만들기', emoji:'🔴', checks:['trimMargin','denoise','stampExtract'], format:'png', ready:true},
+  {id:'stamp', name:'도장 추출하기', emoji:'🔴', checks:['trimMargin','denoise','sharpen','stampExtract'], format:'png', ready:true},
   {id:'report', name:'보고서 삽입', emoji:'📋', checks:['trimMargin','sharpen','contrast'], format:'jpg', ready:true},
-  {id:'signature', name:'서명 만들기', emoji:'✍️', checks:['denoise','signatureExtract','contrast'], format:'png', ready:false},
-  {id:'ocr', name:'OCR 최적화', emoji:'🔍', checks:['deskew','trimMargin','denoise','removeLines','grayscale'], format:'png', ready:false},
-  {id:'archive', name:'문서 보관', emoji:'📁', checks:['deskew','denoise'], format:'pdf', ready:false},
+  {id:'signature', name:'서명 추출하기', emoji:'✍️', checks:['denoise','signatureExtract','contrast'], format:'png', ready:true},
+  {id:'ocr', name:'OCR 최적화', emoji:'🔍', checks:['deskew','trimMargin','denoise','removeLines','grayscale'], format:'png', ready:true},
+  {id:'archive', name:'문서 보관', emoji:'📁', checks:['autoCrop','deskew','denoise'], format:'pdf', ready:true},
   {id:'custom', name:'직접 선택하기', emoji:'🎛️', checks:[], format:null, ready:true},
 ];
 
@@ -219,6 +413,36 @@ let selectedFormat = 'png';
 let selectedPreset = null;
 let originalImage = null;
 let resultCanvas = null;
+let signatureSelection = null; // 원본 이미지 좌표계 기준 {x,y,w,h} — 서명 추출 시 사용
+
+// 공개 배포본은 true로 — 도장/서명 "추출" 결과물에 워터마크를 남겨서 실사용 위조를 막음
+// (개인용 사본은 이 값만 false로 바꿔서 씀)
+const WATERMARK_ENABLED = true;
+
+// 추출된 도장/서명 이미지 위에 옅은 대각선 반복 워터마크를 얹음 (타인 도장·서명 무단 도용 방지 목적)
+function applyWatermark(canvas, text){
+  if(!WATERMARK_ENABLED) return canvas;
+  const ctx = canvas.getContext('2d');
+  const { width: w, height: h } = canvas;
+  ctx.save();
+  ctx.globalAlpha = 0.16;
+  ctx.fillStyle = '#666';
+  const fontSize = Math.max(13, Math.round(Math.min(w,h) * 0.11));
+  ctx.font = `bold ${fontSize}px 'Noto Sans KR', sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const diag = Math.sqrt(w*w + h*h);
+  ctx.translate(w/2, h/2);
+  ctx.rotate(-Math.PI/6);
+  const stepX = fontSize * 4.2, stepY = fontSize * 3;
+  for(let y=-diag; y<=diag; y+=stepY){
+    for(let x=-diag; x<=diag; x+=stepX){
+      ctx.fillText(text, x, y);
+    }
+  }
+  ctx.restore();
+  return canvas;
+}
 
 /* ---------------------------------------------------------
    렌더링
@@ -242,6 +466,7 @@ function renderPresets(){
         }
         if(p.format) selectedFormat = p.format;
         renderPresets(); renderSections(); renderFormats();
+        updateProcessBtn();
       };
     }
     box.appendChild(el);
@@ -282,6 +507,7 @@ function renderSections(){
     group.appendChild(list);
     wrap.appendChild(group);
   });
+  updateSignatureSelectUI();
 }
 
 function renderFormats(){
@@ -318,7 +544,12 @@ fileInput.addEventListener('change', e=>{
 });
 
 function loadFile(file){
-  if(!file.type.startsWith('image/')){ alert('이미지 파일만 올릴 수 있어요.'); return; }
+  const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+  if(!file.type.startsWith('image/') && !isPdf){ alert('이미지 또는 PDF 파일만 올릴 수 있어요.'); return; }
+  if(isPdf){
+    loadPdfFile(file);
+    return;
+  }
   const reader = new FileReader();
   reader.onload = e=>{
     const img = new Image();
@@ -328,12 +559,134 @@ function loadFile(file){
       const badge = document.getElementById('fileBadge');
       badge.classList.add('show');
       badge.textContent = `📄 ${file.name} · ${img.width}×${img.height}`;
+      resetSignatureSelection(e.target.result);
       updateProcessBtn();
     };
     img.src = e.target.result;
   };
   reader.readAsDataURL(file);
 }
+
+// PDF는 서버 없이 브라우저 안에서 pdf.js로 첫 페이지만 이미지로 변환해서 나머지 처리 파이프라인에 그대로 태움
+// (여러 페이지짜리 PDF는 첫 페이지만 사용 — 문서/스캔본 첫 장 기준 도장·서명 추출 등에는 충분한 경우가 많아서)
+async function loadPdfFile(file){
+  const badge = document.getElementById('fileBadge');
+  badge.classList.add('show');
+  badge.textContent = `📄 ${file.name} · PDF 변환 중...`;
+  if(!window.pdfjsLib){
+    badge.textContent = 'PDF 라이브러리를 불러오지 못했어요. 새로고침 후 다시 시도해주세요.';
+    return;
+  }
+  try{
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    const page = await pdf.getPage(1);
+    const scale = 2; // 화질 확보용 — 문서 처리(글자 선명도 등)에 여유 있게
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+
+    const dataUrl = canvas.toDataURL('image/png');
+    const img = new Image();
+    img.onload = ()=>{
+      originalImage = img;
+      document.getElementById('originalPreview').src = dataUrl;
+      const pageNote = pdf.numPages > 1 ? ` (총 ${pdf.numPages}쪽 중 1쪽만 사용)` : '';
+      badge.textContent = `📄 ${file.name} · ${img.width}×${img.height}${pageNote}`;
+      resetSignatureSelection(dataUrl);
+      updateProcessBtn();
+    };
+    img.src = dataUrl;
+  }catch(err){
+    console.error(err);
+    badge.textContent = 'PDF를 읽지 못했어요. 파일이 손상되지 않았는지 확인해주세요.';
+  }
+}
+
+/* ---------------------------------------------------------
+   서명 영역 드래그 선택
+--------------------------------------------------------- */
+function resetSignatureSelection(dataUrl){
+  signatureSelection = null;
+  document.getElementById('sigSelectImg').src = dataUrl;
+  document.getElementById('sigSelectBox').style.display = 'none';
+  document.getElementById('sigSelectStatus').textContent = '';
+}
+
+// signatureExtract 체크 여부에 따라 선택 섹션을 보여주거나 숨김
+function updateSignatureSelectUI(){
+  const section = document.getElementById('sigSelectSection');
+  const shouldShow = checked.has('signatureExtract') && !!originalImage;
+  section.style.display = shouldShow ? '' : 'none';
+}
+
+(function setupSignatureSelectDrag(){
+  const wrap = document.getElementById('sigSelectWrap');
+  const img = document.getElementById('sigSelectImg');
+  const box = document.getElementById('sigSelectBox');
+  const status = document.getElementById('sigSelectStatus');
+  let dragging = false, startX = 0, startY = 0;
+
+  function clientToImgPx(clientX, clientY){
+    const rect = img.getBoundingClientRect();
+    const cx = Math.min(Math.max(clientX - rect.left, 0), rect.width);
+    const cy = Math.min(Math.max(clientY - rect.top, 0), rect.height);
+    return { cx, cy, rect };
+  }
+
+  function start(e){
+    if(!originalImage) return;
+    e.preventDefault();
+    const p = e.touches ? e.touches[0] : e;
+    const { cx, cy } = clientToImgPx(p.clientX, p.clientY);
+    dragging = true;
+    startX = cx; startY = cy;
+    box.style.display = 'block';
+    box.style.left = cx+'px'; box.style.top = cy+'px';
+    box.style.width = '0px'; box.style.height = '0px';
+  }
+  function move(e){
+    if(!dragging) return;
+    e.preventDefault();
+    const p = e.touches ? e.touches[0] : e;
+    const { cx, cy } = clientToImgPx(p.clientX, p.clientY);
+    const left = Math.min(startX, cx), top = Math.min(startY, cy);
+    const w = Math.abs(cx-startX), h = Math.abs(cy-startY);
+    box.style.left = left+'px'; box.style.top = top+'px';
+    box.style.width = w+'px'; box.style.height = h+'px';
+  }
+  function end(e){
+    if(!dragging) return;
+    dragging = false;
+    const rect = img.getBoundingClientRect();
+    const scaleX = originalImage.width / rect.width;
+    const scaleY = originalImage.height / rect.height;
+    const boxLeft = parseFloat(box.style.left), boxTop = parseFloat(box.style.top);
+    const boxW = parseFloat(box.style.width), boxH = parseFloat(box.style.height);
+    if(boxW < 8 || boxH < 8){
+      box.style.display = 'none';
+      signatureSelection = null;
+      status.textContent = '선택 영역이 너무 작아요. 다시 드래그해주세요.';
+      return;
+    }
+    signatureSelection = {
+      x: Math.round(boxLeft*scaleX),
+      y: Math.round(boxTop*scaleY),
+      w: Math.round(boxW*scaleX),
+      h: Math.round(boxH*scaleY),
+    };
+    status.textContent = `✅ 선택 완료 (${signatureSelection.w}×${signatureSelection.h}px) — 다시 드래그하면 영역이 바뀌어요.`;
+  }
+
+  wrap.addEventListener('mousedown', start);
+  window.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', end);
+  wrap.addEventListener('touchstart', start, { passive:false });
+  wrap.addEventListener('touchmove', move, { passive:false });
+  wrap.addEventListener('touchend', end);
+})();
 
 /* ---------------------------------------------------------
    이미지 처리 함수들 (전부 브라우저 안에서, Canvas API로만)
@@ -378,6 +731,178 @@ function autoTrimMargins(canvas){
   return out;
 }
 
+// Otsu's method — 히스토그램에서 배경/문서(종이)를 가장 잘 나누는 밝기 기준값을 자동으로 찾음
+function otsuThreshold(hist, total){
+  let sum=0; for(let i=0;i<256;i++) sum += i*hist[i];
+  let sumB=0, wB=0, varMax=0, threshold=127;
+  for(let t=0;t<256;t++){
+    wB += hist[t]; if(wB===0) continue;
+    const wF = total-wB; if(wF===0) break;
+    sumB += t*hist[t];
+    const mB = sumB/wB, mF = (sum-sumB)/wF;
+    const between = wB*wF*(mB-mF)*(mB-mF);
+    if(between > varMax){ varMax = between; threshold = t; }
+  }
+  return threshold;
+}
+
+// 책상 위 등 배경과 함께 찍힌 문서 사진에서, "가장 크게 뭉친 밝은 영역(=종이)"만 찾아 그 부분만 잘라냄
+function autoCropDocument(canvas){
+  const { width: W, height: H } = canvas;
+  const maxDim = 320;
+  const scale = Math.min(1, maxDim/Math.max(W,H));
+  const sw = Math.max(1, Math.round(W*scale)), sh = Math.max(1, Math.round(H*scale));
+  const small = document.createElement('canvas');
+  small.width = sw; small.height = sh;
+  const sctx = small.getContext('2d');
+  sctx.drawImage(canvas, 0,0,sw,sh);
+  const sd = sctx.getImageData(0,0,sw,sh).data;
+
+  const gray = new Uint8ClampedArray(sw*sh);
+  const hist = new Array(256).fill(0);
+  for(let i=0,p=0; i<sd.length; i+=4,p++){
+    const g = Math.round(0.299*sd[i]+0.587*sd[i+1]+0.114*sd[i+2]);
+    gray[p] = g; hist[g]++;
+  }
+  const threshold = otsuThreshold(hist, sw*sh);
+  const mask = new Uint8Array(sw*sh);
+  for(let p=0;p<sw*sh;p++) mask[p] = gray[p] >= threshold ? 1 : 0;
+
+  // 가장 큰 연결된 밝은 덩어리 찾기 (BFS) — 나중에 배경 자투리를 지우려면 "이 픽셀이 그 덩어리에 속하는지"가 필요해서
+  // 단순 방문 여부(visited)가 아니라 덩어리 번호(label)까지 기록해둠
+  const label = new Int32Array(sw*sh).fill(-1);
+  const stack = new Int32Array(sw*sh);
+  let best = null, bestSize = 0, bestLabel = -1, curLabel = -1;
+  for(let start=0; start<sw*sh; start++){
+    if(!mask[start] || label[start]!==-1) continue;
+    curLabel++;
+    let sp=0; stack[sp++]=start; label[start]=curLabel;
+    let minX=sw,minY=sh,maxX=-1,maxY=-1,size=0;
+    while(sp>0){
+      const p = stack[--sp];
+      const x = p % sw, y = (p / sw) | 0;
+      size++;
+      if(x<minX)minX=x; if(x>maxX)maxX=x;
+      if(y<minY)minY=y; if(y>maxY)maxY=y;
+      if(x>0){ const q=p-1; if(mask[q]&&label[q]===-1){ label[q]=curLabel; stack[sp++]=q; } }
+      if(x<sw-1){ const q=p+1; if(mask[q]&&label[q]===-1){ label[q]=curLabel; stack[sp++]=q; } }
+      if(y>0){ const q=p-sw; if(mask[q]&&label[q]===-1){ label[q]=curLabel; stack[sp++]=q; } }
+      if(y<sh-1){ const q=p+sw; if(mask[q]&&label[q]===-1){ label[q]=curLabel; stack[sp++]=q; } }
+    }
+    if(size>bestSize){ bestSize=size; best={minX,minY,maxX,maxY}; bestLabel=curLabel; }
+  }
+
+  const totalPixels = sw*sh;
+  if(!best || bestSize < totalPixels*0.12){
+    return { canvas, warning: '🖼️ 사진에서 문서 경계를 뚜렷하게 찾지 못해서, 자동 크롭 없이 원본을 그대로 사용했어요.' };
+  }
+  // 이미 문서가 사진 가득 차 있으면(가장자리에 거의 다 닿아있으면) 크롭 안 해도 됨
+  if(best.minX<=1 && best.minY<=1 && best.maxX>=sw-2 && best.maxY>=sh-2){
+    return canvas;
+  }
+
+  const padRatio = 0.02;
+  const padX = Math.round(sw*padRatio), padY = Math.round(sh*padRatio);
+  const fMinX = Math.max(0, best.minX-padX), fMinY = Math.max(0, best.minY-padY);
+  const fMaxX = Math.min(sw-1, best.maxX+padX), fMaxY = Math.min(sh-1, best.maxY+padY);
+
+  const rx = W/sw, ry = H/sh;
+  const oMinX = Math.round(fMinX*rx), oMinY = Math.round(fMinY*ry);
+  const oMaxX = Math.round(fMaxX*rx), oMaxY = Math.round(fMaxY*ry);
+  const newW = oMaxX-oMinX+1, newH = oMaxY-oMinY+1;
+  const out = document.createElement('canvas');
+  out.width = newW; out.height = newH;
+  const octx = out.getContext('2d');
+  octx.drawImage(canvas, oMinX,oMinY,newW,newH, 0,0,newW,newH);
+
+  // 문서가 기울어진 채로 찍힌 사진이면, 축에 맞춰(axis-aligned) 자른 사각형의 모서리에 배경이 삼각형으로 남음.
+  // 이 배경 자투리를 안 지우면 다음 단계인 기울기 보정이 이걸 문서 내용으로 착각해서 각도 판단을 그르치므로 흰색으로 지움.
+  const outData = octx.getImageData(0,0,newW,newH);
+  const od = outData.data;
+  for(let oy=0; oy<newH; oy++){
+    const sy = Math.min(sh-1, Math.max(0, Math.floor((oMinY+oy)/ry)));
+    for(let ox=0; ox<newW; ox++){
+      const sx = Math.min(sw-1, Math.max(0, Math.floor((oMinX+ox)/rx)));
+      if(label[sy*sw+sx] !== bestLabel){
+        const idx = (oy*newW+ox)*4;
+        od[idx]=255; od[idx+1]=255; od[idx+2]=255;
+      }
+    }
+  }
+  octx.putImageData(outData,0,0);
+
+  return { canvas: out, warning: null };
+}
+
+// 텍스트 줄(가로선) 프로파일이 가장 또렷하게 맞아떨어지는 각도를 찾아서 그만큼 회전시켜 반듯하게 만듦
+// (제대로 정렬되면 글자들이 특정 가로줄에 몰려서 행별 픽셀 수 편차가 커짐 → 그 편차가 최대가 되는 각도를 찾는 방식)
+function deskewDocument(canvas){
+  const { width: W, height: H } = canvas;
+  const maxDim = 420;
+  const scale = Math.min(1, maxDim/Math.max(W,H));
+  const sw = Math.max(1, Math.round(W*scale)), sh = Math.max(1, Math.round(H*scale));
+  const small = document.createElement('canvas');
+  small.width=sw; small.height=sh;
+  const sctx = small.getContext('2d');
+  sctx.drawImage(canvas,0,0,sw,sh);
+  const sd = sctx.getImageData(0,0,sw,sh).data;
+
+  const bin = new Uint8Array(sw*sh);
+  let darkTotal = 0;
+  for(let i=0,p=0; i<sd.length; i+=4,p++){
+    const g = 0.299*sd[i]+0.587*sd[i+1]+0.114*sd[i+2];
+    if(g < 180){ bin[p]=1; darkTotal++; }
+  }
+  if(darkTotal < sw*sh*0.01) return canvas; // 어두운 내용(글자 등)이 거의 없으면 판단 불가 — 그대로 둠
+
+  const cx = sw/2, cy = sh/2;
+  function rowVarianceAtAngle(deg){
+    const rad = deg*Math.PI/180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    const rowSum = new Float64Array(sh);
+    for(let y=0;y<sh;y++){
+      const base = y*sw;
+      for(let x=0;x<sw;x++){
+        if(!bin[base+x]) continue;
+        const dx = x-cx, dy = y-cy;
+        const ry = Math.round(-dx*sin + dy*cos + cy);
+        if(ry>=0 && ry<sh) rowSum[ry]++;
+      }
+    }
+    let mean=0; for(let i=0;i<sh;i++) mean+=rowSum[i]; mean/=sh;
+    let v=0; for(let i=0;i<sh;i++){ const diff=rowSum[i]-mean; v+=diff*diff; }
+    return v/sh;
+  }
+
+  let bestAngle=0, bestVar=-1;
+  for(let deg=-10; deg<=10; deg+=0.5){
+    const v = rowVarianceAtAngle(deg);
+    if(v>bestVar){ bestVar=v; bestAngle=deg; }
+  }
+  // 미세한 각도까지 한 번 더 좁혀서 정밀 탐색
+  for(let deg=bestAngle-0.5; deg<=bestAngle+0.5; deg+=0.1){
+    const v = rowVarianceAtAngle(deg);
+    if(v>bestVar){ bestVar=v; bestAngle=deg; }
+  }
+
+  if(Math.abs(bestAngle) < 0.3) return canvas; // 이미 충분히 반듯함
+
+  const rad = bestAngle*Math.PI/180;
+  const cosA=Math.abs(Math.cos(rad)), sinA=Math.abs(Math.sin(rad));
+  const newW = Math.round(W*cosA + H*sinA);
+  const newH = Math.round(W*sinA + H*cosA);
+  const out = document.createElement('canvas');
+  out.width=newW; out.height=newH;
+  const octx = out.getContext('2d');
+  octx.fillStyle = '#fff';
+  octx.fillRect(0,0,newW,newH);
+  octx.translate(newW/2, newH/2);
+  octx.rotate(-rad);
+  octx.drawImage(canvas, -W/2, -H/2);
+  return { canvas: out, warning: null };
+}
+
+
 // 노이즈 제거 — 3x3 중앙값 필터 (소금-후추 노이즈에 특히 효과적)
 function denoiseMedian(canvas){
   const ctx = canvas.getContext('2d');
@@ -403,6 +928,72 @@ function denoiseMedian(canvas){
     }
   }
   ctx.putImageData(dst,0,0);
+  return canvas;
+}
+
+// 표의 테두리/구분선처럼 "길게 쭉 이어진 직선"만 골라서 지움 (글자는 한 방향으로 길게 이어지는 경우가 거의 없어서 대부분 안 지워짐)
+// 가로 방향으로 길게 연속된 어두운 픽셀, 세로 방향으로 길게 연속된 어두운 픽셀을 각각 찾아서 흰색으로 지움
+// 회전·안티에일리어싱 등으로 선 중간에 작은 흰 틈이 생겨도(gapTol 이내) 하나의 선으로 보고 이어서 인식함
+function removeTableLines(canvas){
+  const ctx = canvas.getContext('2d');
+  const { width: W, height: H } = canvas;
+  const imgData = ctx.getImageData(0,0,W,H);
+  const d = imgData.data;
+  const isDark = (x,y)=>{
+    const i=(y*W+x)*4;
+    return (0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]) < 200;
+  };
+
+  const minHLen = Math.max(24, Math.round(W*0.22));
+  const minVLen = Math.max(24, Math.round(H*0.22));
+  const gapTol = 3; // 이 정도 틈은 같은 선의 일부로 봄
+  const lineMask = new Uint8Array(W*H);
+
+  function scanAxis(horizontal, minLen){
+    const outerLen = horizontal ? H : W;
+    const innerLen = horizontal ? W : H;
+    const positions = new Int32Array(innerLen);
+    for(let o=0; o<outerLen; o++){
+      let runStart=-1, lastDark=-1, count=0;
+      const flush = ()=>{
+        if(runStart>=0 && (lastDark-runStart+1)>=minLen){
+          for(let k=0;k<count;k++){
+            const pos = positions[k];
+            const idx = horizontal ? (o*W+pos) : (pos*W+o);
+            lineMask[idx]=1;
+          }
+        }
+        runStart=-1; lastDark=-1; count=0;
+      };
+      for(let i=0;i<innerLen;i++){
+        const dark = horizontal ? isDark(i,o) : isDark(o,i);
+        if(dark){
+          if(runStart<0) runStart=i;
+          lastDark=i;
+          positions[count++]=i;
+        } else if(runStart>=0 && (i-lastDark)>gapTol){
+          flush();
+        }
+      }
+      flush();
+    }
+  }
+
+  scanAxis(true, minHLen);  // 가로선
+  scanAxis(false, minVLen); // 세로선
+
+  let removed = 0;
+  for(let p=0; p<W*H; p++){
+    if(lineMask[p]){
+      const i=p*4;
+      d[i]=255; d[i+1]=255; d[i+2]=255;
+      removed++;
+    }
+  }
+  ctx.putImageData(imgData,0,0);
+  if(removed===0){
+    return { canvas, warning: '📐 지울 만한 표 선을 찾지 못해서 원본을 그대로 사용했어요.' };
+  }
   return canvas;
 }
 
@@ -467,40 +1058,199 @@ function sharpen(canvas){
   return canvas;
 }
 
-// 도장 추출 — 붉은 계열 픽셀만 남기고 나머지는 투명 처리 후, 그 영역만 잘라냄
+// 도장 추출 — 이전 버전(주변 평균으로 부드럽게)은 근처의 검은 선까지 살짝 끌어들이고 전체가 흐릿해지는
+// 부작용이 있었음. 이번엔 확실히 빨간 픽셀만 이진 마스크로 잡고(비-빨강은 절대 안 섞임),
+// 얇은 획 사이 1px짜리 작은 틈만 모폴로지 "닫힘"으로 메운 다음, 가장 바깥 테두리 한 줄만 부드럽게 처리함
+// (안쪽은 100% 또렷하게 유지 -> 흐려 보이지 않음)
+// 흩어져있는 "빨간 계열" 픽셀 덩어리들을 각각 구분해서, 그 중 가장 큰 덩어리(진짜 도장일 가능성이 높음)만 골라냄.
+// 문서 다른 곳에 픽셀 몇 개짜리 작은 얼룩(스캔 잡티, 인쇄 오염 등)이 있어도 무시하기 위함 —
+// 예전엔 "빨간 픽셀이 하나라도 있으면" 그 위치까지 범위에 넣어버려서, 작은 잡티 하나가 범위 전체를 확 부풀리는 문제가 있었음
+function findLargestRedComponent(w0, h0, isRed){
+  const visited = new Uint8Array(w0*h0);
+  const stack = [];
+  let best = null, bestSize = 0;
+  for(let sy=0; sy<h0; sy++){
+    for(let sx=0; sx<w0; sx++){
+      const sp = sy*w0+sx;
+      if(visited[sp] || !isRed(sx,sy)) continue;
+      let size=0, minX=sx,maxX=sx,minY=sy,maxY=sy;
+      stack.length = 0;
+      stack.push(sp);
+      visited[sp] = 1;
+      while(stack.length){
+        const p = stack.pop();
+        const cy = (p / w0) | 0, cx = p % w0;
+        size++;
+        if(cx<minX)minX=cx; if(cx>maxX)maxX=cx;
+        if(cy<minY)minY=cy; if(cy>maxY)maxY=cy;
+        const cand = [[cx-1,cy],[cx+1,cy],[cx,cy-1],[cx,cy+1],[cx-1,cy-1],[cx+1,cy-1],[cx-1,cy+1],[cx+1,cy+1]];
+        for(const [nx,ny] of cand){
+          if(nx<0||nx>=w0||ny<0||ny>=h0) continue;
+          const np = ny*w0+nx;
+          if(visited[np] || !isRed(nx,ny)) continue;
+          visited[np] = 1;
+          stack.push(np);
+        }
+      }
+      if(size > bestSize){ bestSize = size; best = {minX,maxX,minY,maxY,size}; }
+    }
+  }
+  return best;
+}
+
+// 도장 추출 — 예전엔 "먼저 부드럽게 확대 → 그 위에서 빨간색 찾기" 순서였는데,
+// 확대(보간) 과정에서 생기는 색 번짐 때문에 도장이 아닌 곳까지 "빨갛다"고 잘못 인식하는 문제가 있었음.
+// 그래서 순서를 뒤집음: 원본(확대 전) 상태에서 정확하게 빨간 영역만 찾고, 그 작은 영역만 나중에 확대함
 function extractStamp(canvas){
-  const ctx = canvas.getContext('2d');
-  const { width, height } = canvas;
+  const ctx0 = canvas.getContext('2d');
+  const { width: w0, height: h0 } = canvas;
+  const d0 = ctx0.getImageData(0,0,w0,h0).data;
+  const isRedAt = (x,y)=>{
+    const i=(y*w0+x)*4;
+    const r=d0[i], g=d0[i+1], b=d0[i+2];
+    return r > 90 && (r - Math.max(g,b)) > 30;
+  };
+
+  // 1) 원본(확대 전)에서, 흩어진 빨간 덩어리들 중 가장 큰 것만 도장으로 인정
+  const comp = findLargestRedComponent(w0, h0, isRedAt);
+  if(!comp) return { canvas, warning: '🔴 빨간 도장을 찾지 못했어요. 도장 추출 없이 지금까지 처리한 결과만 반영했어요.' };
+  const { minX, maxX, minY, maxY } = comp;
+
+  // 2) 찾은 영역만(여유 패딩 포함) 먼저 작게 잘라냄 — 문서 전체가 아니라 도장 근처만 다루므로 이후 계산도 가벼워짐
+  const rawPad = 6;
+  const rMinX=Math.max(0,minX-rawPad), rMinY=Math.max(0,minY-rawPad);
+  const rMaxX=Math.min(w0-1,maxX+rawPad), rMaxY=Math.min(h0-1,maxY+rawPad);
+  const cropW = rMaxX-rMinX+1, cropH = rMaxY-rMinY+1;
+  const rawCrop = document.createElement('canvas');
+  rawCrop.width = cropW; rawCrop.height = cropH;
+  rawCrop.getContext('2d').drawImage(canvas, rMinX, rMinY, cropW, cropH, 0, 0, cropW, cropH);
+
+  // 3) 이제서야, 이미 작게 잘라낸 도장 영역만 부드럽게 확대 (문서 전체를 확대하지 않으니 색 번짐이 다른 곳으로 안 퍼짐)
+  const SCALE = cropW < 200 ? 3 : 1;
+  let work = rawCrop;
+  if(SCALE > 1){
+    const up = document.createElement('canvas');
+    up.width = cropW * SCALE; up.height = cropH * SCALE;
+    const upCtx = up.getContext('2d');
+    upCtx.imageSmoothingEnabled = true;
+    upCtx.imageSmoothingQuality = 'high';
+    upCtx.drawImage(rawCrop, 0, 0, up.width, up.height);
+    work = up;
+  }
+
+  const ctx = work.getContext('2d');
+  const { width, height } = work;
   const imgData = ctx.getImageData(0,0,width,height);
   const d = imgData.data;
-  const mask = new Uint8Array(width*height);
-  let minX=width, minY=height, maxX=-1, maxY=-1;
+  const n = width*height;
+  const at = (x,y)=> y*width+x;
+  const inBounds = (x,y)=> x>=0&&x<width&&y>=0&&y<height;
+
+  // 4) 확대된 작은 영역 안에서 다시 한번 정확한 이진 마스크 (검은 선/파란 잉크 등 다른 색은 절대 못 들어옴)
+  let mask = new Uint8Array(n);
+  let bMinX=width, bMinY=height, bMaxX=-1, bMaxY=-1;
   for(let y=0;y<height;y++){
     for(let x=0;x<width;x++){
-      const p = y*width+x, i=p*4;
+      const i=at(x,y)*4;
       const r=d[i], g=d[i+1], b=d[i+2];
-      const isRed = r > 100 && (r-g) > 35 && (r-b) > 35;
+      const isRed = r > 90 && (r - Math.max(g,b)) > 30;
       if(isRed){
-        mask[p]=1;
-        if(x<minX)minX=x; if(x>maxX)maxX=x;
-        if(y<minY)minY=y; if(y>maxY)maxY=y;
+        mask[at(x,y)]=1;
+        if(x<bMinX)bMinX=x; if(x>bMaxX)bMaxX=x;
+        if(y<bMinY)bMinY=y; if(y>bMaxY)bMaxY=y;
       }
     }
   }
-  if(maxX < 0) return { canvas, warning: '🔴 빨간 도장을 찾지 못했어요. 도장 추출 없이 지금까지 처리한 결과만 반영했어요.' };
+  if(bMaxX < 0) return { canvas: rawCrop, warning: null }; // 확대 후엔 못 찾으면 확대 전 크롭이라도 반환
+
+  // 5) 가장 바깥 테두리 한 줄만 주변 빨강 비율로 부드럽게(앤티에일리어싱), 안쪽은 100% 또렷하게 유지
   for(let y=0;y<height;y++){
     for(let x=0;x<width;x++){
-      if(!mask[y*width+x]) d[(y*width+x)*4+3]=0;
+      const p = at(x,y), i = p*4;
+      if(!mask[p]){ d[i+3]=0; continue; }
+      let redN=0, total=0;
+      for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+        const nx=x+dx, ny=y+dy;
+        if(inBounds(nx,ny)){ total++; if(mask[at(nx,ny)]) redN++; }
+      }
+      d[i+3] = Math.round((redN/total)*255);
     }
   }
   ctx.putImageData(imgData,0,0);
-  const pad=8;
-  minX=Math.max(0,minX-pad); minY=Math.max(0,minY-pad);
-  maxX=Math.min(width-1,maxX+pad); maxY=Math.min(height-1,maxY+pad);
-  const newW=maxX-minX+1, newH=maxY-minY+1;
+
+  const pad2=8*SCALE;
+  const fMinX=Math.max(0,bMinX-pad2), fMinY=Math.max(0,bMinY-pad2);
+  const fMaxX=Math.min(width-1,bMaxX+pad2), fMaxY=Math.min(height-1,bMaxY+pad2);
+  const newW=fMaxX-fMinX+1, newH=fMaxY-fMinY+1;
   const out=document.createElement('canvas');
   out.width=newW; out.height=newH;
-  out.getContext('2d').drawImage(canvas, minX,minY,newW,newH, 0,0,newW,newH);
+  out.getContext('2d').drawImage(work, fMinX,fMinY,newW,newH, 0,0,newW,newH);
+  applyWatermark(out, 'DocFlow SAMPLE');
+  return { canvas: out, warning: null };
+}
+
+// 사용자가 드래그로 지정한 영역만 잘라서, 종이(밝은 배경)보다 확실히 어두운 잉크 픽셀만 남기고 나머지는 투명하게 함
+// 도장과 달리 서명은 색이 정해져 있지 않아서(검정/파랑 등) 색이 아니라 "배경보다 어두운가"를 기준으로 판단함
+function extractSignature(canvas){
+  if(!signatureSelection){
+    return { canvas, warning: '✍️ 서명 영역을 선택하지 않아서 추출 없이 원본 그대로 진행했어요. 위에 나온 이미지에서 서명 부분을 드래그로 선택해주세요.' };
+  }
+  const { x, y, w, h } = signatureSelection;
+  const crop = document.createElement('canvas');
+  crop.width = w; crop.height = h;
+  crop.getContext('2d').drawImage(canvas, x, y, w, h, 0, 0, w, h);
+
+  const ctx = crop.getContext('2d');
+  const imgData = ctx.getImageData(0,0,w,h);
+  const d = imgData.data;
+
+  // 선택 영역 가장자리 픽셀들의 평균 밝기를 "종이 배경"으로 추정
+  const lumAt = (px,py)=>{ const i=(py*w+px)*4; return (d[i]+d[i+1]+d[i+2])/3; };
+  let bgSum=0, bgCount=0;
+  for(let px=0; px<w; px++){ bgSum+=lumAt(px,0); bgSum+=lumAt(px,h-1); bgCount+=2; }
+  for(let py=0; py<h; py++){ bgSum+=lumAt(0,py); bgSum+=lumAt(w-1,py); bgCount+=2; }
+  const bgBrightness = bgSum/Math.max(1,bgCount);
+  const threshold = Math.max(110, bgBrightness - 45); // 배경보다 확실히 어두운 픽셀만 잉크로 인정
+
+  const mask = new Uint8Array(w*h);
+  let minX=w, minY=h, maxX=-1, maxY=-1;
+  for(let py=0; py<h; py++){
+    for(let px=0; px<w; px++){
+      if(lumAt(px,py) < threshold){
+        mask[py*w+px]=1;
+        if(px<minX)minX=px; if(px>maxX)maxX=px;
+        if(py<minY)minY=py; if(py>maxY)maxY=py;
+      }
+    }
+  }
+  if(maxX < 0){
+    return { canvas: crop, warning: '✍️ 선택한 영역에서 서명(어두운 잉크)을 찾지 못했어요. 배경 제거 없이 선택 영역만 잘라냈어요.' };
+  }
+
+  // 가장 바깥 한 줄만 주변 비율로 부드럽게(안티에일리어싱), 안쪽은 또렷하게
+  const inBounds = (px,py)=> px>=0&&px<w&&py>=0&&py<h;
+  for(let py=0; py<h; py++){
+    for(let px=0; px<w; px++){
+      const p=py*w+px, i=p*4;
+      if(!mask[p]){ d[i+3]=0; continue; }
+      let inkN=0, total=0;
+      for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+        const nx=px+dx, ny=py+dy;
+        if(inBounds(nx,ny)){ total++; if(mask[ny*w+nx]) inkN++; }
+      }
+      d[i+3] = Math.round((inkN/total)*255);
+    }
+  }
+  ctx.putImageData(imgData,0,0);
+
+  const pad=6;
+  const fMinX=Math.max(0,minX-pad), fMinY=Math.max(0,minY-pad);
+  const fMaxX=Math.min(w-1,maxX+pad), fMaxY=Math.min(h-1,maxY+pad);
+  const newW=fMaxX-fMinX+1, newH=fMaxY-fMinY+1;
+  const out=document.createElement('canvas');
+  out.width=newW; out.height=newH;
+  out.getContext('2d').drawImage(crop, fMinX,fMinY,newW,newH, 0,0,newW,newH);
+  applyWatermark(out, 'DocFlow SAMPLE');
   return { canvas: out, warning: null };
 }
 
@@ -511,9 +1261,16 @@ const PROCESSORS = {
   contrast: autoContrast,
   sharpen: sharpen,
   stampExtract: extractStamp,
+  signatureExtract: extractSignature,
+  autoCrop: autoCropDocument,
+  deskew: deskewDocument,
+  removeLines: removeTableLines,
 };
-// 항상 이 순서로 적용 (체크 안 한 건 건너뜀) — 노이즈부터 지워야 여백 경계를 정확히 찾을 수 있어서 순서가 중요함
-const PROCESS_ORDER = ['denoise','trimMargin','grayscale','contrast','sharpen','stampExtract'];
+// 항상 이 순서로 적용 (체크 안 한 건 건너뜀)
+// signatureExtract는 사용자가 "원본 이미지" 좌표 기준으로 영역을 골랐기 때문에, 다른 단계가 크기를 바꾸기 전인
+// 맨 처음에 실행해야 좌표가 어긋나지 않음. 그다음 배경과 함께 찍힌 사진이면 자동크롭으로 문서만 추리고,
+// 기울어졌으면 반듯하게 편 다음, 노이즈 제거 → 표 선 제거(반듯해야 직선 인식이 잘 됨) → 여백 정리 순으로 진행.
+const PROCESS_ORDER = ['signatureExtract','autoCrop','deskew','denoise','removeLines','trimMargin','grayscale','contrast','sharpen','stampExtract'];
 
 /* ---------------------------------------------------------
    처리 실행
@@ -584,10 +1341,450 @@ document.getElementById('downloadBtn').addEventListener('click', ()=>{
   }, mimeMap[selectedFormat], selectedFormat==='jpg' ? 0.92 : undefined);
 });
 
+/* ---------------------------------------------------------
+   모드 전환 (추출하기 / 이름으로 만들기)
+--------------------------------------------------------- */
+document.getElementById('modeToggle').addEventListener('click', e=>{
+  const btn = e.target.closest('.mode-btn');
+  if(!btn) return;
+  document.querySelectorAll('.mode-btn').forEach(b=>b.classList.toggle('active', b===btn));
+  const mode = btn.dataset.mode;
+  document.getElementById('extractMode').style.display = mode==='extract' ? '' : 'none';
+  document.getElementById('generateMode').style.display = mode==='generate' ? '' : 'none';
+});
+
+document.getElementById('genTabRow').addEventListener('click', e=>{
+  const btn = e.target.closest('.gen-tab');
+  if(!btn) return;
+  document.querySelectorAll('.gen-tab').forEach(b=>b.classList.toggle('active', b===btn));
+  const gen = btn.dataset.gen;
+  document.getElementById('genStamp').style.display = gen==='stamp' ? '' : 'none';
+  document.getElementById('genSignature').style.display = gen==='signature' ? '' : 'none';
+});
+
+document.getElementById('sigSubtabRow').addEventListener('click', e=>{
+  const btn = e.target.closest('.sig-subtab');
+  if(!btn) return;
+  document.querySelectorAll('.sig-subtab').forEach(b=>b.classList.toggle('active', b===btn));
+  const sig = btn.dataset.sig;
+  document.getElementById('sigFontPanel').style.display = sig==='font' ? '' : 'none';
+  document.getElementById('sigDrawPanel').style.display = sig==='draw' ? '' : 'none';
+  // 그리기 캔버스는 숨겨진 상태에선 크기가 0으로 잡히므로, 탭이 보일 때 다시 사이즈를 맞춰줌
+  if(sig==='draw' && window.resizeSigDrawCanvas) window.resizeSigDrawCanvas();
+});
+
+/* ---------------------------------------------------------
+   공용: 투명 배경 캔버스를 잉크가 있는 영역만 크롭해서 다운로드
+--------------------------------------------------------- */
+function downloadCroppedCanvas(canvas, filename, pad = 12){
+  const ctx = canvas.getContext('2d');
+  const { width: w, height: h } = canvas;
+  const data = ctx.getImageData(0,0,w,h).data;
+  let minX=w, minY=h, maxX=-1, maxY=-1;
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      const a = data[(y*w+x)*4+3];
+      if(a > 10){
+        if(x<minX)minX=x; if(x>maxX)maxX=x;
+        if(y<minY)minY=y; if(y>maxY)maxY=y;
+      }
+    }
+  }
+  if(maxX < 0){ alert('내용을 찾지 못했어요.'); return; }
+  minX=Math.max(0,minX-pad); minY=Math.max(0,minY-pad);
+  maxX=Math.min(w-1,maxX+pad); maxY=Math.min(h-1,maxY+pad);
+  const cw=maxX-minX+1, ch=maxY-minY+1;
+  const out=document.createElement('canvas');
+  out.width=cw; out.height=ch;
+  out.getContext('2d').drawImage(canvas, minX,minY,cw,ch, 0,0,cw,ch);
+  out.toBlob(blob=>{
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, 'image/png');
+}
+
+function roundRectPath(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
+  ctx.closePath();
+}
+
+// 한글 웹폰트는 글자 단위로 쪼개져 비동기 로드되는 경우가 많아서, 캔버스에 그리기 전에
+// 실제로 쓸 글자(text)를 넘겨서 그 글자의 글리프가 로드될 때까지 확실히 기다림.
+// (안 그러면 방금 로드 안 된 글자만 기본 폰트로 대체되어 그려지는 문제가 생김)
+async function ensureFontLoaded(fontFamily, text, size){
+  try{
+    await document.fonts.load(`${size}px "${fontFamily}"`, text);
+    await document.fonts.ready;
+  }catch(e){ /* 실패해도 폴백 폰트로 계속 진행 */ }
+}
+
+/* ---------------------------------------------------------
+   도장 생성 — 이름 글자수에 따라 자동 배치, 원형/사각 + 양각/음각
+--------------------------------------------------------- */
+const STAMP_SHAPES = [ {id:'oval', name:'타원형'}, {id:'circle', name:'원형'}, {id:'square', name:'사각형'} ];
+const STAMP_STYLES = [ {id:'positive', name:'양각 (흰 배경 + 빨간 글자)'}, {id:'negative', name:'음각 (빨간 배경 + 흰 글자)'} ];
+let stampShape = 'oval';
+let stampStyle = 'positive';
+let stampAppendIn = true;
+
+// 모양별로 어울리는 서체를 다르게 씀
+// - 타원형/원형: KCC안중근체(붓글씨체, 한국저작권위원회 공개 무료 상업용 웹폰트)
+// - 사각형: Noto Sans KR 900(굵은 고딕) + 각지게 재구성(blockify)
+function stampFontSpec(shape){
+  if(shape==='square') return { family: 'Noto Sans KR', weight: 900, css: `900 SIZEpx 'Noto Sans KR', sans-serif` };
+  return { family: 'KCCAhnjunggeun', weight: 400, css: `400 SIZEpx 'KCCAhnjunggeun', cursive` };
+}
+
+function renderStampOptionRow(box, options, current, onPick){
+  box.innerHTML = '';
+  options.forEach(o=>{
+    const btn = document.createElement('button');
+    btn.className = 'format-btn' + (current===o.id ? ' selected' : '');
+    btn.textContent = o.name;
+    btn.onclick = ()=>{ onPick(o.id); };
+    box.appendChild(btn);
+  });
+}
+function renderStampShapeRow(){
+  renderStampOptionRow(document.getElementById('stampShapeRow'), STAMP_SHAPES, stampShape, id=>{ stampShape=id; renderStampShapeRow(); });
+}
+function renderStampStyleRow(){
+  renderStampOptionRow(document.getElementById('stampStyleRow'), STAMP_STYLES, stampStyle, id=>{ stampStyle=id; renderStampStyleRow(); });
+}
+
+// 타원형은 실제 인장처럼 항상 세로 한 줄로, 원형/사각형은 글자 수에 따라 세로줄 또는 2x2 격자로
+function stampCharPositions(count, fontSize, shape, rtl, size){
+  const line = fontSize * 0.98;
+  if(count<=1) return [[0,0]];
+  if(shape==='oval'){
+    const start = -(count-1)/2;
+    const positions = [];
+    for(let i=0;i<count;i++) positions.push([0, (start+i)*line]);
+    return positions;
+  }
+  if(count===2) return [[0,-line/2],[0,line/2]];
+  if(count===3) return [[0,-line],[0,0],[0,line]];
+  // 4글자는 2x2로 채움 (이름+인/印, 또는 4글자 이름·회사명 등)
+  // 사각형은 각지게 재구성(blockify) 과정에서 격자 칸 단위로 경계가 부풀기 때문에 더 넉넉한 간격이 필요함
+  const g = fontSize * (shape==='square' ? 0.62 : 0.5);
+  // 한자는 전통 인장 방식대로 오른쪽 열을 위→아래로 먼저 읽고, 왼쪽 열을 위→아래로 읽는 순서(세로쓰기)로 배치
+  return rtl ? [[g,-g],[g,g],[-g,-g],[-g,g]] : [[-g,-g],[g,-g],[-g,g],[g,g]];
+}
+
+// 글자 수·모양에 맞는 폰트 크기 (타원형은 세로로 길게 쌓이므로 좀 더 작게, 원형/사각형은 4글자일 때 꽉 차게)
+function stampFontSize(size, count, shape){
+  if(shape==='oval'){
+    return size * (count<=1 ? 0.36 : count===2 ? 0.28 : count===3 ? 0.22 : 0.19);
+  }
+  if(shape==='circle'){
+    return size * (count<=1 ? 0.52 : count===2 ? 0.34 : count===3 ? 0.25 : 0.30);
+  }
+  return size * (count<=1 ? 0.46 : count===2 ? 0.29 : count===3 ? 0.21 : 0.30);
+}
+
+// 이름만 입력해도 도장 관례대로 끝에 '인'(한글 입력 시) 또는 '印'(한자 입력 시)을 자동으로 붙임
+function buildStampChars(name, appendIn){
+  const raw = Array.from(name);
+  if(!appendIn) return raw.slice(0,4);
+  const isHanja = /[\u4e00-\u9fff]/.test(name);
+  const suffix = isHanja ? '印' : '인';
+  return raw.slice(0,3).concat(suffix); // 이름은 최대 3자 + 인/印 = 총 4자로 맞춤
+}
+
+// 글자만 따로 그려서 마스크로 만듦 (곡선 재구성을 글자에만 적용하고 테두리는 매끈하게 유지하기 위함)
+// thickenPx > 0이면 테두리를 덧그려서 가는 붓글씨체를 더 두껍게 보이도록 함
+// organic이 true면 글자마다 아주 살짝 회전·위치를 흔들어서 격자에 딱 맞춘 느낌 대신 손으로 새긴 도장 느낌을 냄
+function renderTextMask(chars, positions, fontSize, size, fontCss, thickenPx, organic){
+  const c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#000';
+  ctx.strokeStyle = '#000';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = thickenPx || 0;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = fontCss.replace('SIZE', fontSize);
+  const cx = size/2, cy = size/2;
+  chars.forEach((ch,i)=>{
+    const [dx,dy] = positions[i];
+    ctx.save();
+    let x = cx+dx, y = cy+dy;
+    if(organic){
+      x += (Math.random()-0.5) * fontSize*0.05;
+      y += (Math.random()-0.5) * fontSize*0.05;
+      ctx.translate(x,y);
+      ctx.rotate((Math.random()-0.5) * 0.14); // 약 ±4도 이내로 살짝만
+      x = 0; y = 0;
+    }
+    if(thickenPx) ctx.strokeText(ch, x, y);
+    ctx.fillText(ch, x, y);
+    ctx.restore();
+  });
+  return c;
+}
+
+// 곡선 획을 격자 단위로 끊어서 직각으로 재구성 — 도장을 조각칼로 판 듯한 각진 느낌을 만듦 (사각형 전용)
+function blockifyMask(maskCanvas, cell){
+  const ctx = maskCanvas.getContext('2d');
+  const w = maskCanvas.width, h = maskCanvas.height;
+  const src = ctx.getImageData(0,0,w,h).data;
+  const out = ctx.createImageData(w,h);
+  const cols = Math.ceil(w/cell), rows = Math.ceil(h/cell);
+  for(let gy=0; gy<rows; gy++){
+    for(let gx=0; gx<cols; gx++){
+      const x0=gx*cell, y0=gy*cell;
+      const x1=Math.min(w,x0+cell), y1=Math.min(h,y0+cell);
+      let sum=0, count=0;
+      for(let y=y0;y<y1;y++) for(let x=x0;x<x1;x++){ sum += src[(y*w+x)*4+3]; count++; }
+      if((sum/count) > 80){
+        for(let y=y0;y<y1;y++) for(let x=x0;x<x1;x++){
+          const idx=(y*w+x)*4;
+          out.data[idx+3]=255;
+        }
+      }
+    }
+  }
+  ctx.putImageData(out,0,0);
+}
+
+// 마스크(알파 채널만 유효)에 색을 입혀 실제로 찍힐 색상의 캔버스로 변환
+function colorizeMask(maskCanvas, color){
+  const size = maskCanvas.width, h = maskCanvas.height;
+  const c = document.createElement('canvas');
+  c.width = size; c.height = h;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = color;
+  ctx.fillRect(0,0,size,h);
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.drawImage(maskCanvas,0,0);
+  return c;
+}
+function applyInkTexture(canvas){
+  const ctx = canvas.getContext('2d');
+  const { width: w, height: h } = canvas;
+  const imgData = ctx.getImageData(0,0,w,h);
+  const d = imgData.data;
+  for(let i=0; i<d.length; i+=4){
+    if(d[i+3] === 0) continue;
+    const roll = Math.random();
+    if(roll < 0.035){
+      d[i+3] = 0; // 잉크가 안 묻은 아주 작은 빈틈
+    } else if(roll < 0.15){
+      d[i+3] = Math.round(d[i+3] * (0.55 + Math.random()*0.35)); // 농도가 살짝 옅어진 부분
+    }
+  }
+  ctx.putImageData(imgData,0,0);
+}
+
+function renderStampCanvas(name, shape, style, appendIn){
+  const size = 400;
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const chars = buildStampChars(name, appendIn);
+  const red = '#c23b2f';
+  const cx = size/2, cy = size/2;
+  const rx = size*0.32, ry = size*0.44; // 타원형용
+  const outlineR = size*0.40; // 원형용
+  const borderW = size*0.028;
+
+  ctx.clearRect(0,0,size,size);
+
+  const outlinePath = ()=>{
+    if(shape==='oval'){ ctx.beginPath(); ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2); }
+    else if(shape==='circle'){ ctx.beginPath(); ctx.arc(cx,cy,outlineR,0,Math.PI*2); }
+    else { roundRectPath(ctx, size*0.09, size*0.09, size*0.82, size*0.82, size*0.05); }
+  };
+
+  const fontSpec = stampFontSpec(shape);
+  const fontSize = stampFontSize(size, chars.length, shape);
+  const isHanja = /[\u4e00-\u9fff]/.test(name);
+  const positions = stampCharPositions(chars.length, fontSize, shape, isHanja, size);
+
+  // 사각형은 굵은 고딕 글자를 그린 뒤 각지게 재구성하되, 4글자처럼 촘촘한 배치에서는 격자 단위 처리가
+  // 글자끼리 맞닿을 때 쉽게 뭉개지므로(반복 확인된 문제) 이 경우엔 각지게 처리를 건너뛰고 굵은 글자만 사용
+  const thickenPx = shape==='square' ? 0 : fontSize*0.07;
+  const useBlockify = shape==='square' && chars.length < 4;
+  const textLayer = useBlockify
+    ? (()=>{ const m = renderTextMask(chars, positions, fontSize, size, fontSpec.css, 0, false); blockifyMask(m, Math.max(4, Math.round(fontSize*0.1))); return m; })()
+    : renderTextMask(chars, positions, fontSize, size, fontSpec.css, thickenPx, false);
+
+  if(style==='negative'){
+    ctx.save();
+    outlinePath(); ctx.fillStyle = red; ctx.fill();
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.drawImage(textLayer, 0, 0);
+    ctx.restore();
+    ctx.save();
+    ctx.strokeStyle = red; ctx.lineWidth = borderW;
+    outlinePath(); ctx.stroke();
+    ctx.restore();
+  } else {
+    ctx.save();
+    ctx.strokeStyle = red; ctx.lineWidth = borderW;
+    outlinePath(); ctx.stroke();
+    ctx.restore();
+    const styled = colorizeMask(textLayer, red);
+    ctx.drawImage(styled, 0, 0);
+  }
+
+  applyInkTexture(canvas);
+  return canvas;
+}
+
+document.getElementById('stampGenBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('stampNameInput').value.trim();
+  if(!name){ alert('이름을 입력해주세요.'); return; }
+  const btn = document.getElementById('stampGenBtn');
+  btn.disabled = true; btn.textContent = '만드는 중...';
+  const chars = buildStampChars(name, stampAppendIn);
+  const fontSpec = stampFontSpec(stampShape);
+  await ensureFontLoaded(fontSpec.family, chars.join(''), 180);
+  const canvas = renderStampCanvas(name, stampShape, stampStyle, stampAppendIn);
+  btn.disabled = false; btn.textContent = '도장 만들기';
+  const previewEl = document.getElementById('stampCanvas');
+  previewEl.width = canvas.width; previewEl.height = canvas.height;
+  previewEl.getContext('2d').drawImage(canvas,0,0);
+  document.getElementById('stampPreviewWrap').classList.add('show');
+  document.getElementById('stampPreviewWrap').scrollIntoView({behavior:'smooth', block:'nearest'});
+  document.getElementById('stampDownloadBtn').onclick = ()=> downloadCroppedCanvas(canvas, 'DocFlow_도장.png', 16);
+});
+
+document.getElementById('stampAppendInCheck').addEventListener('change', e=>{
+  stampAppendIn = e.target.checked;
+});
+
+/* ---------------------------------------------------------
+   서명 생성 — 폰트 렌더링
+--------------------------------------------------------- */
+const SIG_FONTS = [
+  { id:'Nanum Pen Script', label:'나눔손글씨 펜' },
+  { id:'Gamja Flower', label:'감자꽃' },
+  { id:'East Sea Dokdo', label:'동해 독도' },
+];
+let sigFont = SIG_FONTS[0].id;
+
+function renderSigFontRow(){
+  const box = document.getElementById('sigFontRow');
+  box.innerHTML = '';
+  SIG_FONTS.forEach(f=>{
+    const el = document.createElement('div');
+    el.className = 'font-option' + (sigFont===f.id ? ' selected' : '');
+    el.style.fontFamily = `'${f.id}'`;
+    el.textContent = f.label;
+    el.onclick = ()=>{ sigFont = f.id; renderSigFontRow(); };
+    box.appendChild(el);
+  });
+}
+
+function renderSignatureFontCanvas(name, fontFamily){
+  const w = 520, h = 220;
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle = '#1a1a1a';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = `52px '${fontFamily}'`;
+  ctx.save();
+  ctx.translate(w/2, h/2);
+  ctx.rotate(-0.025);
+  ctx.fillText(name, 0, 0);
+  ctx.restore();
+  return canvas;
+}
+
+document.getElementById('sigFontGenBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('sigNameInput').value.trim();
+  if(!name){ alert('이름을 입력해주세요.'); return; }
+  const btn = document.getElementById('sigFontGenBtn');
+  btn.disabled = true; btn.textContent = '만드는 중...';
+  await ensureFontLoaded(sigFont, name, 52);
+  const canvas = renderSignatureFontCanvas(name, sigFont);
+  btn.disabled = false; btn.textContent = '서명 만들기';
+  const previewEl = document.getElementById('sigFontCanvas');
+  previewEl.width = canvas.width; previewEl.height = canvas.height;
+  previewEl.getContext('2d').drawImage(canvas,0,0);
+  document.getElementById('sigFontPreviewWrap').classList.add('show');
+  document.getElementById('sigFontPreviewWrap').scrollIntoView({behavior:'smooth', block:'nearest'});
+  document.getElementById('sigFontDownloadBtn').onclick = ()=> downloadCroppedCanvas(canvas, 'DocFlow_서명.png', 16);
+});
+
+/* ---------------------------------------------------------
+   서명 생성 — 직접 그리기
+--------------------------------------------------------- */
+function initSignatureDraw(){
+  const canvas = document.getElementById('sigDrawCanvas');
+  const ctx = canvas.getContext('2d');
+  let drawing = false, lastX = 0, lastY = 0, hasInk = false;
+
+  function resizeCanvas(){
+    const rect = canvas.getBoundingClientRect();
+    if(rect.width === 0 || rect.height === 0) return; // 숨겨진 상태면 건너뜀 — 탭이 열릴 때 다시 호출됨
+    const prev = hasInk ? canvas.toDataURL() : null;
+    canvas.width = rect.width * 2;
+    canvas.height = rect.height * 2;
+    ctx.scale(2,2);
+    if(prev){
+      const img = new Image();
+      img.onload = ()=> ctx.drawImage(img, 0, 0, canvas.width/2, canvas.height/2);
+      img.src = prev;
+    }
+  }
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+  window.resizeSigDrawCanvas = resizeCanvas;
+
+  function pos(e){
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  }
+  function start(e){ e.preventDefault(); drawing = true; const p = pos(e); lastX = p.x; lastY = p.y; }
+  function move(e){
+    if(!drawing) return;
+    e.preventDefault();
+    const p = pos(e);
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(lastX,lastY); ctx.lineTo(p.x,p.y); ctx.stroke();
+    lastX = p.x; lastY = p.y; hasInk = true;
+  }
+  function end(){ drawing = false; }
+
+  canvas.addEventListener('mousedown', start);
+  canvas.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', end);
+  canvas.addEventListener('touchstart', start, { passive:false });
+  canvas.addEventListener('touchmove', move, { passive:false });
+  canvas.addEventListener('touchend', end);
+
+  document.getElementById('sigClearBtn').onclick = ()=>{
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    hasInk = false;
+  };
+  document.getElementById('sigDrawDownloadBtn').onclick = ()=>{
+    if(!hasInk){ alert('서명을 먼저 그려주세요.'); return; }
+    downloadCroppedCanvas(canvas, 'DocFlow_서명.png', 20);
+  };
+}
+
 /* init */
 renderPresets();
 renderSections();
 renderFormats();
+renderStampShapeRow();
+renderStampStyleRow();
+renderSigFontRow();
+initSignatureDraw();
 </script>
 <script src="../../assets/analytics-config.js"></script>
 <script src="../../assets/ga4.js"></script>
