@@ -206,6 +206,24 @@
 
   .shared-banner{ text-align:center; font-size:12.5px; color:var(--gold); background:var(--surface); border:1px solid var(--border-lit); border-radius:10px; padding:10px; margin-bottom:16px; }
 
+  /* 도전장 도착 화면 */
+  .challenge-panel{ text-align:center; padding:36px 26px; }
+  .challenge-flame{ font-size:40px; margin-bottom:6px; }
+  .challenge-title{ font-family:'Noto Sans KR',sans-serif; font-weight:900; font-size:20px; letter-spacing:-0.01em; color:var(--gold); margin-bottom:16px; }
+  .challenge-body{ font-size:15px; line-height:1.7; color:var(--text); margin-bottom:14px; }
+  .challenge-body b{ color:var(--gold); }
+  .challenge-body .gold{ color:var(--gold); font-weight:800; }
+  .challenge-quote{ font-size:13px; font-style:italic; color:#a89c88; margin-bottom:22px; }
+  .btn-link{ background:none; border:none; color:var(--muted); font-size:12px; cursor:pointer; margin-top:12px; text-decoration:underline; font-family:inherit; }
+  .btn-link:hover{ color:var(--gold); }
+
+  /* 결과 화면 내 대결(vs 친구) 결과 박스 */
+  .duel-box{ background:var(--surface2); border:1px solid var(--border-lit); border-radius:10px; padding:16px 18px; margin-top:16px; text-align:center; }
+  .duel-box .duel-verdict{ font-size:16px; font-weight:900; margin-bottom:6px; }
+  .duel-box .duel-verdict.win{ color:var(--gold); }
+  .duel-box .duel-verdict.lose{ color:#a89c88; }
+  .duel-box .duel-detail{ font-size:12px; color:#a89c88; line-height:1.6; }
+
   .version-tag{ position:fixed; right:10px; bottom:8px; font-size:10px; color:#4a4a4a; font-family:'JetBrains Mono',monospace; z-index:40; }
 </style>
 </head>
@@ -219,9 +237,23 @@
 
 <div class="wrap">
 
-  <!-- 공유링크로 들어온 경우 배너 -->
+  <!-- 공유링크로 들어온 경우 배너 (자격증 화면에서 노출) -->
   <div id="sharedBanner" class="shared-banner" style="display:none;">
     친구가 보낸 자격증을 보고 계세요. 나도 도전하려면 아래에서 시작할 수 있어요.
+  </div>
+
+  <!-- 0. 도전장 도착 (공유링크로 들어온 경우 제일 먼저 뜸) -->
+  <div class="screen" id="screen-challenge">
+    <div class="panel challenge-panel">
+      <div class="challenge-flame">🔥</div>
+      <div class="challenge-title">도전장 도착</div>
+      <div class="challenge-body" id="challengeBody"></div>
+      <div class="challenge-quote" id="challengeQuote"></div>
+      <div class="btn-row">
+        <button class="btn primary block" id="btnAcceptChallenge">기록 깨러 가기 →</button>
+      </div>
+      <button class="btn-link" id="btnJustViewCert">그냥 자격증만 보기</button>
+    </div>
   </div>
 
   <!-- 1. 수험표 작성 -->
@@ -354,6 +386,11 @@
     <div class="result-head">
       <span class="grade-badge" id="gradeBadge"></span>
       <div class="comment" id="judgeComment"></div>
+    </div>
+
+    <div class="duel-box" id="duelBox" style="display:none;">
+      <div class="duel-verdict" id="duelVerdict"></div>
+      <div class="duel-detail" id="duelDetail"></div>
     </div>
 
     <div class="panel">
@@ -515,9 +552,40 @@
     return `${ok ? 'PASS' : 'FAIL'}-${new Date().getFullYear()}-${themeCode}-${randInt(10,99)}`;
   }
 
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  }
+
+  const CHALLENGE_QUOTES = {
+    A: ['너 내 반응속도 따라올 수 있냐?', '이 정도 속도, 흉내라도 내볼래?', '눈 깜빡할 새에 못 따라올 걸.'],
+    B: ['너도 이 판독력 가능해?', '광고 하나라도 놓치면 그날로 끝이야.', '내 엄지 속도를 감당할 수 있겠어?'],
+    C: ['이 균형감, 따라할 수 있어?', '나만큼 오래 버틸 수 있겠어?', '5초도 못 버틸 것 같은데?']
+  };
+  const CHALLENGE_QUOTES_FAIL = [
+    '나도 낙방했어. 너는 이길 수 있어?',
+    '이 굴욕, 너라면 넘을 수 있을까?',
+    '자존심 회복은 네가 해줘.'
+  ];
+  function getMetricText(p){
+    if(p.g === 'fail') return '도전';
+    if(p.th === 'B') return `정밀 히트 ${p.sh}회 기록`;
+    if(p.th === 'C') return `황금영역 유지율 ${p.bp}% 기록`;
+    return `${(p.ms/1000).toFixed(2)}초의 기록`;
+  }
+  function showChallengeScreen(payload){
+    const ok = payload.g !== 'fail';
+    $('challengeBody').innerHTML = ok
+      ? `<b>${escapeHtml(payload.n)}</b>님이 ${getMetricText(payload)}으로<br><span class="gold">[${escapeHtml(payload.gl)}]</span>을 획득했습니다!`
+      : `<b>${escapeHtml(payload.n)}</b>님이 도전했다가<br><span class="gold">낙방</span>하고 말았습니다...`;
+    $('challengeQuote').textContent = '"' + (ok ? pick(CHALLENGE_QUOTES[payload.th] || CHALLENGE_QUOTES.A) : pick(CHALLENGE_QUOTES_FAIL)) + '"';
+    $('btnAcceptChallenge').textContent = `${payload.n} 기록 깨러 가기 →`;
+    showScreen('screen-challenge');
+  }
+
   // ---------- 상태 ----------
   let state = {
-    name:'', status:'', theme:'A', certAvatarImg:null, certAvatarStyle:'', certAvatarSeed:'',
+    name:'', status:'', theme:'A', forcedTheme:null, challengeFrom:null,
+    certAvatarImg:null, certAvatarStyle:'', certAvatarSeed:'',
     reactionMs:null, early:false,
     scrollHits:0, scrollMisses:0, scrollScore:0,
     balancePercent:0,
@@ -578,26 +646,24 @@
       state.certAvatarStyle = chosen.styleKey;
       state.certAvatarSeed = chosen.seed;
     }
-    showScreen('screen-theme');
+    if(state.forcedTheme){
+      startTheme(state.forcedTheme);
+    } else {
+      showScreen('screen-theme');
+    }
   });
 
+  function startTheme(theme){
+    state.theme = theme;
+    if(theme === 'A'){ showScreen('screen-gameA'); buildExcelSheet(); startThemeA(); }
+    else if(theme === 'B'){ showScreen('screen-gameB'); startThemeB(); }
+    else { showScreen('screen-gameC'); startThemeC(); }
+  }
+
   // ---------- 2. 테마 선택 ----------
-  $('themeA').addEventListener('click', ()=>{
-    state.theme = 'A';
-    showScreen('screen-gameA');
-    buildExcelSheet();
-    startThemeA();
-  });
-  $('themeB').addEventListener('click', ()=>{
-    state.theme = 'B';
-    showScreen('screen-gameB');
-    startThemeB();
-  });
-  $('themeC').addEventListener('click', ()=>{
-    state.theme = 'C';
-    showScreen('screen-gameC');
-    startThemeC();
-  });
+  $('themeA').addEventListener('click', ()=> startTheme('A'));
+  $('themeB').addEventListener('click', ()=> startTheme('B'));
+  $('themeC').addEventListener('click', ()=> startTheme('C'));
 
   // ---------- 3. 테마 A 미니게임 (실제 엑셀 화면처럼) ----------
   const SHEET_CELL_POOL = [
@@ -977,6 +1043,41 @@
   const a4Canvas = $('a4Canvas');
   const cardCanvas = $('cardCanvas');
 
+  function gradeRank(g){ return g==='1' ? 3 : g==='2' ? 2 : 1; }
+  function myMetricText(){
+    if(state.grade==='fail') return '낙방';
+    if(state.theme==='A') return `${(state.reactionMs/1000).toFixed(2)}초`;
+    if(state.theme==='B') return `정밀 히트 ${state.scrollHits}회`;
+    return `유지율 ${state.balancePercent}%`;
+  }
+  function friendMetricText(p){
+    if(p.g==='fail') return '낙방';
+    if(p.th==='A') return `${(p.ms/1000).toFixed(2)}초`;
+    if(p.th==='B') return `정밀 히트 ${p.sh}회`;
+    return `유지율 ${p.bp}%`;
+  }
+  function renderDuelBox(){
+    const p = state.challengeFrom;
+    if(!p){ $('duelBox').style.display = 'none'; return; }
+    const myRank = gradeRank(state.grade), theirRank = gradeRank(p.g);
+    let iWin, tie = false;
+    if(myRank !== theirRank){
+      iWin = myRank > theirRank;
+    } else if(state.grade === 'fail'){
+      iWin = false; tie = true; // 둘 다 낙방이면 무승부 취급
+    } else if(state.theme === 'A'){
+      tie = state.reactionMs === p.ms; iWin = state.reactionMs < p.ms;
+    } else if(state.theme === 'B'){
+      tie = state.scrollScore === p.ss; iWin = state.scrollScore > p.ss;
+    } else {
+      tie = state.balancePercent === p.bp; iWin = state.balancePercent > p.bp;
+    }
+    $('duelBox').style.display = 'block';
+    $('duelVerdict').textContent = tie ? '무승부!' : (iWin ? `${p.n}님 기록 갱신 성공! 🏆` : `아직 ${p.n}님을 못 넘었어요`);
+    $('duelVerdict').className = 'duel-verdict ' + (iWin || tie ? 'win' : 'lose');
+    $('duelDetail').textContent = `내 기록: ${myMetricText()}   vs   ${p.n}님 기록: ${friendMetricText(p)}`;
+  }
+
   function renderResult(){
     const ok = state.grade !== 'fail';
     $('gradeBadge').textContent = ok ? state.gradeLabel : '낙방';
@@ -984,6 +1085,7 @@
     $('judgeComment').textContent = `심사위원 코멘트: ${state.judgeComment}`;
     $('a4Cap').textContent = ok ? 'A4 정식 자격증 (인쇄/PDF용)' : 'A4 불합격 통지서 (인쇄/PDF용)';
     $('cardCap').textContent = ok ? '모바일 자격증 카드 (인스타/SNS용)' : '모바일 결과 카드 (인스타/SNS용)';
+    renderDuelBox();
 
     document.querySelectorAll('.stamp-opt').forEach(el=>{
       el.classList.toggle('active', el.dataset.word === state.stamp);
@@ -1468,10 +1570,12 @@
   // 받는 쪽 브라우저가 같은 값으로 다시 생성하면 100% 동일한(내가 고른 그) 사진이 나와요.
   function updateShareUrl(){
     const payload = {
-      n: state.name, s: state.status,
+      n: state.name, s: state.status, th: state.theme, qt: state.qualificationTitle,
       avs: state.certAvatarStyle, avd: state.certAvatarSeed,
       g: state.grade, gl: state.gradeLabel, gs: state.gradeSub,
       ms: state.reactionMs, early: state.early,
+      sh: state.scrollHits, smi: state.scrollMisses, ss: state.scrollScore,
+      bp: state.balancePercent,
       jc: state.judgeComment, fr: state.failReason, st: state.stamp,
       iss: state.issueNo, pass: state.passNo, dt: state.dateStr
     };
@@ -1498,27 +1602,54 @@
   // ---------- 다시 도전 ----------
   $('btnRetry').addEventListener('click', ()=>{
     history.replaceState(null,'',location.pathname);
+    state.forcedTheme = null;
+    state.challengeFrom = null;
+    $('sharedBanner').style.display = 'none';
     $('inpName').value=''; $('inpName').style.borderColor='var(--border)';
     showScreen('screen-entry');
   });
 
   // ---------- 진입: 공유 링크로 들어온 경우 ----------
+  let pendingSharedPayload = null;
+
+  async function loadFriendCertIntoState(payload){
+    state.name = payload.n; state.status = payload.s; state.theme = payload.th || 'A';
+    state.qualificationTitle = payload.qt || QUALIFICATION_TITLE[state.theme];
+    state.examTitle = EXAM_TITLE[state.theme];
+    state.grade = payload.g; state.gradeLabel = payload.gl; state.gradeSub = payload.gs;
+    state.reactionMs = payload.ms; state.early = payload.early;
+    state.scrollHits = payload.sh || 0; state.scrollMisses = payload.smi || 0; state.scrollScore = payload.ss || 0;
+    state.balancePercent = payload.bp || 0;
+    state.judgeComment = payload.jc; state.failReason = payload.fr; state.stamp = payload.st || '쓸데없음';
+    state.issueNo = payload.iss; state.passNo = payload.pass; state.dateStr = payload.dt;
+    await restoreCertAvatar(payload.avs || 'bottts', payload.avd || `${state.name}-shared`);
+  }
+
+  $('btnJustViewCert').addEventListener('click', async ()=>{
+    if(!pendingSharedPayload) return;
+    await loadFriendCertIntoState(pendingSharedPayload);
+    state.challengeFrom = null;
+    $('sharedBanner').style.display = 'block';
+    renderResult();
+    showScreen('screen-result');
+  });
+
+  $('btnAcceptChallenge').addEventListener('click', ()=>{
+    if(!pendingSharedPayload) return;
+    state.challengeFrom = pendingSharedPayload;
+    state.forcedTheme = pendingSharedPayload.th || 'A';
+    history.replaceState(null,'',location.pathname); // 도전을 받아들이면 링크의 공유 파라미터는 정리
+    showScreen('screen-entry');
+  });
+
   async function tryLoadShared(){
     const params = new URLSearchParams(location.search);
     const d = params.get('d');
     if(!d) return false;
     try{
       const payload = JSON.parse(decodeURIComponent(escape(atob(d))));
-      state.name = payload.n; state.status = payload.s;
-      state.grade = payload.g; state.gradeLabel = payload.gl; state.gradeSub = payload.gs;
-      state.reactionMs = payload.ms; state.early = payload.early;
-      state.judgeComment = payload.jc; state.failReason = payload.fr; state.stamp = payload.st || '쓸데없음';
-      state.issueNo = payload.iss; state.passNo = payload.pass; state.dateStr = payload.dt;
-
-      await restoreCertAvatar(payload.avs || 'bottts', payload.avd || `${state.name}-shared`);
-      $('sharedBanner').style.display = 'block';
-      renderResult();
-      showScreen('screen-result');
+      pendingSharedPayload = payload;
+      showChallengeScreen(payload);
       return true;
     }catch(e){
       return false;
