@@ -424,6 +424,10 @@
         <p>· <b>침대 밸런스</b>: 화면을 꾹 누르면 올라가고 떼면 내려가요. 중간 황금 영역을 유지하세요.</p>
         <p><b>3. 결과</b> — 자격증/카드를 다운받거나, 친구에게 공유해서 도전장을 보낼 수 있어요.</p>
         <p>세 테마 전부 1급을 받으면 숨겨진 등급이 열려요 🎉 (지갑에서 확인 가능)</p>
+        <p><b>4. 결과 화면의 재도전 버튼</b> — 이름/사진을 다시 안 쳐도 돼요.</p>
+        <p>· <b>이 테마 다시 도전</b>: 방금 이름/사진 그대로 같은 게임을 한 번 더 (지갑 기록 유지)</p>
+        <p>· <b>다른 테마 도전하기</b>: 방금 이름/사진 그대로 테마 선택 화면으로 (지갑 기록 유지)</p>
+        <p>· <b>처음부터 새로</b>: 다른 사람이 이어서 할 때. 이름부터 새로 입력하고, 지갑 기록도 초기화돼요.</p>
       </div>
       <button class="btn primary block" id="btnCloseHelp">확인했어요</button>
     </div>
@@ -546,8 +550,10 @@
       </div>
 
       <div class="btn-row">
-        <button class="btn block" id="btnRetry">다시 도전하기</button>
+        <button class="btn" id="btnRetrySame">이 테마 다시 도전</button>
+        <button class="btn" id="btnRetryOther">다른 테마 도전하기</button>
       </div>
+      <button class="btn-link" id="btnRetryFresh" style="display:block;margin:10px auto 0;">처음부터 새로 (다른 사람)</button>
     </div>
   </div>
 
@@ -703,6 +709,9 @@
   }
   function saveWallet(w){
     try{ localStorage.setItem(WALLET_KEY, JSON.stringify(w)); }catch(e){}
+  }
+  function clearWallet(){
+    try{ localStorage.removeItem(WALLET_KEY); }catch(e){}
   }
   function recordWalletResult(){
     const w = loadWallet();
@@ -1488,6 +1497,7 @@
     $('judgeComment').textContent = `심사위원 코멘트: ${state.judgeComment}`;
     $('a4Cap').textContent = ok ? 'A4 정식 자격증 (인쇄/PDF용)' : 'A4 불합격 통지서 (인쇄/PDF용)';
     $('cardCap').textContent = ok ? '모바일 자격증 카드 (인스타/SNS용)' : '모바일 결과 카드 (인스타/SNS용)';
+    $('btnRetrySame').style.display = state.theme === 'HIDDEN' ? 'none' : '';
     renderDuelBox();
 
     document.querySelectorAll('.stamp-opt').forEach(el=>{
@@ -1718,7 +1728,7 @@
     ctx.fillStyle = '#666'; ctx.font = `15px 'Noto Sans KR',sans-serif`;
     ctx.fillText('대 한 민 국   뇌 절 기 술 자 격 검 정', W/2, 160);
     ctx.fillStyle = '#1c1c1c'; ctx.font = `900 58px 'Noto Sans KR',sans-serif`;
-    ctx.fillText(ok ? '자 격 증 록 령' : '불 합 격 통 지 서', W/2, 232);
+    ctx.fillText(ok ? '자 격 증 명 서' : '불 합 격 통 지 서', W/2, 232);
 
     // 증명사진 (등급별 장식 포함)
     const px=100, py=280, pw=180, ph=220;
@@ -1986,10 +1996,28 @@
   });
 
   // ---------- 다시 도전 ----------
-  $('btnRetry').addEventListener('click', ()=>{
+  $('btnRetrySame').addEventListener('click', ()=>{
     history.replaceState(null,'',location.pathname);
     state.forcedTheme = null;
     state.challengeFrom = null;
+    $('sharedBanner').style.display = 'none';
+    startTheme(state.theme);
+  });
+
+  $('btnRetryOther').addEventListener('click', ()=>{
+    history.replaceState(null,'',location.pathname);
+    state.forcedTheme = null;
+    state.challengeFrom = null;
+    $('sharedBanner').style.display = 'none';
+    showScreen('screen-theme');
+    renderHiddenCardState();
+  });
+
+  $('btnRetryFresh').addEventListener('click', ()=>{
+    history.replaceState(null,'',location.pathname);
+    state.forcedTheme = null;
+    state.challengeFrom = null;
+    clearWallet();
     $('sharedBanner').style.display = 'none';
     $('inpName').value=''; $('inpName').style.borderColor='var(--border)';
     showScreen('screen-entry');
