@@ -98,15 +98,13 @@
     if(!root) return;
 
     root.innerHTML = `
-      <div class="dp-card" style="--dp-grad:${style.grad}">
-        <div class="dp-top">
-          <span class="dp-tag">${style.label}</span>
-          <button class="dp-reroll" id="dpReroll" title="다른 카드 뽑기">🔄 다시 뽑기</button>
-        </div>
-        <div class="dp-icon">${item.icon}</div>
-        <div class="dp-title">${item.title}</div>
-        <div class="dp-body">${item.body}</div>
-        ${item.link ? `<a class="dp-link" href="${item.link}">${item.linkLabel || '보러 가기'} →</a>` : ''}
+      <div class="dp-bar" style="--dp-grad:${style.grad}">
+        <span class="dp-bar-accent"></span>
+        <span class="dp-bar-tag">${style.label}</span>
+        <span class="dp-bar-icon">${item.icon}</span>
+        <span class="dp-bar-text"><b>${item.title}</b> — ${item.body}</span>
+        ${item.link ? `<a class="dp-bar-link" href="${item.link}">${item.linkLabel || '보러가기'} →</a>` : ''}
+        <button class="dp-bar-reroll" id="dpReroll" title="다시 뽑기">🔄</button>
       </div>
     `;
     document.getElementById('dpReroll').addEventListener('click', ()=>{
