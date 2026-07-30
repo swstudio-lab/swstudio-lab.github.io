@@ -195,6 +195,16 @@
   }
   .combo-popup.show{ opacity:1; transform:translate(-50%,-60%) scale(1); }
 
+  /* 미니게임 시작 전 안내 오버레이 - 각 스테이지(#stageA/B/C) 위에 덮어씌워짐 */
+  .game-intro{
+    position:absolute; inset:0; z-index:20; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:14px; text-align:center; padding:24px;
+    background:rgba(8,7,6,.86); opacity:1; transition:opacity .3s ease;
+  }
+  .game-intro.fade-out{ opacity:0; }
+  .game-intro .gi-text{ font-size:15px; font-weight:700; color:var(--text); line-height:1.6; max-width:280px; }
+  .game-intro .gi-start{ font-family:'Noto Sans KR',sans-serif; font-weight:900; font-size:34px; letter-spacing:-0.01em; color:var(--gold); }
+
   /* 테마 C - 침대 중력 밸런스 */
   #stageC{ position:relative; border-radius:14px; overflow:hidden; height:380px; background:#101014; border:1px solid var(--border); user-select:none; touch-action:none; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; cursor:pointer; }
   .balance-timer{ position:absolute; top:12px; left:0; right:0; text-align:center; font-family:'JetBrains Mono',monospace; font-size:20px; font-weight:700; color:var(--gold); z-index:5; }
@@ -429,6 +439,7 @@
           <div class="feed-label" id="feedLabel">꿀잼 고양이 짤</div>
         </div>
         <div class="feed-hint"><span>노잼·광고면 튕겨내세요! (스페이스바 또는 화면 클릭)</span></div>
+        <div class="game-intro" id="introB"></div>
       </div>
     </div>
   </div>
@@ -445,6 +456,7 @@
           <div class="balance-marker" id="balanceMarker"></div>
         </div>
         <div class="balance-hint"><span>화면을 꾹 누르면 올라가고, 떼면 내려가요.</span></div>
+        <div class="game-intro" id="introC"></div>
       </div>
     </div>
   </div>
@@ -475,6 +487,7 @@
           <div class="fgrid" id="fgrid"></div>
           <div class="ms-readout" id="msReadout">0ms</div>
         </div>
+        <div class="game-intro" id="introA"></div>
       </div>
     </div>
   </div>
@@ -896,11 +909,40 @@
     }
   });
 
+  // 미니게임 실제 타이머를 시작하기 전에, 짧은 안내 멘트 → "시작!"을 보여주고 나서 startFn을 실행함.
+  // lines: 순서대로 보여줄 안내 문구 배열 (파이썬으로 치면 for문으로 하나씩 꺼내 보여주는 것과 비슷함)
+  function playIntroThenStart(overlayId, lines, startFn){
+    const el = $(overlayId);
+    el.classList.remove('fade-out');
+    el.style.display = 'flex';
+    el.innerHTML = `<div class="gi-text">${lines[0]}</div>`;
+
+    lines.slice(1).forEach((line, i)=>{
+      setTimeout(()=>{ el.innerHTML = `<div class="gi-text">${line}</div>`; }, 1300*(i+1));
+    });
+    const startFlashDelay = 1300*lines.length;
+    setTimeout(()=>{ el.innerHTML = `<div class="gi-start">시작!</div>`; buzz(20); }, startFlashDelay);
+    setTimeout(()=>{
+      el.classList.add('fade-out');
+      setTimeout(()=>{ el.style.display = 'none'; startFn(); }, 280);
+    }, startFlashDelay + 550);
+  }
+
   function startTheme(theme){
     state.theme = theme;
-    if(theme === 'A'){ showScreen('screen-gameA'); buildExcelSheet(); startThemeA(); }
-    else if(theme === 'B'){ showScreen('screen-gameB'); startThemeB(); }
-    else { showScreen('screen-gameC'); startThemeC(); }
+    if(theme === 'A'){
+      showScreen('screen-gameA'); buildExcelSheet();
+      playIntroThenStart('introA',
+        ['감시 이모지가 "접근!"으로 바뀌는 순간', '스페이스바 또는 화면을 누르세요!'], startThemeA);
+    } else if(theme === 'B'){
+      showScreen('screen-gameB');
+      playIntroThenStart('introB',
+        ['노잼·광고 짤만 골라서 튕겨내세요', '꿀잼 짤은 그냥 두면 돼요!'], startThemeB);
+    } else {
+      showScreen('screen-gameC');
+      playIntroThenStart('introC',
+        ['화면을 꾹 누르면 올라가고, 떼면 내려가요', '5초간 황금 영역을 유지하세요!'], startThemeC);
+    }
   }
 
   // ---------- 2. 테마 선택 ----------
