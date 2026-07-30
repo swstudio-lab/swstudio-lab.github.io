@@ -5,13 +5,13 @@
 */
 .dp-section{ max-width:1100px; margin:0 auto; padding:16px 24px 0; }
 .dp-bar{
-  display:flex; align-items:center; gap:12px; padding:11px 16px;
+  display:inline-flex; align-items:center; gap:12px; padding:11px 16px; max-width:100%;
   background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden;
 }
 .dp-bar-accent{ width:4px; align-self:stretch; border-radius:3px; background:var(--dp-grad); flex-shrink:0; }
 .dp-bar-tag{ font-size:10px; font-weight:800; letter-spacing:.08em; color:var(--gold); flex-shrink:0; white-space:nowrap; }
 .dp-bar-icon{ font-size:15px; flex-shrink:0; }
-.dp-bar-text{ flex:1; min-width:0; font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dp-bar-text{ flex:0 1 auto; min-width:0; max-width:min(60vw,520px); font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .dp-bar-text b{ font-weight:800; }
 .dp-bar-link{ font-size:12.5px; font-weight:700; color:var(--gold); text-decoration:none; flex-shrink:0; white-space:nowrap; }
 .dp-bar-link:hover{ text-decoration:underline; }
@@ -22,6 +22,8 @@
 .dp-bar-reroll:hover{ color:var(--text); }
 
 @media (max-width:640px){
+  .dp-bar{ display:flex; width:100%; }
   .dp-bar-tag{ display:none; }
   .dp-bar-link{ display:none; }
+  .dp-bar-text{ max-width:none; }
 }
