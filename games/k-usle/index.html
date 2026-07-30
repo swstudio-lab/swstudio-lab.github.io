@@ -918,14 +918,14 @@
     el.innerHTML = `<div class="gi-text">${lines[0]}</div>`;
 
     lines.slice(1).forEach((line, i)=>{
-      setTimeout(()=>{ el.innerHTML = `<div class="gi-text">${line}</div>`; }, 1300*(i+1));
+      setTimeout(()=>{ el.innerHTML = `<div class="gi-text">${line}</div>`; }, 2000*(i+1));
     });
-    const startFlashDelay = 1300*lines.length;
+    const startFlashDelay = 2000*lines.length;
     setTimeout(()=>{ el.innerHTML = `<div class="gi-start">시작!</div>`; buzz(20); }, startFlashDelay);
     setTimeout(()=>{
       el.classList.add('fade-out');
       setTimeout(()=>{ el.style.display = 'none'; startFn(); }, 280);
-    }, startFlashDelay + 550);
+    }, startFlashDelay + 900);
   }
 
   function startTheme(theme){
