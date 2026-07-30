@@ -1,0 +1,31 @@
+/*
+  🎲 오늘의 랜덤 콘텐츠 카드 스타일.
+  assets/style.css의 색상 변수(--surface, --border, --text 등)를 그대로 씀 —
+  그래서 이 파일은 반드시 style.css보다 "뒤에" 불러와야 함.
+*/
+.dp-section{ max-width:720px; margin:0 auto; padding:40px 20px; }
+.dp-card{
+  position:relative; background:var(--surface); border:1px solid var(--border);
+  border-radius:14px; padding:28px 24px; overflow:hidden;
+}
+.dp-card::before{
+  content:''; position:absolute; top:0; left:0; right:0; height:4px; background:var(--dp-grad);
+}
+.dp-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.dp-tag{
+  font-size:11px; font-weight:800; letter-spacing:.1em; color:#fff;
+  background:var(--dp-grad); padding:4px 10px; border-radius:20px;
+}
+.dp-reroll{
+  background:var(--surface2); border:1px solid var(--border); color:var(--muted);
+  border-radius:20px; padding:6px 12px; font-size:12px; cursor:pointer; font-family:inherit;
+}
+.dp-reroll:hover{ border-color:var(--border-lit); color:var(--text); }
+.dp-icon{ font-size:34px; margin-bottom:10px; }
+.dp-title{ font-size:18px; font-weight:800; color:var(--text); margin-bottom:8px; letter-spacing:-0.01em; }
+.dp-body{ font-size:14px; line-height:1.65; color:var(--muted); margin-bottom:16px; }
+.dp-link{
+  display:inline-block; font-size:13px; font-weight:700; color:#1a1208;
+  background:var(--gold); padding:9px 18px; border-radius:8px; text-decoration:none;
+}
+.dp-link:hover{ filter:brightness(1.08); }
