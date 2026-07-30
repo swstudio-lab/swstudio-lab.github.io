@@ -23,6 +23,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/daily-pick.css">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="assets/firebase-init.js"></script>
@@ -204,7 +205,11 @@
         <div class="slider-dots" id="slider-dots"></div>
     </div>
 </section>
-
+    
+<section class="dp-section">
+          <div id="dailyPick"></div>
+        </section>
+    
 <div class="divider-line"></div>
 
 <section class="intro-band">
@@ -387,5 +392,6 @@ db.collection('roadmapItems').onSnapshot(snap => {
 <script src="assets/analytics-config.js"></script>
 <script src="assets/ga4.js"></script>
 <script src="assets/visitor-counter.js"></script>
+<script src="assets/daily-pick.js"></script>
 </body>
 </html>
