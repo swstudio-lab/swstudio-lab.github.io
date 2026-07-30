@@ -11,6 +11,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../../assets/style.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="../../assets/firebase-init.js"></script>
 <script src="../../assets/clipboard-util.js"></script>
 <script src="../../assets/vendor/jspdf.umd.min.js"></script>
 <script src="../../assets/vendor/dicebear.bundle.js"></script>
@@ -38,8 +41,9 @@
   }
   .tool-header p{ color:var(--muted); font-size:13px; max-width:440px; margin:0 auto; line-height:1.7; letter-spacing:-0.005em; }
 
-  .screen{ display:none; }
+  .screen{ display:none; opacity:0; transition:opacity .22s ease; }
   .screen.active{ display:block; }
+  .screen.active.show{ opacity:1; }
 
   .panel{
     background:var(--surface); border:1px solid var(--border); border-top:2px solid var(--border-lit);
@@ -101,6 +105,53 @@
   .theme-card.disabled:hover{ border-color:var(--border); border-left-color:var(--border); background:var(--surface); }
   .theme-card.disabled .tag{ color:var(--muted); border-color:var(--border); }
 
+  .theme-toolbar{ display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+  .btn.small{ padding:7px 12px; font-size:12px; flex:0 0 auto; }
+
+  .theme-card.hidden-card{ border-style:dashed; }
+  .theme-card.hidden-card.locked{ opacity:.55; cursor:not-allowed; }
+  .theme-card.hidden-card.locked:hover{ border-color:var(--border); background:var(--surface); }
+  .theme-card.hidden-card.unlocked{
+    opacity:1; border-style:solid; border-color:var(--gold); border-left-color:var(--gold);
+    background:linear-gradient(135deg, rgba(232,185,63,.12), var(--surface));
+    box-shadow:0 0 0 1px rgba(232,185,63,.2), 0 10px 24px rgba(232,185,63,.15);
+  }
+  .theme-card.hidden-card.unlocked .tag{ color:#1a1208; background:var(--gold); border-color:var(--gold); }
+
+  .sub-panel-title{ font-size:17px; font-weight:900; letter-spacing:-0.01em; color:var(--text); margin-bottom:6px; }
+  .sub-panel-help{ font-size:12px; color:#a89c88; margin:0 0 16px; }
+
+  .wallet-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:6px; }
+  .wallet-slot{ border:1px solid var(--border); border-radius:10px; padding:14px; text-align:center; background:var(--surface2); }
+  .wallet-slot.earned{ border-color:var(--gold); }
+  .wallet-slot .ws-icon{ font-size:26px; margin-bottom:6px; }
+  .wallet-slot .ws-name{ font-size:12px; font-weight:700; color:var(--text); margin-bottom:4px; }
+  .wallet-slot .ws-status{ font-size:11px; color:#a89c88; }
+  .wallet-slot.earned .ws-status{ color:var(--gold); font-weight:700; }
+  .wallet-slot.hidden-slot{ grid-column:span 2; }
+
+  .lb-tabs{ display:flex; gap:6px; margin-bottom:14px; }
+  .lb-tab{ flex:1; background:var(--surface2); border:1px solid var(--border); color:#a89c88; border-radius:8px; padding:8px 6px; font-size:11.5px; font-weight:700; cursor:pointer; font-family:inherit; }
+  .lb-tab.active{ color:var(--gold); border-color:var(--gold); background:rgba(232,185,63,.1); }
+  .lb-list{ min-height:120px; }
+  .lb-row{ display:flex; align-items:center; gap:10px; padding:9px 4px; border-bottom:1px solid var(--border); font-size:13px; }
+  .lb-row .lb-rank{ width:22px; font-weight:900; color:var(--gold); text-align:center; }
+  .lb-row .lb-name{ flex:1; color:var(--text); font-weight:600; }
+  .lb-row .lb-metric{ font-family:'JetBrains Mono',monospace; color:#a89c88; font-size:12px; }
+  .lb-empty{ text-align:center; font-size:12.5px; color:#a89c88; padding:30px 0; }
+
+  .help-overlay{
+    display:none; position:fixed; inset:0; background:rgba(6,5,4,.72); z-index:50;
+    align-items:center; justify-content:center; padding:20px;
+  }
+  .help-overlay.open{ display:flex; }
+  .help-panel{
+    background:var(--surface); border:1px solid var(--border-lit); border-radius:12px;
+    padding:26px 22px; max-width:420px; width:100%; max-height:82vh; overflow-y:auto;
+  }
+  .help-body p{ font-size:13px; line-height:1.7; color:var(--text); margin:0 0 10px; }
+  .help-body p b{ color:var(--gold); }
+
   /* 테마 A 미니게임 - 실제 엑셀 화면처럼 */
   #stageA{ position:relative; border-radius:14px; overflow:hidden; height:360px; background:#fff; border:1px solid var(--border); user-select:none; }
   .excel-window{ position:absolute; inset:0; display:flex; flex-direction:column; background:#fff; font-family:'Segoe UI','Noto Sans KR',Arial,sans-serif; }
@@ -136,6 +187,13 @@
   .feed-label{ font-size:14px; font-weight:800; color:var(--text); text-align:center; padding:0 16px; }
   .feed-hint{ position:absolute; left:0; right:0; bottom:16px; text-align:center; font-size:11.5px; color:#fff; z-index:5; }
   .feed-hint span{ background:rgba(20,20,20,.72); padding:6px 14px; border-radius:20px; display:inline-block; }
+  .combo-popup{
+    position:absolute; left:50%; top:38%; transform:translate(-50%,-50%) scale(.6); opacity:0;
+    font-family:'Noto Sans KR',sans-serif; font-weight:900; font-size:26px; color:var(--gold);
+    text-shadow:0 2px 10px rgba(0,0,0,.6); z-index:8; pointer-events:none;
+    transition:opacity .25s ease, transform .25s cubic-bezier(.34,1.56,.64,1);
+  }
+  .combo-popup.show{ opacity:1; transform:translate(-50%,-60%) scale(1); }
 
   /* 테마 C - 침대 중력 밸런스 */
   #stageC{ position:relative; border-radius:14px; overflow:hidden; height:380px; background:#101014; border:1px solid var(--border); user-select:none; touch-action:none; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; cursor:pointer; }
@@ -272,6 +330,7 @@
         </select>
       </label>
       <button class="btn primary block" id="btnEntry">수험표 작성 완료</button>
+      <button class="btn-link" id="btnOpenHelpEntry" style="display:block;margin:14px auto 0;">❓ 어떻게 하는 거예요?</button>
     </div>
   </div>
 
@@ -290,6 +349,11 @@
 
   <!-- 2. 테마 선택 -->
   <div class="screen" id="screen-theme">
+    <div class="theme-toolbar">
+      <button class="btn small" id="btnOpenWallet">🎒 지갑</button>
+      <button class="btn small" id="btnOpenLeaderboard">🏆 랭킹</button>
+      <button class="btn small" id="btnOpenHelp">❓ 도움말</button>
+    </div>
     <div class="theme-grid">
       <div class="theme-card" id="themeA">
         <span class="tag">5초 · 무음 · PC/모바일</span>
@@ -306,6 +370,52 @@
         <h3>집돌이/게으름계 — 침대 중력 5초 밸런스</h3>
         <p>화면을 꾹 누르면 올라가고 떼면 내려가요. 5초 동안 황금 딴짓 영역에 게이지를 붙잡아두세요.</p>
       </div>
+      <div class="theme-card hidden-card locked" id="themeHidden">
+        <span class="tag" id="hiddenTag">🔒 히든 등급</span>
+        <h3 id="hiddenCardTitle">??? 삼위일체 뇌절 마스터</h3>
+        <p id="hiddenCardDesc">세 테마 전부 1급을 받으면 여기서 특별 자격증을 발급받을 수 있어요.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 자격증 지갑 -->
+  <div class="screen" id="screen-wallet">
+    <div class="panel">
+      <div class="sub-panel-title">🎒 내 자격증 지갑</div>
+      <p class="sub-panel-help">이 브라우저에 기록된 나의 최고 기록이에요.</p>
+      <div class="wallet-grid" id="walletGrid"></div>
+      <div class="btn-row"><button class="btn block" id="btnCloseWallet">테마 선택으로 돌아가기</button></div>
+    </div>
+  </div>
+
+  <!-- 랭킹 -->
+  <div class="screen" id="screen-leaderboard">
+    <div class="panel">
+      <div class="sub-panel-title">🏆 테마별 랭킹 TOP 5</div>
+      <div class="lb-tabs">
+        <button class="lb-tab active" data-theme="A">오피스 스텔스</button>
+        <button class="lb-tab" data-theme="B">스크롤 판독기</button>
+        <button class="lb-tab" data-theme="C">침대 밸런스</button>
+      </div>
+      <div class="lb-list" id="lbList">불러오는 중...</div>
+      <div class="btn-row"><button class="btn block" id="btnCloseLeaderboard">테마 선택으로 돌아가기</button></div>
+    </div>
+  </div>
+
+  <!-- 도움말 (오버레이 모달) -->
+  <div class="help-overlay" id="helpOverlay">
+    <div class="help-panel">
+      <div class="sub-panel-title">❓ 어떻게 하는 거예요?</div>
+      <div class="help-body">
+        <p><b>1. 수험표 작성</b> — 이름을 적고, 마음에 드는 사진을 골라요.</p>
+        <p><b>2. 테마 선택</b> — 세 가지 무소음 미니게임 중 하나를 골라요.</p>
+        <p>· <b>오피스 스텔스</b>: 감시 이모지가 '접근!'으로 바뀌는 순간 스페이스바나 화면을 눌러요.</p>
+        <p>· <b>스크롤 판독기</b>: 노잼·광고 짤만 튕겨내세요. 꿀잼 짤은 그냥 두면 돼요.</p>
+        <p>· <b>침대 밸런스</b>: 화면을 꾹 누르면 올라가고 떼면 내려가요. 중간 황금 영역을 유지하세요.</p>
+        <p><b>3. 결과</b> — 자격증/카드를 다운받거나, 친구에게 공유해서 도전장을 보낼 수 있어요.</p>
+        <p>세 테마 전부 1급을 받으면 숨겨진 등급이 열려요 🎉 (지갑에서 확인 가능)</p>
+      </div>
+      <button class="btn primary block" id="btnCloseHelp">확인했어요</button>
     </div>
   </div>
 
@@ -442,10 +552,28 @@
   const randInt = (min,max)=> Math.floor(rand(min,max+1));
   const pick = (arr)=> arr[randInt(0,arr.length-1)];
 
+  // 무소음 컨셉이라 소리 대신 짧은 진동으로 피드백 (지원 안 하는 기기/브라우저에서는 조용히 무시됨)
+  function buzz(pattern){
+    try{ navigator.vibrate && navigator.vibrate(pattern); }catch(e){}
+  }
+
   function showScreen(id){
-    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-    $(id).classList.add('active');
-    window.scrollTo({top:0,behavior:'smooth'});
+    const next = $(id);
+    const cur = document.querySelector('.screen.active');
+    if(cur === next) return;
+    if(cur){
+      cur.classList.remove('show');
+      setTimeout(()=>{
+        cur.classList.remove('active');
+        next.classList.add('active');
+        requestAnimationFrame(()=> next.classList.add('show'));
+        window.scrollTo({top:0,behavior:'smooth'});
+      }, 180);
+    } else {
+      next.classList.add('active');
+      requestAnimationFrame(()=> next.classList.add('show'));
+      window.scrollTo({top:0,behavior:'smooth'});
+    }
   }
 
   // ---------- DiceBear 아바타 (완전 오프라인 생성, 서버/네트워크 불필요) ----------
@@ -532,24 +660,127 @@
   const QUALIFICATION_TITLE = {
     A: '오피스 스텔스 & 광속 Alt+Tab',
     B: '도파민 3초 스크롤 판독',
-    C: '침대 중력 5초 밸런스'
+    C: '침대 중력 5초 밸런스',
+    HIDDEN: '삼위일체 뇌절 통합검정'
   };
   const EXAM_TITLE = {
     A: '오피스 스텔스 및 무소음 딴짓 능력 검정',
     B: '디지털 중독 및 도파민 스크롤 판독 검정',
-    C: '침대 중력 및 딴짓 밸런스 검정'
+    C: '침대 중력 및 딴짓 밸런스 검정',
+    HIDDEN: '오피스 스텔스·디지털 중독·침대 중력 삼위일체 통합 검정'
   };
-  const THEME_CODE = { A:'STEALTH', B:'SCROLL', C:'BALANCE' };
+  const THEME_CODE = { A:'STEALTH', B:'SCROLL', C:'BALANCE', HIDDEN:'TRINITY' };
+  // 공유링크에 문자열 대신 인덱스만 실어보내기 위한 고정 목록들 (순서 바꾸면 예전 링크가 깨지니 주의)
+  const AVATAR_STYLE_LIST = ['bottts','botttsNeutral','funEmoji','shapes'];
+  const STAMP_WORDS = ['쓸데없음','참잘했어요','퇴사기원'];
+
+  // ---------- 자격증 지갑 (localStorage, 이 브라우저에서만 유지됨) ----------
+  const WALLET_KEY = 'kusle_wallet_v1';
+  function loadWallet(){
+    try{ return JSON.parse(localStorage.getItem(WALLET_KEY)) || {}; }catch(e){ return {}; }
+  }
+  function saveWallet(w){
+    try{ localStorage.setItem(WALLET_KEY, JSON.stringify(w)); }catch(e){}
+  }
+  function recordWalletResult(){
+    const w = loadWallet();
+    const cur = w[state.theme];
+    if(!cur || gradeRank(state.grade) > gradeRank(cur.grade)){
+      w[state.theme] = {
+        grade: state.grade, gradeLabel: state.gradeLabel, gradeSub: state.gradeSub, dateStr: state.dateStr
+      };
+      saveWallet(w);
+    }
+    return w;
+  }
+  function isHiddenUnlocked(w){
+    return ['A','B','C'].every(t => w[t] && w[t].grade === '1');
+  }
+
+  // ---------- 리더보드 (Firestore, 실패해도 조용히 무시됨) ----------
+  const LEADERBOARD_COLLECTIONS = { A:'kusleBoardA', B:'kusleBoardB', C:'kusleBoardC' };
+  function submitToLeaderboard(){
+    if(!window.db || state.grade === 'fail' || !LEADERBOARD_COLLECTIONS[state.theme]) return;
+    try{
+      let metricValue; const extra = {};
+      if(state.theme==='A') metricValue = state.reactionMs;
+      else if(state.theme==='B'){ metricValue = state.scrollScore; extra.hits = state.scrollHits; }
+      else metricValue = state.balancePercent;
+      window.db.collection(LEADERBOARD_COLLECTIONS[state.theme]).add(Object.assign({
+        name: (state.name||'익명').slice(0,12),
+        grade: state.grade,
+        metricValue,
+        createdAt: (window.firebase && firebase.firestore) ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString()
+      }, extra));
+    }catch(e){ console.warn('리더보드 기록 실패(무시됨):', e); }
+  }
+  async function loadLeaderboard(theme){
+    if(!window.db) return null;
+    try{
+      const order = theme === 'A' ? 'asc' : 'desc';
+      const snap = await window.db.collection(LEADERBOARD_COLLECTIONS[theme]).orderBy('metricValue', order).limit(5).get();
+      return snap.docs.map(d=>d.data());
+    }catch(e){
+      console.warn('리더보드 불러오기 실패:', e);
+      return null;
+    }
+  }
+
+  // 테마+등급+측정치만 있으면 등급 라벨/부제를 항상 똑같이 재구성할 수 있음
+  // (공유링크에는 이 라벨 텍스트 자체를 안 보내고, 받는 쪽에서 이 함수로 다시 만들어냄)
+  function buildGradeInfo(theme, grade, m1){
+    if(theme === 'HIDDEN'){
+      return { gradeLabel:'[삼위일체] 뇌절 마스터', gradeSub:'세 가지 시험을 모두 정복한 전설' };
+    }
+    if(theme === 'A'){
+      if(grade === 'fail') return { gradeLabel:'낙방', gradeSub:'시말서 작성 대상자' };
+      if(grade === '1') return { gradeLabel:'[전설의 명장] 1급', gradeSub:`${(m1/1000).toFixed(2)}초 빛의 Alt+Tab 마스터` };
+      return { gradeLabel:'[숙련] 2급', gradeSub:'턱밑까지 추격당했으나 생존' };
+    }
+    if(theme === 'B'){
+      if(grade === 'fail') return { gradeLabel:'낙방', gradeSub:'알고리즘에게 손절당함' };
+      if(grade === '1') return { gradeLabel:'[도파민 중독] 1급', gradeSub:`정밀 히트 ${m1}회` };
+      return { gradeLabel:'[숙련] 알고리즘 탐색가 2급', gradeSub:`정밀 히트 ${m1}회` };
+    }
+    if(grade === 'fail') return { gradeLabel:'낙방', gradeSub:`황금 영역 유지율 ${m1}%` };
+    if(grade === '1') return { gradeLabel:'[물아일체] 황금 딴짓 마스터 1급', gradeSub:`황금 영역 유지율 ${m1}%` };
+    return { gradeLabel:'[숙련] 딴짓 밸런서 2급', gradeSub:`황금 영역 유지율 ${m1}%` };
+  }
+
 
   function pad2(n){ return String(n).padStart(2,'0'); }
-  function todayKorean(d){ return `${d.getFullYear()}년 ${pad2(d.getMonth()+1)}월 ${pad2(d.getDate())}일`; }
-  function issueCode(themeCode){
-    const d = new Date();
-    const seq = String(randInt(1,999)).padStart(3,'0');
-    return `第 ${d.getFullYear()}-${pad2(d.getMonth()+1)}${pad2(d.getDate())}-${themeCode}-${seq}號`;
+  function dateToInt(d){ return d.getFullYear()*10000 + (d.getMonth()+1)*100 + d.getDate(); }
+  function intToDateKorean(n){
+    const y = Math.floor(n/10000), m = Math.floor((n%10000)/100), day = n%100;
+    return `${y}년 ${pad2(m)}월 ${pad2(day)}일`;
   }
-  function passCode(themeCode, ok){
-    return `${ok ? 'PASS' : 'FAIL'}-${new Date().getFullYear()}-${themeCode}-${randInt(10,99)}`;
+  // 발급번호/합격번호는 (테마코드, 날짜, 순번) 세 개만 있으면 항상 똑같이 재구성할 수 있어서,
+  // 공유링크에는 이 세 개 숫자만 담고, 화면에 보여줄 때 이 함수들로 그때그때 조립함.
+  function buildIssueNo(themeCode, dateInt, seq){
+    const y = Math.floor(dateInt/10000), m = Math.floor((dateInt%10000)/100), day = dateInt%100;
+    return `第 ${y}-${pad2(m)}${pad2(day)}-${themeCode}-${String(seq).padStart(3,'0')}號`;
+  }
+  function buildPassNo(themeCode, dateInt, seq, ok){
+    const y = Math.floor(dateInt/10000);
+    return `${ok ? 'PASS' : 'FAIL'}-${y}-${themeCode}-${10 + (seq % 90)}`;
+  }
+  // 아바타 후보를 뽑을 때 쓰는 짧은 랜덤 토큰 (base36) - 공유링크에 그대로 실려나가는 값이라 짧을수록 좋음
+  function randomToken(len){
+    let s = '';
+    while(s.length < len) s += Math.random().toString(36).slice(2);
+    return s.slice(0, len);
+  }
+
+  // 일반 base64는 +, /, = 문자를 쓰는데, 이 문자들이 URL 쿼리스트링 안에서는
+  // (특히 +가 공백으로 해석되는 표준 규칙 때문에) 깨질 수 있어서, URL에 안전한 문자로 바꾼
+  // "base64url" 방식을 씀. 링크를 카톡 등으로 보냈을 때 데이터가 조용히 깨지는 걸 막아줌.
+  function b64urlEncode(str){
+    return btoa(str).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  }
+  function b64urlDecode(str){
+    let s = str.replace(/-/g,'+').replace(/_/g,'/');
+    while(s.length % 4) s += '=';
+    return atob(s);
   }
 
   function escapeHtml(s){
@@ -567,18 +798,20 @@
     '자존심 회복은 네가 해줘.'
   ];
   function getMetricText(p){
-    if(p.g === 'fail') return '도전';
-    if(p.th === 'B') return `정밀 히트 ${p.sh}회 기록`;
-    if(p.th === 'C') return `황금영역 유지율 ${p.bp}% 기록`;
-    return `${(p.ms/1000).toFixed(2)}초의 기록`;
+    if(p.grade === 'fail') return '도전';
+    if(p.theme === 'HIDDEN') return '세 테마 전체 제패';
+    if(p.theme === 'B') return `정밀 히트 ${p.m1}회 기록`;
+    if(p.theme === 'C') return `황금영역 유지율 ${p.m1}% 기록`;
+    return `${(p.m1/1000).toFixed(2)}초의 기록`;
   }
   function showChallengeScreen(payload){
-    const ok = payload.g !== 'fail';
+    const ok = payload.grade !== 'fail';
+    const info = buildGradeInfo(payload.theme, payload.grade, payload.m1);
     $('challengeBody').innerHTML = ok
-      ? `<b>${escapeHtml(payload.n)}</b>님이 ${getMetricText(payload)}으로<br><span class="gold">[${escapeHtml(payload.gl)}]</span>을 획득했습니다!`
-      : `<b>${escapeHtml(payload.n)}</b>님이 도전했다가<br><span class="gold">낙방</span>하고 말았습니다...`;
-    $('challengeQuote').textContent = '"' + (ok ? pick(CHALLENGE_QUOTES[payload.th] || CHALLENGE_QUOTES.A) : pick(CHALLENGE_QUOTES_FAIL)) + '"';
-    $('btnAcceptChallenge').textContent = `${payload.n} 기록 깨러 가기 →`;
+      ? `<b>${escapeHtml(payload.name)}</b>님이 ${getMetricText(payload)}으로<br><span class="gold">[${escapeHtml(info.gradeLabel)}]</span>을 획득했습니다!`
+      : `<b>${escapeHtml(payload.name)}</b>님이 도전했다가<br><span class="gold">낙방</span>하고 말았습니다...`;
+    $('challengeQuote').textContent = '"' + (ok ? pick(CHALLENGE_QUOTES[payload.theme] || CHALLENGE_QUOTES.A) : pick(CHALLENGE_QUOTES_FAIL)) + '"';
+    $('btnAcceptChallenge').textContent = payload.theme === 'HIDDEN' ? '나도 삼위일체 도전하기 →' : `${payload.name} 기록 깨러 가기 →`;
     showScreen('screen-challenge');
   }
 
@@ -605,7 +838,7 @@
     // (이전엔 같은 salt에 인덱스 0~5만 붙여서, 폴백 아바타의 해시가 서로 거의 같은 값이 되어
     //  6장이 눈으로 구분 안 되는 색으로 나오는 버그가 있었음)
     const results = await Promise.all(AVATAR_CANDIDATE_STYLES.map((styleKey)=>{
-      const seed = `${state.name}-${randInt(1,99999999)}-${randInt(1,99999999)}`;
+      const seed = `${state.name}-${randomToken(7)}`;
       return generateAvatarImage(styleKey, seed).then(img=>({ styleKey, seed, img }));
     }));
     avatarCandidates = results;
@@ -650,6 +883,7 @@
       startTheme(state.forcedTheme);
     } else {
       showScreen('screen-theme');
+      renderHiddenCardState();
     }
   });
 
@@ -664,6 +898,109 @@
   $('themeA').addEventListener('click', ()=> startTheme('A'));
   $('themeB').addEventListener('click', ()=> startTheme('B'));
   $('themeC').addEventListener('click', ()=> startTheme('C'));
+
+  // ---------- 히든 테마(삼위일체) ----------
+  function renderHiddenCardState(){
+    const w = loadWallet();
+    const unlocked = isHiddenUnlocked(w);
+    const card = $('themeHidden');
+    card.classList.toggle('locked', !unlocked);
+    card.classList.toggle('unlocked', unlocked);
+    $('hiddenTag').textContent = unlocked ? '✨ 해금됨' : '🔒 히든 등급';
+    $('hiddenCardTitle').textContent = unlocked ? '삼위일체 뇌절 마스터 발급받기' : '??? 삼위일체 뇌절 마스터';
+    $('hiddenCardDesc').textContent = unlocked
+      ? '세 테마를 모두 정복하셨어요! 눌러서 특별 자격증을 발급받으세요.'
+      : '세 테마 전부 1급을 받으면 여기서 특별 자격증을 발급받을 수 있어요.';
+  }
+  $('themeHidden').addEventListener('click', ()=>{
+    if(!isHiddenUnlocked(loadWallet())) return;
+    grantHiddenCert();
+  });
+  function grantHiddenCert(){
+    state.theme = 'HIDDEN';
+    state.challengeFrom = null;
+    state.grade = '1';
+    state.qualificationTitle = QUALIFICATION_TITLE.HIDDEN;
+    state.examTitle = EXAM_TITLE.HIDDEN;
+    const info = buildGradeInfo('HIDDEN', '1', 0);
+    state.gradeLabel = info.gradeLabel; state.gradeSub = info.gradeSub;
+    state.judgeComment = pick(PASS_COMMENTS);
+    state.certDateInt = dateToInt(new Date());
+    state.certSeq = randInt(1, 999);
+    const themeCode = THEME_CODE.HIDDEN;
+    state.issueNo = buildIssueNo(themeCode, state.certDateInt, state.certSeq);
+    state.passNo = buildPassNo(themeCode, state.certDateInt, state.certSeq, true);
+    state.dateStr = intToDateKorean(state.certDateInt);
+    buzz([40,60,40,60,40,60,90]);
+    renderResult();
+    showScreen('screen-result');
+  }
+
+  // ---------- 자격증 지갑 화면 ----------
+  function renderWalletUI(){
+    const w = loadWallet();
+    const grid = $('walletGrid');
+    grid.innerHTML = '';
+    const defs = [
+      {key:'A', icon:'🖥️', name:'오피스 스텔스'},
+      {key:'B', icon:'📱', name:'스크롤 판독기'},
+      {key:'C', icon:'🛏️', name:'침대 밸런스'}
+    ];
+    defs.forEach(d=>{
+      const rec = w[d.key];
+      const el = document.createElement('div');
+      el.className = 'wallet-slot' + (rec ? ' earned' : '');
+      el.innerHTML = `<div class="ws-icon">${d.icon}</div><div class="ws-name">${d.name}</div>` +
+        `<div class="ws-status">${rec ? escapeHtml(rec.gradeLabel) : '아직 미획득'}</div>`;
+      grid.appendChild(el);
+    });
+    const hiddenOk = isHiddenUnlocked(w);
+    const hEl = document.createElement('div');
+    hEl.className = 'wallet-slot hidden-slot' + (hiddenOk ? ' earned' : '');
+    hEl.innerHTML = `<div class="ws-icon">👑</div><div class="ws-name">삼위일체 뇌절 마스터 (히든)</div>` +
+      `<div class="ws-status">${hiddenOk ? '해금됨! 테마 선택 화면에서 발급받으세요' : '세 테마 전부 1급 달성 시 해금'}</div>`;
+    grid.appendChild(hEl);
+  }
+  $('btnOpenWallet').addEventListener('click', ()=>{ renderWalletUI(); showScreen('screen-wallet'); });
+  $('btnCloseWallet').addEventListener('click', ()=>{ showScreen('screen-theme'); renderHiddenCardState(); });
+
+  // ---------- 랭킹 화면 ----------
+  let currentLbTheme = 'A';
+  const LB_THEME_LABEL = { A:'오피스 스텔스', B:'스크롤 판독기', C:'침대 밸런스' };
+  async function renderLeaderboard(theme){
+    currentLbTheme = theme;
+    document.querySelectorAll('.lb-tab').forEach(t=> t.classList.toggle('active', t.dataset.theme === theme));
+    const list = $('lbList');
+    list.innerHTML = '<div class="lb-empty">불러오는 중...</div>';
+    const rows = await loadLeaderboard(theme);
+    if(rows === null){
+      list.innerHTML = '<div class="lb-empty">랭킹을 불러올 수 없어요 (네트워크 또는 설정 문제일 수 있어요)</div>';
+      return;
+    }
+    if(rows.length === 0){
+      list.innerHTML = `<div class="lb-empty">${LB_THEME_LABEL[theme]} 랭킹에 아직 기록이 없어요. 첫 주인공이 되어보세요!</div>`;
+      return;
+    }
+    list.innerHTML = rows.map((r,i)=>{
+      const metricText = theme === 'A' ? `${(r.metricValue/1000).toFixed(2)}초`
+        : theme === 'B' ? `정밀 히트 ${r.hits ?? r.metricValue}회`
+        : `유지율 ${r.metricValue}%`;
+      return `<div class="lb-row"><span class="lb-rank">${i+1}</span><span class="lb-name">${escapeHtml(r.name||'익명')}</span><span class="lb-metric">${metricText}</span></div>`;
+    }).join('');
+  }
+  $('btnOpenLeaderboard').addEventListener('click', ()=>{ showScreen('screen-leaderboard'); renderLeaderboard(currentLbTheme); });
+  $('btnCloseLeaderboard').addEventListener('click', ()=> showScreen('screen-theme'));
+  document.querySelectorAll('.lb-tab').forEach(tab=>{
+    tab.addEventListener('click', ()=> renderLeaderboard(tab.dataset.theme));
+  });
+
+  // ---------- 도움말 ----------
+  function openHelp(){ $('helpOverlay').classList.add('open'); }
+  function closeHelp(){ $('helpOverlay').classList.remove('open'); }
+  $('btnOpenHelp').addEventListener('click', openHelp);
+  $('btnOpenHelpEntry').addEventListener('click', openHelp);
+  $('btnCloseHelp').addEventListener('click', closeHelp);
+  $('helpOverlay').addEventListener('click', (e)=>{ if(e.target.id === 'helpOverlay') closeHelp(); });
 
   // ---------- 3. 테마 A 미니게임 (실제 엑셀 화면처럼) ----------
   const SHEET_CELL_POOL = [
@@ -739,9 +1076,11 @@
 
     if(phase === 'calm' || phase === 'caution'){
       clearTimeout(calmTimer); clearTimeout(cautionTimer);
+      buzz([15,40,15]);
       finishThemeA({early:true, ms:null});
     } else if(phase === 'danger'){
       const ms = Math.round(performance.now() - armedAt);
+      buzz(30);
       finishThemeA({early:false, ms});
     }
   }
@@ -783,7 +1122,7 @@
   const FEED_TOTAL = 16;
   const FEED_INTERVAL = 420;
 
-  let feedQueue = [], feedIndex = 0, feedHits = 0, feedMisses = 0, feedActive = false, feedCurrentIsFun = false, feedTimer = null;
+  let feedQueue = [], feedIndex = 0, feedHits = 0, feedMisses = 0, feedCombo = 0, feedActive = false, feedCurrentIsFun = false, feedTimer = null;
 
   function buildFeedQueue(){
     const q = [];
@@ -796,7 +1135,7 @@
 
   function startThemeB(){
     feedQueue = buildFeedQueue();
-    feedIndex = 0; feedHits = 0; feedMisses = 0; feedActive = true;
+    feedIndex = 0; feedHits = 0; feedMisses = 0; feedCombo = 0; feedActive = true;
     $('feedScore').textContent = '0';
     showFeedCard();
   }
@@ -811,16 +1150,32 @@
     clearTimeout(feedTimer);
     feedTimer = setTimeout(()=>{
       // 시간 안에 못 튕겨낸 카드는 그냥 다음으로 넘어감 (놓친 것 자체는 감점 아님)
+      if(!feedCurrentIsFun){ feedCombo = 0; } // 노잼/광고를 놓치면 콤보는 끊김
       feedIndex++;
       showFeedCard();
     }, FEED_INTERVAL);
+  }
+
+  function showComboPopup(n){
+    const el = document.createElement('div');
+    el.className = 'combo-popup';
+    el.textContent = `${n} COMBO!`;
+    $('stageB').appendChild(el);
+    requestAnimationFrame(()=> el.classList.add('show'));
+    setTimeout(()=> el.remove(), 900);
   }
 
   function handleFeedSwipe(){
     if(!feedActive) return;
     clearTimeout(feedTimer);
     $('feedCard').classList.add('swipe-out');
-    if(feedCurrentIsFun){ feedMisses++; } else { feedHits++; $('feedScore').textContent = String(feedHits); }
+    if(feedCurrentIsFun){
+      feedMisses++; feedCombo = 0; buzz([10,30,10]);
+    } else {
+      feedHits++; feedCombo++; buzz(15);
+      $('feedScore').textContent = String(feedHits);
+      if(feedCombo===3 || feedCombo===5 || (feedCombo>=8 && feedCombo%4===0)) showComboPopup(feedCombo);
+    }
     feedIndex++;
     setTimeout(showFeedCard, 130);
   }
@@ -899,6 +1254,7 @@
     balanceActive = false;
     if(balanceRAF) cancelAnimationFrame(balanceRAF);
     state.balancePercent = Math.round((balanceInZoneMs / BALANCE_DURATION) * 100);
+    buzz(30);
     setTimeout(()=>{
       computeGrade();
       showScreen('screen-judge');
@@ -911,50 +1267,44 @@
     state.examTitle = EXAM_TITLE[state.theme];
     const themeCode = THEME_CODE[state.theme];
 
+    // 1) 등급만 먼저 판정
+    let m1 = 0;
     if(state.theme === 'A'){
-      if(state.early || state.reactionMs === null || state.reactionMs > 450){
-        state.grade = 'fail'; state.gradeLabel = '낙방'; state.gradeSub = '시말서 작성 대상자';
-        state.failReason = pick(FAIL_REASONS); state.judgeComment = pick(FAIL_COMMENTS);
-      } else if(state.reactionMs <= 200){
-        state.grade = '1'; state.gradeLabel = '[전설의 명장] 1급';
-        state.gradeSub = `${(state.reactionMs/1000).toFixed(2)}초 빛의 Alt+Tab 마스터`;
-        state.judgeComment = pick(PASS_COMMENTS);
-      } else {
-        state.grade = '2'; state.gradeLabel = '[숙련] 2급'; state.gradeSub = '턱밑까지 추격당했으나 생존';
-        state.judgeComment = pick(PASS_COMMENTS);
-      }
+      m1 = state.reactionMs;
+      if(state.early || state.reactionMs === null || state.reactionMs > 450) state.grade = 'fail';
+      else if(state.reactionMs <= 200) state.grade = '1';
+      else state.grade = '2';
     } else if(state.theme === 'B'){
+      m1 = state.scrollHits;
       const score = state.scrollScore;
-      if(score >= 8){
-        state.grade = '1'; state.gradeLabel = '[도파민 중독] 1급';
-        state.gradeSub = `정밀 히트 ${state.scrollHits}회`;
-        state.judgeComment = pick(PASS_COMMENTS);
-      } else if(score >= 4){
-        state.grade = '2'; state.gradeLabel = '[숙련] 알고리즘 탐색가 2급';
-        state.gradeSub = `정밀 히트 ${state.scrollHits}회`;
-        state.judgeComment = pick(PASS_COMMENTS);
-      } else {
-        state.grade = 'fail'; state.gradeLabel = '낙방'; state.gradeSub = '알고리즘에게 손절당함';
-        state.failReason = pick(FAIL_REASONS_B); state.judgeComment = pick(FAIL_COMMENTS);
-      }
+      state.grade = score >= 8 ? '1' : score >= 4 ? '2' : 'fail';
     } else {
-      const pct = state.balancePercent;
-      if(pct >= 80){
-        state.grade = '1'; state.gradeLabel = '[물아일체] 황금 딴짓 마스터 1급';
-        state.gradeSub = `황금 영역 유지율 ${pct}%`;
-        state.judgeComment = pick(PASS_COMMENTS);
-      } else if(pct >= 40){
-        state.grade = '2'; state.gradeLabel = '[숙련] 딴짓 밸런서 2급';
-        state.gradeSub = `황금 영역 유지율 ${pct}%`;
-        state.judgeComment = pick(PASS_COMMENTS);
-      } else {
-        state.grade = 'fail'; state.gradeLabel = '낙방'; state.gradeSub = `황금 영역 유지율 ${pct}%`;
-        state.failReason = pick(FAIL_REASONS_C); state.judgeComment = pick(FAIL_COMMENTS);
-      }
+      m1 = state.balancePercent;
+      state.grade = m1 >= 80 ? '1' : m1 >= 40 ? '2' : 'fail';
     }
-    state.issueNo = issueCode(themeCode);
-    state.passNo = passCode(themeCode, state.grade !== 'fail');
-    state.dateStr = todayKorean(new Date());
+
+    // 2) 등급 라벨/부제는 공용 함수로 생성 (공유링크로 받았을 때도 이 함수로 똑같이 재구성함)
+    const info = buildGradeInfo(state.theme, state.grade, m1);
+    state.gradeLabel = info.gradeLabel;
+    state.gradeSub = info.gradeSub;
+
+    if(state.grade === 'fail'){
+      const pool = state.theme === 'A' ? FAIL_REASONS : state.theme === 'B' ? FAIL_REASONS_B : FAIL_REASONS_C;
+      state.failReason = pick(pool);
+      state.judgeComment = pick(FAIL_COMMENTS);
+    } else {
+      state.judgeComment = pick(PASS_COMMENTS);
+    }
+
+    // 3) 발급번호도 (테마코드, 날짜, 순번) 세 값만으로 뒤에서 조립
+    state.certDateInt = dateToInt(new Date());
+    state.certSeq = randInt(1, 999);
+    state.issueNo = buildIssueNo(themeCode, state.certDateInt, state.certSeq);
+    state.passNo = buildPassNo(themeCode, state.certDateInt, state.certSeq, state.grade !== 'fail');
+    state.dateStr = intToDateKorean(state.certDateInt);
+
+    recordWalletResult();
+    submitToLeaderboard();
   }
 
   // ---------- 4. 심사 연출 (심사위원 사진 + 말풍선) ----------
@@ -1026,6 +1376,7 @@
     setTimeout(()=>{
       $('judgeStage').classList.add('fadeout');
       setTimeout(()=>{
+        buzz(ok ? [30,60,30,60,60] : [50,80,50]);
         renderResult();
         showScreen('screen-result');
       }, 700);
@@ -1051,31 +1402,32 @@
     return `유지율 ${state.balancePercent}%`;
   }
   function friendMetricText(p){
-    if(p.g==='fail') return '낙방';
-    if(p.th==='A') return `${(p.ms/1000).toFixed(2)}초`;
-    if(p.th==='B') return `정밀 히트 ${p.sh}회`;
-    return `유지율 ${p.bp}%`;
+    if(p.grade==='fail') return '낙방';
+    if(p.theme==='A') return `${(p.m1/1000).toFixed(2)}초`;
+    if(p.theme==='B') return `정밀 히트 ${p.m1}회`;
+    return `유지율 ${p.m1}%`;
   }
   function renderDuelBox(){
     const p = state.challengeFrom;
     if(!p){ $('duelBox').style.display = 'none'; return; }
-    const myRank = gradeRank(state.grade), theirRank = gradeRank(p.g);
+    const myRank = gradeRank(state.grade), theirRank = gradeRank(p.grade);
     let iWin, tie = false;
     if(myRank !== theirRank){
       iWin = myRank > theirRank;
     } else if(state.grade === 'fail'){
       iWin = false; tie = true; // 둘 다 낙방이면 무승부 취급
     } else if(state.theme === 'A'){
-      tie = state.reactionMs === p.ms; iWin = state.reactionMs < p.ms;
+      tie = state.reactionMs === p.m1; iWin = state.reactionMs < p.m1;
     } else if(state.theme === 'B'){
-      tie = state.scrollScore === p.ss; iWin = state.scrollScore > p.ss;
+      const friendScore = p.m1 - p.m2*2;
+      tie = state.scrollScore === friendScore; iWin = state.scrollScore > friendScore;
     } else {
-      tie = state.balancePercent === p.bp; iWin = state.balancePercent > p.bp;
+      tie = state.balancePercent === p.m1; iWin = state.balancePercent > p.m1;
     }
     $('duelBox').style.display = 'block';
-    $('duelVerdict').textContent = tie ? '무승부!' : (iWin ? `${p.n}님 기록 갱신 성공! 🏆` : `아직 ${p.n}님을 못 넘었어요`);
+    $('duelVerdict').textContent = tie ? '무승부!' : (iWin ? `${p.name}님 기록 갱신 성공! 🏆` : `아직 ${p.name}님을 못 넘었어요`);
     $('duelVerdict').className = 'duel-verdict ' + (iWin || tie ? 'win' : 'lose');
-    $('duelDetail').textContent = `내 기록: ${myMetricText()}   vs   ${p.n}님 기록: ${friendMetricText(p)}`;
+    $('duelDetail').textContent = `내 기록: ${myMetricText()}   vs   ${p.name}님 기록: ${friendMetricText(p)}`;
   }
 
   function renderResult(){
@@ -1129,85 +1481,112 @@
 
   // 사각형 테두리를 빙 둘러 글자를 배치 (실제 사각 관인/법인인감이 흔히 쓰는 방식).
   // 왼쪽 위 모서리에서 시계방향으로 위→오른쪽→아래→왼쪽 순서로 글자를 깐다.
-  function drawRectPerimeterText(ctx, text, half, inset, font, color){
-    const s = half - inset;
-    const side = s*2;
-    const perim = side*4;
+  // 원 둘레를 빙 둘러 글자를 배치 (관인에 흔한 아치형 각인)
+  function drawCircleArcText(ctx, text, radius, centerAngle, spanAngle, font, color){
     const n = text.length;
     if(n===0) return;
-    const step = perim/n;
+    const start = centerAngle - spanAngle/2;
+    const step = n>1 ? spanAngle/(n-1) : 0;
     ctx.save();
     ctx.fillStyle = color; ctx.font = font; ctx.textAlign='center'; ctx.textBaseline='middle';
     for(let i=0;i<n;i++){
-      let d = step*i + step/2;
-      let x,y,rot;
-      if(d < side){ x=-s+d; y=-s; rot=0; }
-      else if(d < side*2){ d-=side; x=s; y=-s+d; rot=Math.PI/2; }
-      else if(d < side*3){ d-=side*2; x=s-d; y=s; rot=Math.PI; }
-      else { d-=side*3; x=-s; y=s-d; rot=-Math.PI/2; }
+      const angle = start + step*i;
       ctx.save();
-      ctx.translate(x,y); ctx.rotate(rot);
+      ctx.translate(radius*Math.cos(angle), radius*Math.sin(angle));
+      ctx.rotate(angle + Math.PI/2);
       ctx.fillText(text[i], 0, 0);
       ctx.restore();
     }
     ctx.restore();
   }
 
-  // 중앙 문구 - 글자 수가 많으면(참잘했어요 등) 자동으로 폰트 크기를 줄여서 한 줄에 맞춤
-  function drawStampCenterWord(ctx, word, half){
-    const maxWidth = half*1.5;
-    let fontSize = Math.round(half*0.36);
-    ctx.font = `900 ${fontSize}px 'Noto Sans KR',sans-serif`;
-    while(ctx.measureText(word).width > maxWidth && fontSize > half*0.18){
-      fontSize -= 2;
-      ctx.font = `900 ${fontSize}px 'Noto Sans KR',sans-serif`;
+  // 물결(스캘럽) 모양 바깥 테두리 - 관인 특유의 톱니/꽃무늬 테두리 느낌
+  function drawScallopedRing(ctx, rOuter, rInner, bumps, color){
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    const steps = bumps * 10;
+    for(let i=0;i<=steps;i++){
+      const t = i/steps;
+      const angle = t*Math.PI*2;
+      const wobble = (Math.sin(angle*bumps) + 1) / 2;
+      const rr = rInner + wobble*(rOuter-rInner);
+      const x = Math.cos(angle)*rr, y = Math.sin(angle)*rr;
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
     }
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(word, 0, half*0.07);
+    ctx.closePath();
+    ctx.fill('evenodd');
+    ctx.beginPath();
+    ctx.arc(0,0,rInner*0.97,0,Math.PI*2);
+    ctx.fill('evenodd');
+    ctx.restore();
   }
 
-  // 실제 관공서/법인 사각인(정사각형 도장) 느낌. onPaper=true면 종이 위에 잉크가 스민 것처럼 multiply 블렌드를 씀
-  // (단, 어두운 카드 배경에서 multiply를 쓰면 빨간색이 거의 검게 죽어버려서 카드에서는 일반 블렌드를 씀)
-  // half = 도장 한 변 길이의 절반 (즉 도장 전체 크기는 half*2 정사각형)
-  function drawStamp(ctx, cx, cy, half, word, onPaper){
+  // 단색 버전 태극 문양 - destination-out으로 실제 구멍을 뚫어서 배경색이 뭐든 자연스럽게 어울림
+  function drawMiniTaegeuk(ctx, r, color){
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill();
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath();
+    ctx.arc(0,-r/2, r/2, Math.PI*1.5, Math.PI*0.5, false);
+    ctx.arc(0, r/2, r/2, Math.PI*0.5, Math.PI*1.5, false);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath(); ctx.arc(0,-r/2, r*0.16, 0, Math.PI*2); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.beginPath(); ctx.arc(0, r/2, r*0.16, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  // 실제 관인처럼 원형 + 태극문양 + 둘레 각인 + 등급 리본이 들어간 도장.
+  // onPaper=true면 종이 위에 잉크가 스민 것처럼 multiply 블렌드를 씀
+  // (어두운 카드 배경에선 multiply를 쓰면 빨간색이 거의 검게 죽어서 카드에서는 일반 블렌드를 씀)
+  function drawStamp(ctx, cx, cy, r, word, onPaper){
     ctx.save();
     if(onPaper) ctx.globalCompositeOperation = 'multiply';
-    ctx.globalAlpha = 0.88;
+    ctx.globalAlpha = 0.9;
     const red = '#b93226';
-    ctx.strokeStyle = red; ctx.fillStyle = red;
     ctx.translate(cx, cy);
-    ctx.rotate(-0.05); // 사각 도장은 살짝만 기울여야 자연스러움
+    ctx.rotate(-0.04);
 
-    // 바깥 굵은 정사각 테두리
-    ctx.lineWidth = Math.max(3, half*0.05);
-    ctx.strokeRect(-half, -half, half*2, half*2);
-    // 안쪽 얇은 보조 테두리
-    ctx.lineWidth = Math.max(1, half*0.014);
-    const inset1 = half*0.84;
-    ctx.strokeRect(-inset1, -inset1, inset1*2, inset1*2);
+    // 바깥 물결(스캘럽) 테두리
+    drawScallopedRing(ctx, r, r*0.9, 28, red);
 
-    // 기관명이 테두리 안쪽을 한 바퀴 도는, 실제 각인다운 배치
-    drawRectPerimeterText(ctx, '한국쓸데없는자격검정평가원', half, half*0.17,
-      `bold ${Math.max(9, Math.round(half*0.072))}px 'Noto Sans KR',sans-serif`, red);
+    // 안쪽 원 두 겹
+    ctx.strokeStyle = red;
+    ctx.lineWidth = Math.max(1, r*0.02);
+    ctx.beginPath(); ctx.arc(0,0,r*0.82,0,Math.PI*2); ctx.stroke();
 
-    // 중앙 문구
-    drawStampCenterWord(ctx, word, half);
+    // 중앙 태극 문양
+    drawMiniTaegeuk(ctx, r*0.28, red);
 
-    // 네 모서리 자잘한 점 장식
-    const co = half*0.66;
-    [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([sx,sy])=>{
-      ctx.beginPath();
-      ctx.arc(sx*co, sy*co, Math.max(0.8, half*0.02), 0, Math.PI*2);
-      ctx.fill();
-    });
+    // 태극 위쪽, 원 둘레를 도는 기관명 아치
+    drawCircleArcText(ctx, '한국쓸데없는자격검정평가원', r*0.62, -Math.PI/2, Math.PI*1.25,
+      `bold ${Math.max(8, Math.round(r*0.068))}px 'Noto Sans KR',sans-serif`, red);
+
+    // 하단을 가로지르는 등급/도장 문구 리본
+    const ribbonW = r*1.5, ribbonH = r*0.36, ribbonY = r*0.46;
+    ctx.fillStyle = red;
+    roundRectPath(ctx, -ribbonW/2, ribbonY, ribbonW, ribbonH, 3);
+    ctx.fill();
+    ctx.fillStyle = onPaper ? '#faf6ea' : '#0d1a3a';
+    let fs = Math.round(ribbonH*0.52);
+    ctx.font = `900 ${fs}px 'Noto Sans KR',sans-serif`;
+    while(ctx.measureText(word).width > ribbonW*0.86 && fs > ribbonH*0.3){
+      fs -= 1; ctx.font = `900 ${fs}px 'Noto Sans KR',sans-serif`;
+    }
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(word, 0, ribbonY + ribbonH/2 + ribbonH*0.04);
 
     // 잉크 얼룩 텍스처 - 도장이 눌린 자국처럼 살짝 불균일하게
-    ctx.globalAlpha = 0.15;
-    for(let i=0;i<18;i++){
-      const rx = (Math.random()*2-1)*half*0.94;
-      const ry = (Math.random()*2-1)*half*0.94;
+    ctx.fillStyle = red;
+    ctx.globalAlpha = 0.14;
+    for(let i=0;i<16;i++){
+      const rx = (Math.random()*2-1)*r*0.9;
+      const ry = (Math.random()*2-1)*r*0.9;
       ctx.beginPath();
-      ctx.arc(rx, ry, Math.random()*half*0.045+0.8, 0, Math.PI*2);
+      ctx.arc(rx, ry, Math.random()*r*0.045+0.8, 0, Math.PI*2);
       ctx.fill();
     }
     ctx.restore();
@@ -1281,16 +1660,19 @@
 
   // 테마별로 다른 "측정 능력" 한 줄 요약 / 서술 문장을 만들어줌
   function getMeasureLine(st){
+    if(st.theme === 'HIDDEN') return '세 가지 시험 전 항목 1급 달성';
     if(st.theme === 'A') return `시각적 상사 감지 반응속도 ${(st.reactionMs/1000).toFixed(2)}초`;
     if(st.theme === 'B') return `노잼·광고 정밀 판독 ${st.scrollHits}회 (실수 ${st.scrollMisses}회)`;
     return `황금 딴짓 영역 유지율 ${st.balancePercent}%`;
   }
   function getMeasureDesc(st){
+    if(st.theme === 'HIDDEN') return `상기인은 오피스 스텔스, 도파민 스크롤 판독, 침대 중력 밸런스 세 가지 검정에서 모두 최고 등급을 달성하여 뇌절계의 정점에 이르렀음을 증명함.`;
     if(st.theme === 'A') return `상기인은 무소음 환경에서 경고 신호 발생 시 ${(st.reactionMs/1000).toFixed(2)}초 만에 화면을 전환하는 생존 순발력을 입증하였음.`;
     if(st.theme === 'B') return `상기인은 찰나의 순간에도 꿀잼 콘텐츠와 노잼·광고를 정확히 구분해내는 판독력을 입증하였음.`;
     return `상기인은 업무 뇌와 휴식 뇌 사이, 아슬아슬한 지점에서 균형을 유지하는 밸런스 감각을 입증하였음.`;
   }
   function getCardStatLine(st){
+    if(st.theme === 'HIDDEN') return `삼관왕 달성 | 뇌절계 정점 등극`;
     if(st.theme === 'A') return `반응속도: ${(st.reactionMs/1000).toFixed(2)}초 | 무소음 생존력 100% 입증됨`;
     if(st.theme === 'B') return `정밀 판독 ${st.scrollHits}회 | 도파민 내성 100% 입증됨`;
     return `황금영역 유지율 ${st.balancePercent}% | 밸런스 감각 100% 입증됨`;
@@ -1333,9 +1715,9 @@
     // 타이틀 - 낙방이면 '자격증'이 아니라 '통지서'로 구분
     ctx.textAlign='center';
     ctx.fillStyle = '#666'; ctx.font = `15px 'Noto Sans KR',sans-serif`;
-    ctx.fillText('대 한 민 국   뇌 절 기 술 자 격 검 정', W/2, 165);
-    ctx.fillStyle = '#1c1c1c'; ctx.font = `900 46px 'Noto Sans KR',sans-serif`;
-    ctx.fillText(ok ? '자 격 증 록 령' : '불 합 격 통 지 서', W/2, 225);
+    ctx.fillText('대 한 민 국   뇌 절 기 술 자 격 검 정', W/2, 160);
+    ctx.fillStyle = '#1c1c1c'; ctx.font = `900 58px 'Noto Sans KR',sans-serif`;
+    ctx.fillText(ok ? '자 격 증 록 령' : '불 합 격 통 지 서', W/2, 232);
 
     // 증명사진 (등급별 장식 포함)
     const px=100, py=280, pw=180, ph=220;
@@ -1456,35 +1838,35 @@
     drawChip(ctx, W-140, 34, 70, 44);
 
     // 증명사진
-    drawAvatarBox(ctx, 44, 96, 150, 190, st.certAvatarImg, 'rgba(255,255,255,0.9)', 'rgba(255,255,255,0.6)', !ok);
-    decorateAvatarByGrade(ctx, 44, 96, 150, 190, st.grade);
+    drawAvatarBox(ctx, 44, 90, 190, 230, st.certAvatarImg, 'rgba(255,255,255,0.9)', 'rgba(255,255,255,0.6)', !ok);
+    decorateAvatarByGrade(ctx, 44, 90, 190, 230, st.grade);
 
     // 텍스트 정보
-    const tx = 224;
+    const tx = 258;
     ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = `bold 13px 'JetBrains Mono',monospace`;
-    ctx.fillText('NAME', tx, 118);
-    ctx.fillStyle = '#fff'; ctx.font = `bold 32px 'Noto Sans KR',sans-serif`;
-    ctx.fillText(st.name, tx, 156);
+    ctx.fillText('NAME', tx, 128);
+    ctx.fillStyle = '#fff'; ctx.font = `bold 38px 'Noto Sans KR',sans-serif`;
+    ctx.fillText(st.name, tx, 170);
 
     ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = `bold 13px 'JetBrains Mono',monospace`;
-    ctx.fillText('QUALIFICATION', tx, 190);
-    ctx.fillStyle = '#e8c877'; ctx.font = `bold 19px 'Noto Sans KR',sans-serif`;
-    ctx.fillText(st.qualificationTitle, tx, 216);
+    ctx.fillText('QUALIFICATION', tx, 204);
+    ctx.fillStyle = '#e8c877'; ctx.font = `bold 22px 'Noto Sans KR',sans-serif`;
+    ctx.fillText(st.qualificationTitle, tx, 232);
 
     ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = `bold 13px 'JetBrains Mono',monospace`;
-    ctx.fillText('ISSUE CODE', tx, 250);
+    ctx.fillText('ISSUE CODE', tx, 266);
     ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = `16px 'JetBrains Mono',monospace`;
-    ctx.fillText(st.passNo, tx, 274);
+    ctx.fillText(st.passNo, tx, 290);
 
     // 등급 배지
     const badgeText = ok ? `${st.gradeLabel}` : '낙방 (Not Certified)';
     ctx.font = `900 22px 'Noto Sans KR',sans-serif`;
     const bw = ctx.measureText(badgeText).width + 48;
     ctx.fillStyle = ok ? (st.grade==='1' ? 'rgba(232,185,63,0.18)' : 'rgba(150,180,200,0.18)') : 'rgba(200,90,80,0.18)';
-    roundRectPath(ctx, tx, 296, bw, 50, 25); ctx.fill();
+    roundRectPath(ctx, tx, 310, bw, 50, 25); ctx.fill();
     ctx.fillStyle = ok ? '#f4d789' : '#e08a7c';
     ctx.textAlign='left';
-    ctx.fillText(badgeText, tx+24, 328);
+    ctx.fillText(badgeText, tx+24, 342);
 
     // 하단 스탯
     ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = `13px 'Noto Sans KR',sans-serif`;
@@ -1566,21 +1948,24 @@
   });
 
   // ---------- 공유 링크 ----------
-  // 아바타 이미지 자체는 전송하지 않고, 어떤 스타일+시드였는지만 보내요.
-  // 받는 쪽 브라우저가 같은 값으로 다시 생성하면 100% 동일한(내가 고른 그) 사진이 나와요.
+  // 링크 길이를 최대한 줄이려고, 다른 값에서 계산해낼 수 있는 건(등급 라벨, 발급번호, 날짜 문구 등)
+  // 아예 안 보내고, 꼭 필요한 값 10개만 "키 없는 배열"로 압축해서 보내요.
+  // 순서: [이름, 테마, 등급('1'/'2'/'F'), 지표1, 지표2, 도장인덱스, 아바타스타일인덱스, 아바타시드, 날짜정수, 발급순번]
   function updateShareUrl(){
-    const payload = {
-      n: state.name, s: state.status, th: state.theme, qt: state.qualificationTitle,
-      avs: state.certAvatarStyle, avd: state.certAvatarSeed,
-      g: state.grade, gl: state.gradeLabel, gs: state.gradeSub,
-      ms: state.reactionMs, early: state.early,
-      sh: state.scrollHits, smi: state.scrollMisses, ss: state.scrollScore,
-      bp: state.balancePercent,
-      jc: state.judgeComment, fr: state.failReason, st: state.stamp,
-      iss: state.issueNo, pass: state.passNo, dt: state.dateStr
-    };
     try{
-      const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+      const avIdx = Math.max(0, AVATAR_STYLE_LIST.indexOf(state.certAvatarStyle));
+      const stampIdx = Math.max(0, STAMP_WORDS.indexOf(state.stamp));
+      let m1 = 0, m2 = 0;
+      if(state.theme === 'A') m1 = state.reactionMs || 0;
+      else if(state.theme === 'B'){ m1 = state.scrollHits; m2 = state.scrollMisses; }
+      else if(state.theme === 'C'){ m1 = state.balancePercent; }
+      // HIDDEN은 측정치가 없어서 0,0 그대로 둠
+
+      const arr = [
+        state.name, state.theme, state.grade === 'fail' ? 'F' : state.grade,
+        m1, m2, stampIdx, avIdx, state.certAvatarSeed, state.certDateInt, state.certSeq
+      ];
+      const encoded = b64urlEncode(unescape(encodeURIComponent(JSON.stringify(arr))));
       const url = `${location.origin}${location.pathname}?d=${encoded}`;
       $('shareUrl').value = url;
     }catch(e){
@@ -1612,17 +1997,42 @@
   // ---------- 진입: 공유 링크로 들어온 경우 ----------
   let pendingSharedPayload = null;
 
+  // 배열 [이름,테마,등급,지표1,지표2,도장인덱스,아바타스타일인덱스,아바타시드,날짜정수,발급순번] → 다루기 쉬운 객체로
+  function decodeShareArray(arr){
+    return {
+      name: arr[0], theme: arr[1], grade: arr[2] === 'F' ? 'fail' : arr[2],
+      m1: arr[3], m2: arr[4], stampIdx: arr[5], avIdx: arr[6], avSeed: arr[7],
+      dateInt: arr[8], seq: arr[9]
+    };
+  }
+
   async function loadFriendCertIntoState(payload){
-    state.name = payload.n; state.status = payload.s; state.theme = payload.th || 'A';
-    state.qualificationTitle = payload.qt || QUALIFICATION_TITLE[state.theme];
+    state.name = payload.name; state.theme = payload.theme || 'A';
+    state.qualificationTitle = QUALIFICATION_TITLE[state.theme];
     state.examTitle = EXAM_TITLE[state.theme];
-    state.grade = payload.g; state.gradeLabel = payload.gl; state.gradeSub = payload.gs;
-    state.reactionMs = payload.ms; state.early = payload.early;
-    state.scrollHits = payload.sh || 0; state.scrollMisses = payload.smi || 0; state.scrollScore = payload.ss || 0;
-    state.balancePercent = payload.bp || 0;
-    state.judgeComment = payload.jc; state.failReason = payload.fr; state.stamp = payload.st || '쓸데없음';
-    state.issueNo = payload.iss; state.passNo = payload.pass; state.dateStr = payload.dt;
-    await restoreCertAvatar(payload.avs || 'bottts', payload.avd || `${state.name}-shared`);
+    state.grade = payload.grade;
+
+    if(state.theme === 'A'){ state.reactionMs = payload.m1; }
+    else if(state.theme === 'B'){ state.scrollHits = payload.m1; state.scrollMisses = payload.m2; state.scrollScore = payload.m1 - payload.m2*2; }
+    else if(state.theme === 'C'){ state.balancePercent = payload.m1; }
+    // HIDDEN은 별도 측정치가 없어서 아무것도 안 씀
+
+    const info = buildGradeInfo(state.theme, state.grade, payload.m1);
+    state.gradeLabel = info.gradeLabel; state.gradeSub = info.gradeSub;
+    state.judgeComment = pick(state.grade === 'fail' ? FAIL_COMMENTS : PASS_COMMENTS);
+    if(state.grade === 'fail'){
+      const pool = state.theme === 'A' ? FAIL_REASONS : state.theme === 'B' ? FAIL_REASONS_B : FAIL_REASONS_C;
+      state.failReason = pick(pool);
+    }
+    state.stamp = STAMP_WORDS[payload.stampIdx] || '쓸데없음';
+
+    const themeCode = THEME_CODE[state.theme];
+    state.certDateInt = payload.dateInt; state.certSeq = payload.seq;
+    state.issueNo = buildIssueNo(themeCode, payload.dateInt, payload.seq);
+    state.passNo = buildPassNo(themeCode, payload.dateInt, payload.seq, state.grade !== 'fail');
+    state.dateStr = intToDateKorean(payload.dateInt);
+
+    await restoreCertAvatar(AVATAR_STYLE_LIST[payload.avIdx] || 'bottts', payload.avSeed || `${state.name}-shared`);
   }
 
   $('btnJustViewCert').addEventListener('click', async ()=>{
@@ -1636,8 +2046,15 @@
 
   $('btnAcceptChallenge').addEventListener('click', ()=>{
     if(!pendingSharedPayload) return;
+    if(pendingSharedPayload.theme === 'HIDDEN'){
+      // 히든 등급은 리플레이로 "이기고 지는" 대결이 아니라, 나도 처음부터 정정당당히 도전하는 거라
+      // forcedTheme/challengeFrom을 안 걸고 그냥 평범한 시작 화면으로 보냄
+      history.replaceState(null,'',location.pathname);
+      showScreen('screen-entry');
+      return;
+    }
     state.challengeFrom = pendingSharedPayload;
-    state.forcedTheme = pendingSharedPayload.th || 'A';
+    state.forcedTheme = pendingSharedPayload.theme || 'A';
     history.replaceState(null,'',location.pathname); // 도전을 받아들이면 링크의 공유 파라미터는 정리
     showScreen('screen-entry');
   });
@@ -1647,7 +2064,8 @@
     const d = params.get('d');
     if(!d) return false;
     try{
-      const payload = JSON.parse(decodeURIComponent(escape(atob(d))));
+      const arr = JSON.parse(decodeURIComponent(escape(b64urlDecode(d))));
+      const payload = decodeShareArray(arr);
       pendingSharedPayload = payload;
       showChallengeScreen(payload);
       return true;
