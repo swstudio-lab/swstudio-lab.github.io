@@ -552,6 +552,15 @@
   const randInt = (min,max)=> Math.floor(rand(min,max+1));
   const pick = (arr)=> arr[randInt(0,arr.length-1)];
 
+  // 도장 이미지 (assets/stamp.png) - 페이지 로드하자마자 한 번만 불러다 두고 계속 재사용
+  let stampImg = null;
+  (function loadStampImage(){
+    const img = new Image();
+    img.onload = ()=> { stampImg = img; };
+    img.onerror = ()=> { console.warn('도장 이미지(assets/stamp.png)를 못 불러왔어요. 기본 도형으로 대체돼요.'); };
+    img.src = 'assets/stamp.png';
+  })();
+
   // 무소음 컨셉이라 소리 대신 짧은 진동으로 피드백 (지원 안 하는 기기/브라우저에서는 조용히 무시됨)
   function buzz(pattern){
     try{ navigator.vibrate && navigator.vibrate(pattern); }catch(e){}
@@ -1500,94 +1509,44 @@
     ctx.restore();
   }
 
-  // 물결(스캘럽) 모양 바깥 테두리 - 관인 특유의 톱니/꽃무늬 테두리 느낌
-  function drawScallopedRing(ctx, rOuter, rInner, bumps, color){
-    ctx.save();
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    const steps = bumps * 10;
-    for(let i=0;i<=steps;i++){
-      const t = i/steps;
-      const angle = t*Math.PI*2;
-      const wobble = (Math.sin(angle*bumps) + 1) / 2;
-      const rr = rInner + wobble*(rOuter-rInner);
-      const x = Math.cos(angle)*rr, y = Math.sin(angle)*rr;
-      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-    }
-    ctx.closePath();
-    ctx.fill('evenodd');
-    ctx.beginPath();
-    ctx.arc(0,0,rInner*0.97,0,Math.PI*2);
-    ctx.fill('evenodd');
-    ctx.restore();
-  }
-
-  // 단색 버전 태극 문양 - destination-out으로 실제 구멍을 뚫어서 배경색이 뭐든 자연스럽게 어울림
-  function drawMiniTaegeuk(ctx, r, color){
-    ctx.save();
-    ctx.fillStyle = color;
-    ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill();
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.beginPath();
-    ctx.arc(0,-r/2, r/2, Math.PI*1.5, Math.PI*0.5, false);
-    ctx.arc(0, r/2, r/2, Math.PI*0.5, Math.PI*1.5, false);
-    ctx.closePath();
-    ctx.fill();
-    ctx.beginPath(); ctx.arc(0,-r/2, r*0.16, 0, Math.PI*2); ctx.fill();
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.beginPath(); ctx.arc(0, r/2, r*0.16, 0, Math.PI*2); ctx.fill();
-    ctx.restore();
-  }
-
   // 실제 관인처럼 원형 + 태극문양 + 둘레 각인 + 등급 리본이 들어간 도장.
   // onPaper=true면 종이 위에 잉크가 스민 것처럼 multiply 블렌드를 씀
   // (어두운 카드 배경에선 multiply를 쓰면 빨간색이 거의 검게 죽어서 카드에서는 일반 블렌드를 씀)
+  // 실제 도장 이미지(assets/stamp.png) 위에, 이미지 안의 빈 아치/리본 자리에 맞춰
+  // 기관명과 도장 문구만 텍스트로 얹는 방식. 이미지 로드 전/실패 시엔 최소한의 도형으로 대체됨.
   function drawStamp(ctx, cx, cy, r, word, onPaper){
     ctx.save();
     if(onPaper) ctx.globalCompositeOperation = 'multiply';
-    ctx.globalAlpha = 0.9;
-    const red = '#b93226';
-    ctx.translate(cx, cy);
-    ctx.rotate(-0.04);
+    const red = '#a8261c';
 
-    // 바깥 물결(스캘럽) 테두리
-    drawScallopedRing(ctx, r, r*0.9, 28, red);
+    if(stampImg){
+      const imgSize = r * 2.5; // 이미지 안 여백을 감안해서, 실제 잉크 반지름이 r 정도 되도록 여유있게 그림
+      ctx.drawImage(stampImg, cx - imgSize/2, cy - imgSize/2, imgSize, imgSize);
+      ctx.translate(cx, cy);
 
-    // 안쪽 원 두 겹
-    ctx.strokeStyle = red;
-    ctx.lineWidth = Math.max(1, r*0.02);
-    ctx.beginPath(); ctx.arc(0,0,r*0.82,0,Math.PI*2); ctx.stroke();
+      // 위쪽 빈 아치 자리 - 기관명 (이미지 안에서 실측한 비율: 반지름 약 0.266 * imgSize)
+      drawCircleArcText(ctx, '한국쓸데없는자격검정평가원', imgSize*0.266, -Math.PI/2, Math.PI*0.58,
+        `bold ${Math.max(8, Math.round(imgSize*0.028))}px 'Noto Sans KR',sans-serif`, red);
 
-    // 중앙 태극 문양
-    drawMiniTaegeuk(ctx, r*0.28, red);
-
-    // 태극 위쪽, 원 둘레를 도는 기관명 아치
-    drawCircleArcText(ctx, '한국쓸데없는자격검정평가원', r*0.62, -Math.PI/2, Math.PI*1.25,
-      `bold ${Math.max(8, Math.round(r*0.068))}px 'Noto Sans KR',sans-serif`, red);
-
-    // 하단을 가로지르는 등급/도장 문구 리본
-    const ribbonW = r*1.5, ribbonH = r*0.36, ribbonY = r*0.46;
-    ctx.fillStyle = red;
-    roundRectPath(ctx, -ribbonW/2, ribbonY, ribbonW, ribbonH, 3);
-    ctx.fill();
-    ctx.fillStyle = onPaper ? '#faf6ea' : '#0d1a3a';
-    let fs = Math.round(ribbonH*0.52);
-    ctx.font = `900 ${fs}px 'Noto Sans KR',sans-serif`;
-    while(ctx.measureText(word).width > ribbonW*0.86 && fs > ribbonH*0.3){
-      fs -= 1; ctx.font = `900 ${fs}px 'Noto Sans KR',sans-serif`;
-    }
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(word, 0, ribbonY + ribbonH/2 + ribbonH*0.04);
-
-    // 잉크 얼룩 텍스처 - 도장이 눌린 자국처럼 살짝 불균일하게
-    ctx.fillStyle = red;
-    ctx.globalAlpha = 0.14;
-    for(let i=0;i<16;i++){
-      const rx = (Math.random()*2-1)*r*0.9;
-      const ry = (Math.random()*2-1)*r*0.9;
-      ctx.beginPath();
-      ctx.arc(rx, ry, Math.random()*r*0.045+0.8, 0, Math.PI*2);
-      ctx.fill();
+      // 아래쪽 빈 리본 자리 - 도장 문구 (긴 문구는 자동으로 폰트 축소)
+      const ribbonY = imgSize*0.159;
+      const ribbonMaxW = imgSize*0.46;
+      let fs = Math.round(imgSize*0.058);
+      ctx.font = `900 ${fs}px 'Noto Sans KR',sans-serif`;
+      while(ctx.measureText(word).width > ribbonMaxW && fs > imgSize*0.028){
+        fs -= 1; ctx.font = `900 ${fs}px 'Noto Sans KR',sans-serif`;
+      }
+      ctx.fillStyle = red;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(word, 0, ribbonY);
+    } else {
+      // 폴백: 이미지가 아직 안 불러와졌거나 실패했을 때 최소한의 도형
+      ctx.globalAlpha = 0.85;
+      ctx.strokeStyle = red; ctx.lineWidth = Math.max(2, r*0.05);
+      ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.stroke();
+      ctx.font = `900 ${Math.round(r*0.24)}px 'Noto Sans KR',sans-serif`;
+      ctx.fillStyle = red; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(word, cx, cy);
     }
     ctx.restore();
   }
