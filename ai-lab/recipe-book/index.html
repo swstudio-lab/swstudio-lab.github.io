@@ -367,6 +367,29 @@
     color:var(--muted);
   }
 
+  .launch-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .launch-btn{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    background:var(--surface2);
+    border:1px solid var(--border-lit);
+    color:var(--gold);
+    text-decoration:none;
+    font-size:12px;
+    padding:7px 12px;
+    border-radius:3px;
+    transition:background .15s, color .15s;
+  }
+  .launch-btn:hover{
+    background:var(--gold);
+    color:#1a1408;
+  }
+
   .prompt-result{
     display:flex;
     flex-direction:column;
@@ -681,6 +704,10 @@
     <div class="builder-result" id="builderResult" hidden>
       <div class="prompt-box" id="builderPromptBox"></div>
       <button class="copy-btn" id="builderCopyBtn">프롬프트 복사</button>
+      <div class="launch-row">
+        <a class="launch-btn" href="https://claude.ai/new" target="_blank" rel="noopener">Claude에서 실행하기 ↗</a>
+        <a class="launch-btn" href="https://chatgpt.com/" target="_blank" rel="noopener">ChatGPT에서 실행하기 ↗</a>
+      </div>
     </div>
   </div>
 </section>
@@ -1076,6 +1103,22 @@ function renderCards(cat){
   }
 }
 
+const AI_LINKS = {
+  'Claude': 'https://claude.ai/new',
+  'ChatGPT': 'https://chatgpt.com/',
+  'Gemini': 'https://gemini.google.com/app',
+  'GitHub Copilot': 'https://github.com/copilot',
+  'Cursor': 'https://cursor.com/'
+};
+
+function buildLaunchRow(tools){
+  const buttons = (tools || [])
+    .filter(t => AI_LINKS[t])
+    .map(t => `<a class="launch-btn" href="${AI_LINKS[t]}" target="_blank" rel="noopener">${escapeHtml(t)}에서 실행하기 ↗</a>`)
+    .join('');
+  return buttons ? `<div class="launch-row">${buttons}</div>` : '';
+}
+
 function extractPlaceholders(text){
   const matches = [...String(text).matchAll(/\[([^\]]+)\]/g)];
   const seen = new Set();
@@ -1181,6 +1224,7 @@ function buildCard(cat, i, item){
     <div class="prompt-result" id="${promptId}-result" hidden>
       <span class="field-label" style="display:block;">완성된 프롬프트 (복사 안 되면 아래에서 직접 긁어서 복사하세요)</span>
       <div class="prompt-box" id="${promptId}-resultbox"></div>
+      ${buildLaunchRow(item.tools)}
     </div>
     <p class="card-review">"${escapeHtml(item.review)}"</p>
     <a class="card-link" href="${escapeAttr(item.link)}">${escapeHtml(item.linkLabel)} →</a>
