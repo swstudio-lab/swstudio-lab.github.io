@@ -631,22 +631,6 @@
   }
   body.edit-on .tools-input{ display:block; }
   body.edit-on .card-tools{ display:none; }
-  .link-fields{
-    display:none;
-    flex-direction:column;
-    gap:6px;
-  }
-  body.edit-on .link-fields{ display:flex; }
-  body.edit-on .card-link{ display:none; }
-  .link-fields input{
-    background:var(--surface2);
-    border:1px solid var(--border);
-    color:var(--muted);
-    font-size:11px;
-    padding:6px 8px;
-    border-radius:2px;
-    width:100%;
-  }
   .add-card{
     border-style:dashed;
     align-items:center;
@@ -1254,11 +1238,6 @@ function buildCard(cat, i, item){
       <span class="field-label">후기</span>
       <p class="card-review" contenteditable="true" data-field="review">"${escapeHtml(item.review)}"</p>
 
-      <div class="link-fields">
-        <input data-field="link" placeholder="링크 경로" value="${escapeAttr(item.link)}">
-        <input data-field="linkLabel" placeholder="링크 버튼 문구" value="${escapeAttr(item.linkLabel)}">
-      </div>
-
       <button class="card-del">🗑 이 카드 삭제</button>
     `;
 
@@ -1331,7 +1310,6 @@ function buildCard(cat, i, item){
         ${buildLaunchRow(item.tools)}
       </div>
       <p class="card-review">"${escapeHtml(item.review)}"</p>
-      <a class="card-link" href="${escapeAttr(item.link)}">${escapeHtml(item.linkLabel)} →</a>
     </div>
   `;
 
