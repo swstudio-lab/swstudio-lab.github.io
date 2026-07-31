@@ -428,6 +428,20 @@
     border-color:var(--gold);
   }
 
+  .cat-note{
+    background:rgba(217,100,47,0.06);
+    border:1px dashed var(--border-lit);
+    border-radius:4px;
+    padding:14px 18px;
+    margin-bottom:18px;
+    font-size:13px;
+    color:var(--muted);
+  }
+  .cat-note a{
+    color:var(--gold);
+    text-decoration:underline;
+  }
+
   .builder-box{
     background:var(--surface);
     border:1px solid var(--border-lit);
@@ -498,6 +512,44 @@
     display:flex;
     flex-direction:column;
     gap:12px;
+  }
+
+  .card-summary{
+    cursor:pointer;
+    list-style:none;
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
+  }
+  .card-summary::-webkit-details-marker{
+    display:none;
+  }
+  .card-summary-text{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    min-width:0;
+  }
+  .card-summary .card-title{
+    margin:0;
+  }
+  .card-arrow{
+    color:var(--muted);
+    font-size:13px;
+    flex-shrink:0;
+    margin-top:4px;
+    transition:transform .15s;
+  }
+  details.card[open] .card-arrow{
+    transform:rotate(180deg);
+  }
+  details.card .card-body{
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    padding-top:16px;
+    border-top:1px dashed var(--border);
   }
 
   /* ---------- Edit mode ---------- */
@@ -657,9 +709,11 @@
     </div>
   </div>
 
+  <div class="cat-note" id="catNote" hidden></div>
+
   <div class="recipe-grid" id="cardGrid"></div>
 
-  <div class="builder-box">
+  <div class="builder-box" id="builderBox">
     <span class="builder-tag pixel">FREE BUILD</span>
     <h3>여기 없는 상황이라면, 직접 만들어보세요</h3>
     <p>몇 가지만 답하면, 바로 복사해서 쓸 수 있는 프롬프트로 정리해드려요.</p>
@@ -955,32 +1009,22 @@ const defaultRecipes = {
 
   "개발": [
     {
-      title: "남이 짠 코드, 이해하기 어렵고 손대기도 무서워요",
-      tools: ["GitHub Copilot", "Claude"],
-      prompt: `아래 코드에 이해하기 쉬운 주석을 달고, 가독성/효율성을 높일 수 있는 리팩토링 제안도 같이 해줘. 로직 자체는 바꾸지 말고.
+      title: "남이 짠 코드든 AI가 짜준 코드든, 이해하고 손대기가 무서워요",
+      tools: ["GitHub Copilot", "Claude", "Cursor"],
+      prompt: `아래 코드에 이해하기 쉬운 주석을 달아줘. 그리고 우리 프로젝트 구조에 잘 맞는지, 예상 못한 부작용은 없는지, 나중에 기능이 늘어나도 확장 가능한 구조인지도 점검해줘. 리팩토링 제안이 있다면 로직은 바꾸지 말고 제안만 해줘.
 
 [코드 붙여넣기]`,
-      review: `주석 없는 코드 넘겨받을 때마다 막막했는데, 이렇게 정리해서 받으니 파악하는 시간이 확 줄었어요.`,
+      review: `🧑‍💻 현직 개발자 코멘트 — "코드가 돌아가는지만 확인하고 넘어가면 실력이 잘 안 늘어요. 남이 짰든 AI가 짰든, 왜 이렇게 짜여졌는지 물어보고 이상한 답을 잘 잡아내는 사람이 결국 실력 차이가 나더라고요."`,
       link: "#",
       linkLabel: "🧪 관련 프로젝트 준비 중"
     },
     {
-      title: "이 기능, 어떤 경우에 오류가 날지 다 못 짚겠어요",
+      title: "같은 결과인데, 이 코드가 효율적으로 짜인 건지 모르겠어요",
       tools: ["Claude", "ChatGPT"],
-      prompt: `아래 기능 명세서를 보고 발생 가능한 오류 상황과 테스트 케이스를 만들어줘. 정상 케이스와 예외 케이스를 나눠서.
+      prompt: `아래 코드의 시간복잡도(Big-O)를 분석해줘. 더 효율적으로 짤 수 있는 방법이 있다면, 왜 더 나은지 설명과 함께 대안 코드도 같이 보여줘.
 
-[기능 명세서/요구사항]`,
-      review: `놓치기 쉬운 예외 케이스까지 짚어줘서, 테스트 커버리지가 확실히 좋아졌어요.`,
-      link: "#",
-      linkLabel: "🧪 관련 프로젝트 준비 중"
-    },
-    {
-      title: "AI가 짜준 코드, 그대로 써도 될까요?",
-      tools: ["Claude", "Cursor", "GitHub Copilot"],
-      prompt: `이 코드가 우리 프로젝트 구조랑 잘 맞는지, 예상 못한 부작용은 없는지, 나중에 기능이 늘어나도 확장 가능한 구조인지 점검해줘. 왜 이렇게 짜여졌는지도 설명해줘.
-
-[점검받고 싶은 코드]`,
-      review: `🧑‍💻 현직 개발자 코멘트 — "코드가 돌아가는지만 확인하고 넘어가면 실력이 잘 안 늘어요. AI한테 섬세하게 물어보고, 이상한 답을 잘 잡아내는 사람이 결국 실력 차이가 나더라고요."`,
+[코드 붙여넣기]`,
+      review: `🧑‍💻 현직 개발자 제안 — "같은 결과를 내는 코드라도 어떻게 짜느냐에 따라 처리 속도나 효율성이 달라져요. 이런 부분까지 체크해보면 실력 늘리는 데 도움이 될 거예요."`,
       link: "#",
       linkLabel: "🧪 관련 프로젝트 준비 중"
     },
@@ -1064,10 +1108,22 @@ function flashHint(msg){
 const grid = document.getElementById('cardGrid');
 const chips = document.querySelectorAll('.chip');
 
+const CAT_NOTES = {
+  "개발": `개발 쪽 고민은 실무 맥락(설계, 기존 코드 구조, 팀 컨벤션)에 따라 달라지는 경우가 많아서, 아래 카드는 비교적 가볍게 반복되는 상황 위주로만 담았어요. 설계 판단이 필요한 복잡한 질문이라면, 아래 <a href="#builderBox">자유 프롬프트 빌더</a>로 상황을 자세히 적어서 만드는 걸 추천해요.`
+};
+
 function renderCards(cat){
   currentCat = cat;
   grid.innerHTML = '';
   const items = recipes[cat];
+
+  const noteEl = document.getElementById('catNote');
+  if(CAT_NOTES[cat]){
+    noteEl.innerHTML = CAT_NOTES[cat];
+    noteEl.hidden = false;
+  } else {
+    noteEl.hidden = true;
+  }
 
   if(!items || items.length === 0){
     if(!editMode){
@@ -1137,12 +1193,12 @@ function mergePrompt(text, valuesMap){
 }
 
 function buildCard(cat, i, item){
-  const card = document.createElement('div');
-  card.className = 'card';
   const promptId = `prompt-${cat}-${i}`;
 
   if(editMode){
-    // ---- 편집 모드: 원본 템플릿 자체를 고치는 관리자 뷰 ----
+    // ---- 편집 모드: 원본 템플릿 자체를 고치는 관리자 뷰 (항상 펼쳐진 상태) ----
+    const card = document.createElement('div');
+    card.className = 'card';
     card.innerHTML = `
       <div class="card-tag pixel">${cat}</div>
       <span class="field-label">제목</span>
@@ -1197,7 +1253,7 @@ function buildCard(cat, i, item){
     return card;
   }
 
-  // ---- 방문자 모드: [placeholder]를 실제 입력창으로 바꿔서 프롬프트를 완성해주는 뷰 ----
+  // ---- 방문자 모드: 접혔다 펼쳐지는 카드. [placeholder]를 입력창으로 바꿔서 프롬프트를 완성해주는 뷰 ----
   const placeholders = extractPlaceholders(item.prompt);
   const previewHtml = escapeHtml(item.prompt).replace(/\[([^\]]+)\]/g,
     (full, label) => `<span class="ph-mark">[${escapeHtml(label)}]</span>`);
@@ -1214,20 +1270,29 @@ function buildCard(cat, i, item){
     </div>
   `).join('');
 
+  const card = document.createElement('details');
+  card.className = 'card';
   card.innerHTML = `
-    <div class="card-tag pixel">${cat}</div>
-    <h3 class="card-title">${escapeHtml(item.title)}</h3>
-    <div class="card-tools">${item.tools.map(t => `<span class="tool-badge">${escapeHtml(t)}</span>`).join('')}</div>
-    <div class="prompt-box" id="${promptId}">${previewHtml}</div>
-    ${fieldsHtml}
-    <button class="copy-btn" data-target="${promptId}" data-cat="${cat}" data-idx="${i}">${placeholders.length ? '내용 채워서 프롬프트 복사' : '프롬프트 복사'}</button>
-    <div class="prompt-result" id="${promptId}-result" hidden>
-      <span class="field-label" style="display:block;">완성된 프롬프트 (복사 안 되면 아래에서 직접 긁어서 복사하세요)</span>
-      <div class="prompt-box" id="${promptId}-resultbox"></div>
-      ${buildLaunchRow(item.tools)}
+    <summary class="card-summary">
+      <div class="card-summary-text">
+        <div class="card-tag pixel">${cat}</div>
+        <h3 class="card-title">${escapeHtml(item.title)}</h3>
+      </div>
+      <span class="card-arrow">▾</span>
+    </summary>
+    <div class="card-body">
+      <div class="card-tools">${item.tools.map(t => `<span class="tool-badge">${escapeHtml(t)}</span>`).join('')}</div>
+      <div class="prompt-box" id="${promptId}">${previewHtml}</div>
+      ${fieldsHtml}
+      <button class="copy-btn" data-target="${promptId}" data-cat="${cat}" data-idx="${i}">${placeholders.length ? '내용 채워서 프롬프트 복사' : '프롬프트 복사'}</button>
+      <div class="prompt-result" id="${promptId}-result" hidden>
+        <span class="field-label" style="display:block;">완성된 프롬프트 (복사 안 되면 아래에서 직접 긁어서 복사하세요)</span>
+        <div class="prompt-box" id="${promptId}-resultbox"></div>
+        ${buildLaunchRow(item.tools)}
+      </div>
+      <p class="card-review">"${escapeHtml(item.review)}"</p>
+      <a class="card-link" href="${escapeAttr(item.link)}">${escapeHtml(item.linkLabel)} →</a>
     </div>
-    <p class="card-review">"${escapeHtml(item.review)}"</p>
-    <a class="card-link" href="${escapeAttr(item.link)}">${escapeHtml(item.linkLabel)} →</a>
   `;
 
   return card;
