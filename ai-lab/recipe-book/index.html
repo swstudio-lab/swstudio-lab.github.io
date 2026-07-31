@@ -1,0 +1,1396 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 레시피북 · SW STUDIO LAB</title>
+<!-- 로컬 테스트 중엔 아래 파비콘 경로가 존재하지 않아 주석 처리. GitHub에 올릴 때 다시 살리면 됨
+<link rel="icon" type="image/svg+xml" href="../../assets/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="../../assets/favicon-32.png">
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+-->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="SW STUDIO LAB">
+<meta property="og:title" content="AI 레시피북 · SW STUDIO LAB">
+<meta property="og:description" content="AI가 걸어온 길을 따라가다, 지금 당신의 고민에 맞는 프롬프트를 만나보세요.">
+<meta property="og:image" content="https://swstudio-lab.github.io/assets/og-image.png">
+<meta property="og:url" content="https://swstudio-lab.github.io/ai-lab/recipe-book/index.html">
+<meta name="description" content="AI가 걸어온 길을 따라가다, 지금 당신의 고민에 맞는 프롬프트를 만나보세요.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  /* ↓↓↓ 원래 assets/style.css에 있던 공통 토큰/기본 스타일을 그대로 가져와 이 파일 안에 넣어둔 것.
+     나중에 실제 사이트에 올릴 때는 이 블록 대신 <link rel="stylesheet" href="../../assets/style.css"> 로 되돌리면 됨. */
+  :root{
+    --bg:#0a0908;
+    --surface:#15120e;
+    --surface2:#1c1710;
+    --border:#3a2e1a;
+    --border-lit:#6b5326;
+    --gold:#e8b93f;
+    --ember:#d9642f;
+    --text:#eae4d6;
+    --muted:#8f8879;
+  }
+  *{ box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+  body{
+    margin:0;
+    background:
+      radial-gradient(ellipse 900px 500px at 50% -10%, rgba(232,185,63,0.08), transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Noto Sans KR', sans-serif;
+    line-height:1.6;
+  }
+  .pixel{ font-family:'Press Start 2P', monospace; }
+  a{ color:inherit; }
+  /* ↑↑↑ 여기까지 공통 스타일 */
+
+  /* style.css의 색상 토큰(--bg, --gold 등)을 그대로 물려받고, 이 페이지 전용 요소만 추가 정의 */
+  @media (prefers-reduced-motion: reduce){
+    html{ scroll-behavior:auto; }
+    *{ animation-duration:0.001ms !important; transition-duration:0.001ms !important; }
+  }
+  button{ font-family:inherit; cursor:pointer; }
+
+  .backlink{
+    display:block;
+    max-width:1040px;
+    margin:0 auto;
+    padding:18px 24px 0;
+    font-size:12px;
+    color:var(--muted);
+    text-decoration:none;
+  }
+  .backlink:hover{ color:var(--gold); }
+
+  /* ---------- Hero ---------- */
+  .hero{
+    max-width:880px;
+    margin:0 auto;
+    padding:88px 24px 56px;
+    text-align:center;
+  }
+  .eyebrow{
+    display:inline-block;
+    font-size:10px;
+    color:var(--ember);
+    padding:6px 12px;
+    border:1px solid var(--border-lit);
+    border-radius:2px;
+    margin-bottom:24px;
+    background:rgba(217,100,47,0.06);
+  }
+  .hero h1{
+    font-size:clamp(24px, 4vw, 34px);
+    font-weight:900;
+    margin:0 0 18px;
+    color:var(--gold);
+  }
+  .hero p{
+    color:var(--muted);
+    font-size:15px;
+    max-width:560px;
+    margin:0 auto;
+  }
+
+  section{
+    max-width:1040px;
+    margin:0 auto;
+    padding:64px 24px;
+  }
+  .section-head{
+    margin-bottom:36px;
+  }
+  .section-head .num{
+    font-size:11px;
+    color:var(--border-lit);
+    margin-bottom:8px;
+  }
+  .section-head h2{
+    font-size:20px;
+    margin:0 0 8px;
+    color:var(--text);
+  }
+  .section-head p{
+    color:var(--muted);
+    font-size:14px;
+    margin:0;
+    max-width:520px;
+  }
+
+  /* ---------- Timeline (Quest Trail) ---------- */
+  .trail-wrap{
+    position:relative;
+    overflow-x:auto;
+    padding-bottom:12px;
+    -webkit-overflow-scrolling:touch;
+  }
+  .trail{
+    display:flex;
+    gap:0;
+    min-width:720px;
+    position:relative;
+    padding:20px 0 0;
+  }
+  .trail::before{
+    content:"";
+    position:absolute;
+    top:38px;
+    left:40px;
+    right:40px;
+    height:2px;
+    background-image:linear-gradient(90deg, var(--border-lit) 0 8px, transparent 8px 16px);
+    background-size:16px 2px;
+  }
+  .node{
+    flex:1;
+    position:relative;
+    padding:0 16px;
+    text-align:center;
+  }
+  .node-dot{
+    width:16px; height:16px;
+    margin:0 auto 18px;
+    background:var(--surface2);
+    border:2px solid var(--border-lit);
+    transform:rotate(45deg);
+    position:relative;
+    z-index:1;
+    transition:background .2s, border-color .2s;
+  }
+  .node.is-lit .node-dot{
+    background:var(--gold);
+    border-color:var(--gold);
+    box-shadow:0 0 12px rgba(232,185,63,0.5);
+  }
+  .node-year{
+    font-size:11px;
+    color:var(--gold);
+    margin-bottom:10px;
+  }
+  .node-desc{
+    font-size:13px;
+    color:var(--muted);
+    margin-bottom:14px;
+    min-height:54px;
+  }
+  .node-pin{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    font-size:11px;
+    padding:6px 10px;
+    border:1px solid var(--border);
+    border-radius:2px;
+    background:var(--surface);
+    color:var(--text);
+  }
+  .node-pin.empty{
+    color:var(--muted);
+    border-style:dashed;
+  }
+
+  /* ---------- Personalize prompt ---------- */
+  .ask{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:4px;
+    padding:28px;
+    margin-bottom:32px;
+  }
+  .ask-q{
+    font-size:15px;
+    font-weight:700;
+    margin:0 0 16px;
+    color:var(--text);
+  }
+  .chip-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .chip{
+    background:var(--surface2);
+    border:1px solid var(--border);
+    color:var(--text);
+    padding:9px 14px;
+    border-radius:20px;
+    font-size:13px;
+    transition:border-color .15s, color .15s, background .15s;
+  }
+  .chip:hover{
+    border-color:var(--border-lit);
+  }
+  .chip.active{
+    background:var(--gold);
+    border-color:var(--gold);
+    color:#1a1408;
+    font-weight:700;
+  }
+
+  /* ---------- Recipe grid ---------- */
+  .recipe-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(300px, 1fr));
+    gap:18px;
+  }
+  .card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:4px;
+    padding:22px;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+  .card-tag{
+    font-size:10px;
+    color:var(--ember);
+    text-transform:uppercase;
+  }
+  .card-title{
+    font-size:15px;
+    font-weight:700;
+    margin:0;
+    color:var(--text);
+  }
+  .card-tools{
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+  }
+  .tool-badge{
+    font-size:11px;
+    padding:4px 8px;
+    background:var(--surface2);
+    border:1px solid var(--border);
+    border-radius:2px;
+    color:var(--muted);
+  }
+  .prompt-box{
+    background:var(--bg);
+    border:1px solid var(--border);
+    border-radius:3px;
+    padding:12px 14px;
+    font-size:12.5px;
+    color:var(--muted);
+    position:relative;
+    line-height:1.6;
+    white-space:pre-wrap;
+  }
+  .copy-btn{
+    background:transparent;
+    border:1px solid var(--border-lit);
+    color:var(--gold);
+    font-size:11px;
+    padding:6px 10px;
+    border-radius:2px;
+    align-self:flex-start;
+    transition:background .15s, color .15s;
+  }
+  .copy-btn:hover{
+    background:var(--gold);
+    color:#1a1408;
+  }
+  .copy-btn.copied{
+    background:var(--ok);
+    border-color:var(--ok);
+    color:#0a0908;
+  }
+  .card-review{
+    font-size:13px;
+    color:var(--muted);
+    border-left:2px solid var(--border-lit);
+    padding-left:12px;
+    font-style:italic;
+  }
+  .card-link{
+    font-size:12px;
+    color:var(--gold);
+    text-decoration:none;
+    border-top:1px solid var(--border);
+    padding-top:12px;
+    margin-top:auto;
+  }
+  .card-link:hover{ text-decoration:underline; }
+
+  /* Placeholder (not-yet-built) card */
+  .card.placeholder{
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    color:var(--muted);
+    min-height:180px;
+    border-style:dashed;
+  }
+  .card.placeholder .lock{
+    font-size:20px;
+    margin-bottom:10px;
+  }
+  .card.placeholder .ph-label{
+    font-size:12px;
+  }
+
+  .file-attach-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-top:6px;
+  }
+  .file-attach-btn{
+    display:inline-block;
+    background:transparent;
+    border:1px dashed var(--border-lit);
+    color:var(--muted);
+    font-size:11px;
+    padding:6px 11px;
+    border-radius:3px;
+    cursor:pointer;
+    transition:color .15s, border-color .15s;
+  }
+  .file-attach-btn:hover{
+    color:var(--gold);
+    border-color:var(--gold);
+  }
+  .file-attach-input{
+    position:absolute;
+    width:1px; height:1px;
+    opacity:0;
+    overflow:hidden;
+  }
+  .file-attach-status{
+    font-size:11px;
+    color:var(--muted);
+  }
+
+  .prompt-result{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+
+  .ph-mark{
+    color:var(--ember);
+    background:rgba(217,100,47,0.14);
+    padding:1px 5px;
+    border-radius:2px;
+  }
+  .ph-field{
+    margin-top:2px;
+  }
+  .ph-field label{
+    font-size:11px;
+    color:var(--muted);
+    display:block;
+    margin-bottom:5px;
+  }
+  .ph-field textarea{
+    width:100%;
+    min-height:56px;
+    background:var(--bg);
+    border:1px solid var(--border);
+    color:var(--text);
+    font-size:12.5px;
+    border-radius:3px;
+    padding:8px 10px;
+    font-family:inherit;
+    resize:vertical;
+  }
+  .ph-field textarea:focus{
+    outline:none;
+    border-color:var(--gold);
+  }
+
+  .builder-box{
+    background:var(--surface);
+    border:1px solid var(--border-lit);
+    border-radius:4px;
+    padding:26px 28px;
+    margin-bottom:32px;
+  }
+  .builder-tag{
+    font-size:10px;
+    color:var(--ember);
+    margin-bottom:10px;
+    display:inline-block;
+  }
+  .builder-box h3{
+    font-size:16px;
+    margin:0 0 6px;
+    color:var(--text);
+  }
+  .builder-box > p{
+    font-size:13px;
+    color:var(--muted);
+    margin:0 0 20px;
+  }
+  .builder-field{
+    margin-bottom:16px;
+  }
+  .builder-field label{
+    display:block;
+    font-size:12px;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+  .builder-field textarea,
+  .builder-field input,
+  .builder-field select{
+    width:100%;
+    background:var(--bg);
+    border:1px solid var(--border);
+    color:var(--text);
+    font-size:13px;
+    font-family:inherit;
+    padding:10px 12px;
+    border-radius:3px;
+    resize:vertical;
+  }
+  .builder-field textarea{ min-height:64px; }
+  .builder-field textarea:focus,
+  .builder-field input:focus,
+  .builder-field select:focus{
+    outline:none;
+    border-color:var(--gold);
+  }
+  .build-btn{
+    background:var(--gold);
+    border:none;
+    color:#1a1408;
+    font-weight:700;
+    font-size:13px;
+    padding:11px 20px;
+    border-radius:3px;
+    transition:opacity .15s;
+  }
+  .build-btn:hover{ opacity:0.85; }
+  .builder-result{
+    margin-top:20px;
+    padding-top:20px;
+    border-top:1px dashed var(--border);
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+
+  /* ---------- Edit mode ---------- */
+  .edit-toolbar{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-top:16px;
+    padding-top:16px;
+    border-top:1px dashed var(--border);
+  }
+  .edit-toggle{
+    background:var(--surface2);
+    border:1px solid var(--border-lit);
+    color:var(--gold);
+    font-size:12px;
+    padding:8px 14px;
+    border-radius:20px;
+    transition:background .15s, color .15s;
+  }
+  .edit-toggle.on{
+    background:var(--ember);
+    border-color:var(--ember);
+    color:#1a0d05;
+    font-weight:700;
+  }
+  .export-btn{
+    background:transparent;
+    border:1px solid var(--border);
+    color:var(--muted);
+    font-size:12px;
+    padding:8px 14px;
+    border-radius:20px;
+  }
+  .export-btn:hover{ color:var(--text); border-color:var(--border-lit); }
+  .edit-hint{
+    font-size:11.5px;
+    color:var(--muted);
+  }
+  body.edit-on [contenteditable="true"]{
+    outline:1px dashed var(--border-lit);
+    outline-offset:4px;
+    border-radius:3px;
+    cursor:text;
+  }
+  body.edit-on [contenteditable="true"]:focus{
+    outline:1px solid var(--gold);
+    background:rgba(232,185,63,0.05);
+  }
+  .field-label{
+    font-size:10px;
+    color:var(--border-lit);
+    letter-spacing:0.04em;
+    margin-bottom:-6px;
+    display:none;
+  }
+  body.edit-on .field-label{ display:block; }
+  .card-del{
+    align-self:flex-end;
+    background:transparent;
+    border:1px solid var(--border);
+    color:var(--muted);
+    font-size:11px;
+    padding:4px 10px;
+    border-radius:2px;
+    display:none;
+  }
+  body.edit-on .card-del{ display:inline-block; }
+  .card-del:hover{ color:var(--ember); border-color:var(--ember); }
+  .tools-input{
+    background:var(--surface2);
+    border:1px solid var(--border);
+    color:var(--muted);
+    font-size:11px;
+    padding:6px 8px;
+    border-radius:2px;
+    width:100%;
+    display:none;
+  }
+  body.edit-on .tools-input{ display:block; }
+  body.edit-on .card-tools{ display:none; }
+  .link-fields{
+    display:none;
+    flex-direction:column;
+    gap:6px;
+  }
+  body.edit-on .link-fields{ display:flex; }
+  body.edit-on .card-link{ display:none; }
+  .link-fields input{
+    background:var(--surface2);
+    border:1px solid var(--border);
+    color:var(--muted);
+    font-size:11px;
+    padding:6px 8px;
+    border-radius:2px;
+    width:100%;
+  }
+  .add-card{
+    border-style:dashed;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    color:var(--muted);
+    min-height:180px;
+    background:transparent;
+    display:none;
+  }
+  body.edit-on .add-card{ display:flex; }
+  .add-card:hover{ color:var(--gold); border-color:var(--border-lit); }
+
+  footer{
+    text-align:center;
+    padding:48px 24px 64px;
+    color:var(--muted);
+    font-size:12px;
+  }
+
+  @media (max-width:640px){
+    .hero{ padding:64px 20px 40px; }
+    section{ padding:48px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<a class="backlink pixel" href="../../ai-lab.html">← AI 실험실로</a>
+
+<header class="hero">
+  <span class="eyebrow pixel">RECIPE BOOK</span>
+  <h1>지금 당신의 고민에 맞는 프롬프트를 찾아보세요</h1>
+  <p>상황을 고르면 바로 쓸 수 있는 프롬프트를 보여드리고, 여기 없는 상황이면 직접 만들어볼 수도 있어요.</p>
+</header>
+
+<!-- ============ RECIPE BOOK ============ -->
+<section id="recipes">
+  <div class="section-head">
+    <div class="num pixel">RECIPE BOOK</div>
+    <h2>상황별 AI 레시피북</h2>
+    <p>지금 겪고 있는 고민을 고르면, 바로 써볼 수 있는 프롬프트와 도구를 보여드려요.</p>
+  </div>
+
+  <div class="ask">
+    <p class="ask-q">지금 가장 고민되는 게 뭔가요?</p>
+    <div class="chip-row" id="chipRow">
+      <button class="chip active" data-cat="행정">🏢 행정/사무</button>
+      <button class="chip" data-cat="데이터">📊 데이터/분석</button>
+      <button class="chip" data-cat="기획">🎨 기획/콘텐츠</button>
+      <button class="chip" data-cat="상담">💬 고객상담/CS</button>
+      <button class="chip" data-cat="인사">👥 인사/채용</button>
+      <button class="chip" data-cat="개발">💻 개발/IT</button>
+      <button class="chip" data-cat="번역">🌐 번역/외국어</button>
+    </div>
+    <div class="edit-toolbar">
+      <button class="edit-toggle" id="editToggle">✏️ 편집 모드</button>
+      <button class="export-btn" id="exportBtn">📋 이 카테고리 내용 복사(JSON)</button>
+      <span class="edit-hint" id="editHint"></span>
+    </div>
+  </div>
+
+  <div class="recipe-grid" id="cardGrid"></div>
+
+  <div class="builder-box">
+    <span class="builder-tag pixel">FREE BUILD</span>
+    <h3>여기 없는 상황이라면, 직접 만들어보세요</h3>
+    <p>몇 가지만 답하면, 바로 복사해서 쓸 수 있는 프롬프트로 정리해드려요.</p>
+
+    <div class="builder-field">
+      <label for="b-situation">어떤 상황/고민인가요?</label>
+      <textarea id="b-situation" placeholder="예: 신입사원 교육자료를 만들어야 하는데 뭐부터 해야 할지 모르겠어요"></textarea>
+      <div class="file-attach-row">
+        <label class="file-attach-btn" for="b-situation-file">📎 파일에서 가져오기 (txt·pdf·엑셀·워드)</label>
+        <input class="file-attach-input" type="file" id="b-situation-file" data-for="b-situation" data-status="b-situation-status" accept=".txt,.csv,.pdf,.xlsx,.xls,.docx">
+        <span class="file-attach-status" id="b-situation-status"></span>
+      </div>
+    </div>
+
+    <div class="builder-field">
+      <label for="b-output">원하는 결과물 형태는요?</label>
+      <input id="b-output" placeholder="예: 표로 정리된 초안 / 3줄 요약 / 체크리스트 등 (비워두면 알아서 정리)">
+    </div>
+
+    <div class="builder-field">
+      <label for="b-tone">톤/스타일은요?</label>
+      <select id="b-tone">
+        <option value="">기본 (지정 안 함)</option>
+        <option value="격식 있고 정중하게">격식 있고 정중하게</option>
+        <option value="편하고 구어체로">편하고 구어체로</option>
+        <option value="최대한 간결하게, 군더더기 없이">최대한 간결하게, 군더더기 없이</option>
+      </select>
+    </div>
+
+    <div class="builder-field">
+      <label for="b-ref">참고할 원문/자료가 있다면 붙여넣으세요 (선택)</label>
+      <textarea id="b-ref" placeholder="여기에 붙여넣기"></textarea>
+      <div class="file-attach-row">
+        <label class="file-attach-btn" for="b-ref-file">📎 파일에서 가져오기 (txt·pdf·엑셀·워드)</label>
+        <input class="file-attach-input" type="file" id="b-ref-file" data-for="b-ref" data-status="b-ref-status" accept=".txt,.csv,.pdf,.xlsx,.xls,.docx">
+        <span class="file-attach-status" id="b-ref-status"></span>
+      </div>
+    </div>
+
+    <button class="build-btn" id="buildBtn">✨ 프롬프트로 정리하기</button>
+
+    <div class="builder-result" id="builderResult" hidden>
+      <div class="prompt-box" id="builderPromptBox"></div>
+      <button class="copy-btn" id="builderCopyBtn">프롬프트 복사</button>
+    </div>
+  </div>
+</section>
+
+<footer>만드는 중인 페이지예요 · 카테고리는 하나씩 채워집니다</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script>
+  if (window.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+</script>
+<script>
+const STORAGE_KEY = 'recipeBookDraft_v1';
+
+const defaultRecipes = {
+  "행정": [
+    {
+      title: "회의록 정리에 매번 두 시간씩 걸려요",
+      tools: ["Claude", "ChatGPT"],
+      prompt: `아래는 회의 녹취/메모입니다.
+1) 결정사항 2) 담당자별 액션아이템 3) 다음 회의 전까지 확인할 것
+이 세 항목으로만 정리해줘. 불필요한 발언은 빼고 결론 위주로.
+
+[회의 내용]`,
+      review: `녹취록 그대로 붙여넣고 저 세 줄만 시켰더니, 회의 끝나고 바로 담당자한테 액션아이템 공유가 됐어요.`,
+      link: "../../games/dungeon-rpg/index.html",
+      linkLabel: "🎮 관련 실험실 프로젝트 보기"
+    },
+    {
+      title: "정산 보고서 양식, 매번 처음부터 만들어요",
+      tools: ["Claude"],
+      prompt: `아래 항목으로 정산 보고서 뼈대를 만들어줘: 사업 개요, 집행 내역 표, 잔액 및 사유, 다음 분기 계획.
+표는 항목/예산/집행액/잔액 4열로.
+[사업명, 기간, 예산 총액 입력]`,
+      review: `매번 새로 짜던 표 구조를 프롬프트 하나로 고정해두니, 보고서 작성 시간이 확실히 줄었어요.`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    },
+    {
+      title: "공문/메일 톤 맞추기가 늘 애매해요",
+      tools: ["ChatGPT"],
+      prompt: `아래 내용을 공공기관 대상 공문 톤으로 다시 써줘. 격식은 갖추되 너무 딱딱하지 않게, 5문장 이내로.
+
+[전달하고 싶은 내용]`,
+      review: `격식 있는 톤이 늘 헷갈렸는데, 초안을 받아서 손보는 방식으로 바꾸니 훨씬 빨라졌어요.`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    },
+    {
+      title: "반복 작업, VBA/매크로로 자동화하고 싶은데 코드를 못 짜겠어요",
+      tools: ["ChatGPT", "Claude"],
+      prompt: `아래 정보를 참고해서 엑셀 VBA 코드를 짜줘.
+
+[작업 목표 (예: 특정 컬럼 기준으로 시트 분리)]
+
+[현재 데이터 구조 (시트/열 구성)]
+
+에러가 있다면 아래 메시지도 참고해서 원인과 수정 코드를 같이 알려줘.
+
+[에러 메시지 (없으면 비워두세요)]`,
+      review: `매번 인터넷 검색해서 짜맞추던 매크로를, 목표랑 데이터 구조만 알려주고 받으니 훨씬 빨랐어요. 에러 메시지까지 넣으니 원인도 바로 짚어주더라고요.`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    },
+    {
+      title: "30페이지짜리 보고서를 1페이지 요약본으로 줄여야 해요",
+      tools: ["Claude"],
+      prompt: `아래 원문을 '1. 추진 배경 2. 주요 내용 3. 향후 계획' 3단 구성으로, 1페이지 분량으로 요약해줘. 불필요한 수식어는 빼고 핵심만.
+
+[원문 전체]`,
+      review: `긴 규정집도 이 틀로 요약 받으니 보고할 때 뼈대만 딱 잡혀서 편했어요.`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    },
+    {
+      title: "안내문 격식 갖추고 일정표 표로 만드는 게 매번 귀찮아요",
+      tools: ["ChatGPT", "Claude"],
+      prompt: `아래 정보로 안내문 초안과 일정표(마크다운 표)를 같이 만들어줘.
+
+[행사명, 일시, 장소, 대상, 주요 내용]`,
+      review: `항목만 던져주면 안내문 문구랑 표까지 한 번에 나와서, 복붙 후 살짝 손보는 정도로 끝나요.`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    }
+  ],
+
+  "데이터": [
+    {
+      title: "원하는 계산 결과는 있는데 무슨 함수를 써야 할지 모르겠어요",
+      tools: ["ChatGPT", "Claude"],
+      prompt: `아래 상황에 맞는 엑셀 함수를 추천하고, 실제 수식까지 작성해줘. 여러 방법이 있으면 가장 간단한 것부터 알려줘.
+
+[원하는 계산/결과]
+
+[현재 데이터 구조 (열 이름 등)]`,
+      review: `VLOOKUP이랑 INDEX/MATCH 중에 뭘 써야 할지 매번 헷갈렸는데, 상황만 설명하면 바로 수식으로 알려줘요.`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    },
+    {
+      title: "이 데이터에서 의미 있는 인사이트나 이상한 점을 못 찾겠어요",
+      tools: ["Claude"],
+      prompt: `아래 데이터를 보고 눈에 띄는 패턴, 이상치, 주목할 만한 수치를 찾아서 알려줘. 왜 그렇게 판단했는지 근거도 같이 설명해줘.
+
+[데이터 (표/수치 붙여넣기)]`,
+      review: `설문 결과를 붙여넣었더니 저는 못 봤던 특이한 응답 패턴을 짚어줘서 보고서에 바로 넣었어요.`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    },
+    {
+      title: "자연어로 원하는 걸 적으면 SQL로 바꿔줬으면 좋겠어요",
+      tools: ["ChatGPT", "Claude"],
+      prompt: `아래 요청을 SQL 쿼리로 바꿔줘. 테이블/컬럼 구조도 참고해서 정확하게 작성해줘.
+
+[원하는 조회 내용 (자연어로)]
+
+[테이블/컬럼 구조]`,
+      review: `'지난달 매출 상위 10개 품목' 이런 식으로만 적어도 바로 쿼리로 뽑아줘서 편했어요.`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    },
+    {
+      title: "지저분한 원본 데이터, 분석하기 전에 정리부터 해야 해요",
+      tools: ["Claude"],
+      prompt: `아래 데이터에서 중복, 결측치, 형식이 안 맞는 값들을 찾아서 정리 방법을 알려줘. 가능하면 엑셀/파이썬 코드로도 같이 보여줘.
+
+[원본 데이터 (일부 붙여넣기)]`,
+      review: `엑셀로 하나씩 지우던 걸, 어디가 문제인지 먼저 짚어주니 정리 시간이 확 줄었어요.`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    }
+  ],
+
+  "기획": [
+    {
+      title: "신규 사업/이벤트 아이디어가 도무지 안 떠올라요",
+      tools: ["Claude", "ChatGPT"],
+      prompt: `아래 주제로 SWOT 분석과 3C(고객/경쟁사/자사) 관점을 활용해서 아이디어 5개를 제안해줘. 각 아이디어의 장단점도 같이 알려줘.
+
+[주제/목표]`,
+      review: `막막할 때 프레임워크로 짚어달라고 하니 생각이 정리되면서 진짜 못 떠올렸던 각도가 나왔어요.`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    },
+    {
+      title: "기획서는 완성됐는데 PPT 목차랑 발표 대본을 짜야 해요",
+      tools: ["Claude"],
+      prompt: `아래 기획서 내용을 바탕으로 PPT 슬라이드 목차(장표별 제목 + 핵심 문구)와 발표 대본을 같이 만들어줘.
+
+[기획서 핵심 내용]`,
+      review: `슬라이드 순서 고민하던 시간이 확 줄었고, 발표 대본까지 초안이 있으니 리허설이 훨씬 편했어요.`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    },
+    {
+      title: "같은 내용인데 채널별로 톤을 다르게 써야 해서 매번 새로 써요",
+      tools: ["ChatGPT"],
+      prompt: `아래 내용을 인스타그램, 블로그, 카드뉴스 3가지 톤으로 각각 다시 써줘. 채널별 특성(짧고 감성적 / 정보성 / 한 장 요약)에 맞게.
+
+[전달하고 싶은 내용]`,
+      review: `하나 써놓고 채널별로 톤만 바꿔달라고 하니, 복붙 수준으로 끝나서 시간이 확 줄었어요.`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    },
+    {
+      title: "머릿속엔 있는데 기획서 형식으로 정리가 안 돼요",
+      tools: ["Claude"],
+      prompt: `아래 아이디어를 배경 / 목적 / 실행 계획 / 기대 효과 순서의 기획서 초안으로 정리해줘.
+
+[아이디어 요약]`,
+      review: `두서없이 적은 메모를 던져줬는데 그럴듯한 기획서 뼈대로 돌아와서 거기서부터 다듬기만 하면 됐어요.`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    }
+  ],
+
+  "상담": [
+    {
+      title: "고객 감정 상하지 않게, 그래도 원칙은 지키면서 답변해야 해요",
+      tools: ["ChatGPT", "Claude"],
+      prompt: `아래 고객 불만 내용에 공감하면서도 회사 원칙을 명확히 안내하는 답변을 작성해줘. 너무 사무적이지 않게, 정중한 톤으로.
+
+[고객 불만 내용]`,
+      review: `감정 대응이랑 원칙 안내를 같이 넣는 게 늘 어려웠는데, 균형 잡힌 초안을 주니 손보기만 하면 됐어요.`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    },
+    {
+      title: "고객 문의가 계속 쌓이는데 FAQ로 정리를 못 하고 있어요",
+      tools: ["Claude"],
+      prompt: `아래 고객 문의 내역을 비슷한 주제끼리 묶어서 FAQ 형태(질문-답변)로 정리해줘.
+
+[고객 문의 내역 (여러 건 붙여넣기)]`,
+      review: `흩어져 있던 문의들을 카테고리별로 묶어주니, FAQ 페이지 만들 때 뼈대로 바로 썼어요.`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    },
+    {
+      title: "신규 상담원 교육용 응대 스크립트가 없어요",
+      tools: ["ChatGPT"],
+      prompt: `아래 상황에 맞는 상담 응대 스크립트를 단계별로 작성해줘. 인사 → 문제 파악 → 해결 안내 → 마무리 순서로.
+
+[상담 상황/유형]`,
+      review: `신규 상담원한테 매번 말로 설명하던 걸 스크립트로 만들어두니 교육 시간이 줄었어요.`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    }
+  ],
+
+  "인사": [
+    {
+      title: "채용 공고, 딱딱하고 매력 없게 쓰게 돼요",
+      tools: ["ChatGPT", "Claude"],
+      prompt: `아래 직무 정보로 매력적이고 명확한 채용 공고문을 작성해줘. 직무 소개 → 자격요건 → 우대사항 → 근무조건 순서로.
+
+[직무명, 주요 업무, 자격요건, 우대사항]`,
+      review: `딱딱하게만 쓰던 공고문에 톤이 좀 생기니까 지원자 반응도 나쁘지 않았어요.`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    },
+    {
+      title: "이 지원자한테 뭘 물어봐야 할지 모르겠어요",
+      tools: ["Claude"],
+      prompt: `아래 이력서/자기소개서 내용을 바탕으로, 역량을 검증할 수 있는 면접 질문 5개를 만들어줘. 왜 이 질문이 필요한지도 같이 설명해줘.
+
+[이력서/자기소개서 요약]`,
+      review: `이력서 훑어보고 감으로 질문하던 걸, 근거 있는 질문 리스트로 받으니 면접이 훨씬 체계적으로 됐어요.`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    },
+    {
+      title: "신규 입사자한테 매번 같은 설명을 반복하고 있어요",
+      tools: ["Claude"],
+      prompt: `아래 정보를 바탕으로 신규 입사자용 온보딩 안내 자료(첫 주 체크리스트 포함)를 만들어줘.
+
+[부서/직무, 주요 업무, 사용 툴/시스템]`,
+      review: `매번 구두로 설명하던 내용을 문서 하나로 정리해두니, 반복 설명이 확 줄었어요.`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    }
+  ],
+
+  "개발": [
+    {
+      title: "남이 짠 코드, 이해하기 어렵고 손대기도 무서워요",
+      tools: ["GitHub Copilot", "Claude"],
+      prompt: `아래 코드에 이해하기 쉬운 주석을 달고, 가독성/효율성을 높일 수 있는 리팩토링 제안도 같이 해줘. 로직 자체는 바꾸지 말고.
+
+[코드 붙여넣기]`,
+      review: `주석 없는 코드 넘겨받을 때마다 막막했는데, 이렇게 정리해서 받으니 파악하는 시간이 확 줄었어요.`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    },
+    {
+      title: "이 기능, 어떤 경우에 오류가 날지 다 못 짚겠어요",
+      tools: ["Claude", "ChatGPT"],
+      prompt: `아래 기능 명세서를 보고 발생 가능한 오류 상황과 테스트 케이스를 만들어줘. 정상 케이스와 예외 케이스를 나눠서.
+
+[기능 명세서/요구사항]`,
+      review: `놓치기 쉬운 예외 케이스까지 짚어줘서, 테스트 커버리지가 확실히 좋아졌어요.`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    },
+    {
+      title: "AI가 짜준 코드, 그대로 써도 될까요?",
+      tools: ["Claude", "Cursor", "GitHub Copilot"],
+      prompt: `이 코드가 우리 프로젝트 구조랑 잘 맞는지, 예상 못한 부작용은 없는지, 나중에 기능이 늘어나도 확장 가능한 구조인지 점검해줘. 왜 이렇게 짜여졌는지도 설명해줘.
+
+[점검받고 싶은 코드]`,
+      review: `🧑‍💻 현직 개발자 코멘트 — "코드가 돌아가는지만 확인하고 넘어가면 실력이 잘 안 늘어요. AI한테 섬세하게 물어보고, 이상한 답을 잘 잡아내는 사람이 결국 실력 차이가 나더라고요."`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    },
+    {
+      title: "AI가 짜준 코드, 보안 부분을 놓친 적이 있어요",
+      tools: ["Claude"],
+      prompt: `이 코드를 보안 관점에서 점검해줘.
+- 입력값 검증이 빠진 곳
+- 인증/권한 처리가 필요한데 빠진 곳
+- 그 외 놓치기 쉬운 보안 취약점
+
+[점검받고 싶은 코드]`,
+      review: `💭 제 경험담 — "AI는 제가 말한 것만 정확히 짜주다 보니, 따로 말 안 한 보안 쪽은 그냥 넘어가더라고요. 그 뒤로는 아예 '보안 관점에서 다시 점검해줘'라고 따로 물어보는 습관이 생겼어요."`,
+      link: "../../games/dungeon-rpg/index.html",
+      linkLabel: "🎮 관련 실험실 프로젝트 보기"
+    }
+  ],
+
+  "번역": [
+    {
+      title: "직역한 듯한 어색한 영어 말고, 자연스러운 비즈니스 영어로 쓰고 싶어요",
+      tools: ["ChatGPT", "Claude"],
+      prompt: `아래 내용을 격식 있는 비즈니스 영어 이메일로 번역해줘. 직역하지 말고 실제 원어민이 쓸 법한 자연스러운 표현으로.
+
+[번역할 내용 (한국어)]`,
+      review: `번역기로 직역한 느낌이 항상 어색했는데, 이건 진짜 비즈니스 메일 톤이 나와서 그대로 보냈어요.`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    },
+    {
+      title: "너무 딱딱하거나, 거절 메시지를 예의 바르게 다듬고 싶어요",
+      tools: ["Claude"],
+      prompt: `아래 문장을 원하는 톤에 맞게 다시 써줘.
+
+[원하는 톤 (예: 더 부드럽게 / 더 직접적으로 / 정중한 거절 표현으로)]
+
+[원문]`,
+      review: `거절 메일 쓸 때마다 어투 때문에 고민했는데, 톤만 지정해주면 알아서 순화해줘서 편했어요.`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    },
+    {
+      title: "해외 거래처랑 주고받은 메일/회의 내용을 영어로 정리해야 해요",
+      tools: ["Claude"],
+      prompt: `아래 메일/회의 내용을 요약해서 상대방에게 보낼 영어 후속 메일(follow-up)로 정리해줘. 핵심 합의사항과 다음 액션을 명확히 해줘.
+
+[메일/회의 내용]`,
+      review: `회의 끝나고 영어로 정리해서 보내는 게 매번 부담이었는데, 초안만 받아서 다듬으니 훨씬 수월했어요.`,
+      link: "#",
+      linkLabel: "🧪 관련 프로젝트 준비 중"
+    }
+  ]
+};
+
+function loadRecipes(){
+  try{
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if(saved) return JSON.parse(saved);
+  }catch(e){ console.warn('저장된 초안을 불러오지 못했어요', e); }
+  return JSON.parse(JSON.stringify(defaultRecipes));
+}
+
+let recipes = loadRecipes();
+let editMode = false;
+let currentCat = '행정';
+
+function saveRecipes(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(recipes));
+    flashHint('이 브라우저에 저장됐어요');
+  }catch(e){ console.warn('저장 실패', e); }
+}
+
+function flashHint(msg){
+  const hint = document.getElementById('editHint');
+  hint.textContent = msg;
+  clearTimeout(flashHint._t);
+  flashHint._t = setTimeout(() => { hint.textContent = ''; }, 1800);
+}
+
+const grid = document.getElementById('cardGrid');
+const chips = document.querySelectorAll('.chip');
+
+function renderCards(cat){
+  currentCat = cat;
+  grid.innerHTML = '';
+  const items = recipes[cat];
+
+  if(!items || items.length === 0){
+    if(!editMode){
+      const ph = document.createElement('div');
+      ph.className = 'card placeholder';
+      ph.innerHTML = `<div class="lock">🔒</div><div class="ph-label">이 카테고리는 아직 준비 중이에요.<br>다음에 하나씩 채워질 예정입니다.</div>`;
+      grid.appendChild(ph);
+    }
+    if(!recipes[cat]) recipes[cat] = [];
+  } else {
+    items.forEach((item, i) => {
+      grid.appendChild(buildCard(cat, i, item));
+    });
+  }
+
+  if(editMode){
+    const addBtn = document.createElement('button');
+    addBtn.className = 'card add-card';
+    addBtn.innerHTML = '+ 새 레시피 카드 추가';
+    addBtn.addEventListener('click', () => {
+      recipes[cat].push({
+        title: '새 상황 제목을 입력하세요',
+        tools: ['Claude'],
+        prompt: '여기에 프롬프트 템플릿을 입력하세요',
+        review: '여기에 1인칭 후기를 입력하세요',
+        link: '#',
+        linkLabel: '🧪 관련 프로젝트 준비 중'
+      });
+      saveRecipes();
+      renderCards(cat);
+    });
+    grid.appendChild(addBtn);
+  }
+}
+
+function extractPlaceholders(text){
+  const matches = [...String(text).matchAll(/\[([^\]]+)\]/g)];
+  const seen = new Set();
+  const result = [];
+  matches.forEach(m => {
+    if(!seen.has(m[1])){ seen.add(m[1]); result.push(m[1]); }
+  });
+  return result;
+}
+
+function mergePrompt(text, valuesMap){
+  return String(text).replace(/\[([^\]]+)\]/g, (full, label) => {
+    const v = (valuesMap[label] || '').trim();
+    return v ? v : full;
+  });
+}
+
+function buildCard(cat, i, item){
+  const card = document.createElement('div');
+  card.className = 'card';
+  const promptId = `prompt-${cat}-${i}`;
+
+  if(editMode){
+    // ---- 편집 모드: 원본 템플릿 자체를 고치는 관리자 뷰 ----
+    card.innerHTML = `
+      <div class="card-tag pixel">${cat}</div>
+      <span class="field-label">제목</span>
+      <h3 class="card-title" contenteditable="true" data-field="title">${escapeHtml(item.title)}</h3>
+
+      <span class="field-label">도구 (쉼표로 구분)</span>
+      <input class="tools-input" data-field="tools" value="${escapeAttr(item.tools.join(', '))}">
+
+      <span class="field-label">프롬프트 (빈칸으로 만들고 싶은 부분은 대괄호로 감싸주세요. 예: [회의 내용])</span>
+      <div class="prompt-box" id="${promptId}" contenteditable="true" data-field="prompt">${escapeHtml(item.prompt)}</div>
+      <button class="copy-btn" data-target="${promptId}">프롬프트 복사</button>
+
+      <span class="field-label">후기</span>
+      <p class="card-review" contenteditable="true" data-field="review">"${escapeHtml(item.review)}"</p>
+
+      <div class="link-fields">
+        <input data-field="link" placeholder="링크 경로" value="${escapeAttr(item.link)}">
+        <input data-field="linkLabel" placeholder="링크 버튼 문구" value="${escapeAttr(item.linkLabel)}">
+      </div>
+
+      <button class="card-del">🗑 이 카드 삭제</button>
+    `;
+
+    card.querySelectorAll('[contenteditable]').forEach(el => {
+      el.addEventListener('blur', () => {
+        const field = el.dataset.field;
+        let val = el.innerText.trim();
+        if(field === 'review') val = val.replace(/^"|"$/g, '');
+        recipes[cat][i][field] = val;
+        saveRecipes();
+      });
+    });
+    card.querySelectorAll('input[data-field]').forEach(inp => {
+      inp.addEventListener('change', () => {
+        const field = inp.dataset.field;
+        if(field === 'tools'){
+          recipes[cat][i].tools = inp.value.split(',').map(s => s.trim()).filter(Boolean);
+        } else {
+          recipes[cat][i][field] = inp.value.trim();
+        }
+        saveRecipes();
+        renderCards(cat);
+      });
+    });
+    card.querySelector('.card-del').addEventListener('click', () => {
+      if(!confirm('이 카드를 삭제할까요?')) return;
+      recipes[cat].splice(i, 1);
+      saveRecipes();
+      renderCards(cat);
+    });
+
+    return card;
+  }
+
+  // ---- 방문자 모드: [placeholder]를 실제 입력창으로 바꿔서 프롬프트를 완성해주는 뷰 ----
+  const placeholders = extractPlaceholders(item.prompt);
+  const previewHtml = escapeHtml(item.prompt).replace(/\[([^\]]+)\]/g,
+    (full, label) => `<span class="ph-mark">[${escapeHtml(label)}]</span>`);
+
+  const fieldsHtml = placeholders.map((label, idx) => `
+    <div class="ph-field">
+      <label for="${promptId}-ph${idx}">✍️ ${escapeHtml(label)} 입력</label>
+      <textarea id="${promptId}-ph${idx}" data-ph="${escapeAttr(label)}" placeholder="여기에 내용을 붙여넣거나 입력하세요"></textarea>
+      <div class="file-attach-row">
+        <label class="file-attach-btn" for="${promptId}-ph${idx}-file">📎 파일에서 가져오기 (txt·pdf·엑셀·워드)</label>
+        <input class="file-attach-input" type="file" id="${promptId}-ph${idx}-file" data-for="${promptId}-ph${idx}" data-status="${promptId}-ph${idx}-status" accept=".txt,.csv,.pdf,.xlsx,.xls,.docx">
+        <span class="file-attach-status" id="${promptId}-ph${idx}-status"></span>
+      </div>
+    </div>
+  `).join('');
+
+  card.innerHTML = `
+    <div class="card-tag pixel">${cat}</div>
+    <h3 class="card-title">${escapeHtml(item.title)}</h3>
+    <div class="card-tools">${item.tools.map(t => `<span class="tool-badge">${escapeHtml(t)}</span>`).join('')}</div>
+    <div class="prompt-box" id="${promptId}">${previewHtml}</div>
+    ${fieldsHtml}
+    <button class="copy-btn" data-target="${promptId}" data-cat="${cat}" data-idx="${i}">${placeholders.length ? '내용 채워서 프롬프트 복사' : '프롬프트 복사'}</button>
+    <div class="prompt-result" id="${promptId}-result" hidden>
+      <span class="field-label" style="display:block;">완성된 프롬프트 (복사 안 되면 아래에서 직접 긁어서 복사하세요)</span>
+      <div class="prompt-box" id="${promptId}-resultbox"></div>
+    </div>
+    <p class="card-review">"${escapeHtml(item.review)}"</p>
+    <a class="card-link" href="${escapeAttr(item.link)}">${escapeHtml(item.linkLabel)} →</a>
+  `;
+
+  return card;
+}
+
+function escapeHtml(str){
+  return String(str ?? '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+}
+function escapeAttr(str){
+  return escapeHtml(str).replace(/"/g, '&quot;');
+}
+
+chips.forEach(chip => {
+  chip.addEventListener('click', () => {
+    chips.forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    renderCards(chip.dataset.cat);
+  });
+});
+
+grid.addEventListener('click', (e) => {
+  if(e.target.classList.contains('copy-btn')){
+    const btn = e.target;
+    const targetId = btn.dataset.target;
+    const card = btn.closest('.card');
+    let text;
+
+    if(btn.dataset.cat !== undefined){
+      // 방문자 모드: 입력창 값들을 프롬프트에 병합
+      const cat = btn.dataset.cat;
+      const idx = Number(btn.dataset.idx);
+      const item = recipes[cat][idx];
+      const valuesMap = {};
+      card.querySelectorAll('textarea[data-ph]').forEach(ta => {
+        valuesMap[ta.dataset.ph] = ta.value;
+      });
+      text = mergePrompt(item.prompt, valuesMap);
+
+      // 완성된 프롬프트를 화면에 실제로 보여줌 (복사 성공 여부와 무관하게)
+      const resultWrap = document.getElementById(`${targetId}-result`);
+      const resultBox = document.getElementById(`${targetId}-resultbox`);
+      if(resultWrap && resultBox){
+        resultBox.textContent = text;
+        resultWrap.hidden = false;
+        resultWrap.scrollIntoView({ behavior:'smooth', block:'nearest' });
+      }
+    } else {
+      // 편집 모드: 화면에 보이는 원본 템플릿 그대로 복사
+      text = document.getElementById(targetId).innerText;
+    }
+
+    navigator.clipboard.writeText(text).then(() => {
+      const original = btn.textContent;
+      btn.textContent = '복사됐어요 ✓';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = original;
+        btn.classList.remove('copied');
+      }, 1500);
+    }).catch(() => {
+      // file:// 등에서 클립보드 API가 막혀도, 위에 표시된 결과 박스에서 직접 긁어 복사할 수 있음
+      btn.textContent = '자동 복사 실패 — 아래 박스에서 직접 복사하세요';
+      setTimeout(() => { btn.textContent = btn.dataset.cat !== undefined ? '내용 채워서 프롬프트 복사' : '프롬프트 복사'; }, 2200);
+    });
+  }
+});
+
+document.getElementById('editToggle').addEventListener('click', (e) => {
+  editMode = !editMode;
+  document.body.classList.toggle('edit-on', editMode);
+  e.target.classList.toggle('on', editMode);
+  e.target.textContent = editMode ? '✅ 편집 완료' : '✏️ 편집 모드';
+  renderCards(currentCat);
+});
+
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const json = JSON.stringify({ [currentCat]: recipes[currentCat] || [] }, null, 2);
+  navigator.clipboard.writeText(json).then(() => {
+    flashHint('JSON이 복사됐어요 — Claude한테 붙여넣어서 파일에 반영해달라고 하세요');
+  }).catch(() => {
+    alert(json);
+  });
+});
+
+// ---------- 자유 프롬프트 빌더 (AI 없이, 질문 답변 -> 문자열 조합) ----------
+document.getElementById('buildBtn').addEventListener('click', () => {
+  const situation = document.getElementById('b-situation').value.trim();
+  const output = document.getElementById('b-output').value.trim();
+  const tone = document.getElementById('b-tone').value;
+  const ref = document.getElementById('b-ref').value.trim();
+
+  if(!situation){
+    alert('어떤 상황/고민인지부터 적어주세요.');
+    document.getElementById('b-situation').focus();
+    return;
+  }
+
+  let parts = [];
+  parts.push(`다음 상황에 대해 도와줘.\n\n[상황]\n${situation}`);
+  parts.push(`\n\n[원하는 결과물]\n${output || '가장 적절한 형태로 알아서 정리해줘'}`);
+  if(tone) parts.push(`\n\n[톤/스타일]\n${tone}`);
+  if(ref) parts.push(`\n\n[참고 자료]\n${ref}`);
+  parts.push(`\n\n위 내용을 바탕으로 명확하고 바로 실행 가능한 형태로 답변해줘.`);
+
+  const finalPrompt = parts.join('');
+
+  const box = document.getElementById('builderPromptBox');
+  box.textContent = finalPrompt;
+  document.getElementById('builderResult').hidden = false;
+  document.getElementById('builderResult').scrollIntoView({ behavior:'smooth', block:'nearest' });
+});
+
+document.getElementById('builderCopyBtn').addEventListener('click', (e) => {
+  const text = document.getElementById('builderPromptBox').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const original = e.target.textContent;
+    e.target.textContent = '복사됐어요 ✓';
+    e.target.classList.add('copied');
+    setTimeout(() => {
+      e.target.textContent = original;
+      e.target.classList.remove('copied');
+    }, 1500);
+  }).catch(() => {
+    e.target.textContent = '자동 복사 실패 — 위 박스에서 직접 복사하세요';
+    setTimeout(() => { e.target.textContent = '프롬프트 복사'; }, 2200);
+  });
+});
+
+// ---------- 파일 첨부 (텍스트/PDF/엑셀/워드 -> 텍스트 추출해서 입력칸에 채우기) ----------
+async function extractPdfText(file){
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  let text = '';
+  for(let p = 1; p <= pdf.numPages; p++){
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    text += content.items.map(it => it.str).join(' ') + '\n\n';
+  }
+  return text.trim();
+}
+
+async function extractExcelText(file){
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array' });
+  let text = '';
+  wb.SheetNames.forEach(name => {
+    const csv = XLSX.utils.sheet_to_csv(wb.Sheets[name]);
+    text += `[시트: ${name}]\n${csv}\n\n`;
+  });
+  return text.trim();
+}
+
+async function extractDocxText(file){
+  const buf = await file.arrayBuffer();
+  const result = await mammoth.extractRawText({ arrayBuffer: buf });
+  return result.value.trim();
+}
+
+async function handleFileAttach(file, textareaEl, statusEl){
+  if(!file || !textareaEl) return;
+  statusEl.textContent = '읽는 중...';
+  const ext = file.name.split('.').pop().toLowerCase();
+
+  try{
+    let text = '';
+    if(ext === 'txt' || ext === 'csv'){
+      text = (await file.text()).trim();
+    } else if(ext === 'pdf'){
+      text = await extractPdfText(file);
+    } else if(ext === 'xlsx' || ext === 'xls'){
+      text = await extractExcelText(file);
+    } else if(ext === 'docx'){
+      text = await extractDocxText(file);
+    } else if(ext === 'hwp'){
+      statusEl.textContent = '한글(.hwp) 파일은 브라우저에서 직접 못 읽어요 — 한글에서 열어 내용을 복사해 붙여넣어 주세요.';
+      return;
+    } else {
+      statusEl.textContent = '지원하지 않는 파일 형식이에요.';
+      return;
+    }
+
+    if(!text){
+      statusEl.textContent = '파일에서 텍스트를 찾지 못했어요 (스캔 이미지 PDF일 수 있어요).';
+      return;
+    }
+
+    const existing = textareaEl.value.trim();
+    textareaEl.value = existing ? existing + '\n\n' + text : text;
+    statusEl.textContent = `"${file.name}" 내용을 가져왔어요 ✓ (${text.length.toLocaleString()}자)`;
+  } catch(err){
+    console.error(err);
+    statusEl.textContent = '파일을 읽는 중 문제가 생겼어요. 내용을 직접 붙여넣어 주세요.';
+  }
+}
+
+document.body.addEventListener('change', (e) => {
+  if(e.target.classList.contains('file-attach-input')){
+    const file = e.target.files[0];
+    const textarea = document.getElementById(e.target.dataset.for);
+    const status = document.getElementById(e.target.dataset.status);
+    handleFileAttach(file, textarea, status);
+    e.target.value = '';
+  }
+});
+
+renderCards('행정');
+</script>
+
+</body>
+</html>
