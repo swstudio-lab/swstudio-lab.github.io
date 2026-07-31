@@ -1112,8 +1112,48 @@ const CAT_NOTES = {
   "개발": `개발 쪽 고민은 실무 맥락(설계, 기존 코드 구조, 팀 컨벤션)에 따라 달라지는 경우가 많아서, 아래 카드는 비교적 가볍게 반복되는 상황 위주로만 담았어요. 설계 판단이 필요한 복잡한 질문이라면, 아래 <a href="#builderBox">자유 프롬프트 빌더</a>로 상황을 자세히 적어서 만드는 걸 추천해요.`
 };
 
+const BUILDER_PLACEHOLDERS = {
+  "행정": {
+    situation: "예: 신입사원 교육자료를 만들어야 하는데 뭐부터 해야 할지 모르겠어요",
+    output: "예: 표로 정리된 초안 / 3줄 요약 / 체크리스트 등 (비워두면 알아서 정리)"
+  },
+  "데이터": {
+    situation: "예: 이 설문 데이터에서 어떤 인사이트를 뽑아야 할지 모르겠어요",
+    output: "예: 요약 표 / 눈에 띄는 패턴 3가지 / 엑셀 함수 추천 (비워두면 알아서 정리)"
+  },
+  "기획": {
+    situation: "예: 신제품 홍보 콘텐츠 방향을 못 정하겠어요",
+    output: "예: 아이디어 5개 / PPT 목차 / 채널별 문구 (비워두면 알아서 정리)"
+  },
+  "상담": {
+    situation: "예: 까다로운 고객 컴플레인에 어떻게 답변해야 할지 모르겠어요",
+    output: "예: 공감 + 원칙 안내가 섞인 답변 초안 (비워두면 알아서 정리)"
+  },
+  "인사": {
+    situation: "예: 신입사원 온보딩 자료를 어떻게 구성해야 할지 모르겠어요",
+    output: "예: 체크리스트 / 채용 공고문 초안 / 면접 질문 리스트 (비워두면 알아서 정리)"
+  },
+  "개발": {
+    situation: "예: 이 코드가 우리 프로젝트 구조에 맞는 건지 판단이 잘 안 서요",
+    output: "예: 코드 리뷰 코멘트 / 개선 제안 / 설명과 함께 정리 (비워두면 알아서 정리)"
+  },
+  "번역": {
+    situation: "예: 해외 거래처에 보낼 메일을 자연스러운 영어로 못 쓰겠어요",
+    output: "예: 격식 있는 영어 메일 / 정중한 톤 교정 (비워두면 알아서 정리)"
+  }
+};
+
+function updateBuilderPlaceholders(cat){
+  const ph = BUILDER_PLACEHOLDERS[cat] || BUILDER_PLACEHOLDERS["행정"];
+  const situationEl = document.getElementById('b-situation');
+  const outputEl = document.getElementById('b-output');
+  if(situationEl) situationEl.placeholder = ph.situation;
+  if(outputEl) outputEl.placeholder = ph.output;
+}
+
 function renderCards(cat){
   currentCat = cat;
+  updateBuilderPlaceholders(cat);
   grid.innerHTML = '';
   const items = recipes[cat];
 
