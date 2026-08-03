@@ -32,27 +32,8 @@
 </head>
 <body>
 
-<nav class="topnav pixel">
-    <div class="nav-drop">
-        <a href="index.html">홈</a>
-        <button class="nav-drop-caret" aria-label="홈 하위메뉴 열기">▾</button>
-        <div class="nav-drop-menu">
-            <a href="about.html">💬 소개</a>
-            <a href="devlog.html">📓 개발일지</a>
-        </div>
-    </div>
-    <a href="ai-lab.html">AI 실험실</a>
-    <a href="works.html">작업물</a>
-    <div class="nav-drop">
-        <a href="games.html">게임</a>
-        <button class="nav-drop-caret" aria-label="게임 하위메뉴 열기">▾</button>
-        <div class="nav-drop-menu">
-            <a href="games.html?mode=solo">🕹️ 혼자 플레이</a>
-            <a href="games.html?mode=multi">👥 함께 플레이</a>
-        </div>
-    </div>
-    <a href="etc.html">기타</a>
-</nav>
+<nav class="topnav pixel" id="site-nav"></nav>
+<script src="assets/nav.js"></script>
 
 <header class="hero reveal">
     <div class="eyebrow pixel">UPDATES</div>
@@ -69,9 +50,8 @@
     made with care · updated as things get made
 </footer>
 
+<script src="assets/icons.js"></script>
 <script>
-function escHtml(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
 db.collection('updates').onSnapshot(snap => {
     const items = snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
         .filter(it => it.published)
@@ -93,7 +73,6 @@ db.collection('updates').onSnapshot(snap => {
 });
 </script>
 
-<script src="assets/nav.js"></script>
 <script src="assets/maintenance.js"></script>
 <script src="assets/analytics-config.js"></script>
 <script src="assets/ga4.js"></script>

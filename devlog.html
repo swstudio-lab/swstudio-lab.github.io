@@ -19,9 +19,6 @@
 <meta name="twitter:description" content="무엇을 만들었는지보다, 왜 그렇게 만들었는지를 기록하는 개발일지예요.">
 <meta name="twitter:image" content="https://swstudio-lab.github.io/assets/og-image.png">
 <meta name="description" content="무엇을 만들었는지보다, 왜 그렇게 만들었는지를 기록하는 개발일지예요.">
-<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
-<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
@@ -49,27 +46,8 @@
 </head>
 <body>
 
-<nav class="topnav pixel">
-    <div class="nav-drop">
-        <a href="index.html">홈</a>
-        <button class="nav-drop-caret" aria-label="홈 하위메뉴 열기">▾</button>
-        <div class="nav-drop-menu">
-            <a href="about.html">💬 소개</a>
-            <a href="devlog.html">📓 개발일지</a>
-        </div>
-    </div>
-    <a href="ai-lab.html">AI 실험실</a>
-    <a href="works.html">작업물</a>
-    <div class="nav-drop">
-        <a href="games.html">게임</a>
-        <button class="nav-drop-caret" aria-label="게임 하위메뉴 열기">▾</button>
-        <div class="nav-drop-menu">
-            <a href="games.html?mode=solo">🕹️ 혼자 플레이</a>
-            <a href="games.html?mode=multi">👥 함께 플레이</a>
-        </div>
-    </div>
-    <a href="etc.html">기타</a>
-</nav>
+<nav class="topnav pixel" id="site-nav"></nav>
+<script src="assets/nav.js"></script>
 
 <header class="hero reveal">
     <div class="eyebrow pixel">DEVLOG</div>
@@ -112,7 +90,6 @@
     made with care · updated as things get made
 </footer>
 
-<script src="assets/nav.js"></script>
 <script src="assets/maintenance.js"></script>
 <script src="assets/analytics-config.js"></script>
 <script src="assets/ga4.js"></script>
