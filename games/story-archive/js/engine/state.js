@@ -21,6 +21,7 @@ class GameState {
     };
     this.items = [];
     this.flags = {};
+    this.endingRecords = {}; // { [endingId]: { items, flags, achievedAt } } — 엔딩별 도달 당시 스냅샷
     this.log = []; // { speaker, text }
     this.playerGender = null; // 'male' | 'female'
     this.startedAt = Date.now();
@@ -85,6 +86,7 @@ class GameState {
       stats: this.stats,
       items: this.items,
       flags: this.flags,
+      endingRecords: this.endingRecords,
       log: this.log,
       playerGender: this.playerGender,
       startedAt: this.startedAt,

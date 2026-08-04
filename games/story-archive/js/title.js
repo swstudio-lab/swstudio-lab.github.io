@@ -30,6 +30,13 @@ const bootLines = [
 // A=truth, B=admin-hands, C=walked-away, D=accomplice
 const ENDING_IDS = ['truth', 'admin-hands', 'accomplice', 'walked-away'];
 
+const ENDING_LABELS = {
+  'truth': '엔딩 A · 진실을 마주하다',
+  'admin-hands': '엔딩 B · 관리자의 새 임무자',
+  'walked-away': '엔딩 C · 돌아선 자',
+  'accomplice': '엔딩 D · 공범',
+};
+
 function countEndings(flags) {
   if (!flags) return 0;
   return ENDING_IDS.filter((id) => flags[`ending_${id}`]).length;
@@ -217,19 +224,15 @@ function updateRecapButtons(endingCount) {
 }
 
 // ---- B-1: "지금까지의 기록" — 대사 원문을 그대로 나열하지 않고, 실제로 겪은 사건을
-// 3인칭 요약 서술로 정리해서 보여줌. 판단 기준은 세이브에 남는 items/flags뿐이라
-// (개별 대사 선택지는 별도 플래그가 없어 정확히 복원할 수 없음) 확실히 알 수 있는
-// 사건(아이템 발견, 문을 열었는지, QTE 성패, 최종 엔딩)만 서술한다.
-function buildPersonalSummary(saveData) {
-  const items = (saveData && saveData.items) || [];
-  const flags = (saveData && saveData.flags) || {};
+// 3인칭 요약 서술로 정리해서 보여줌. 판단 기준은 그 엔딩에 도달했을 당시의 items/flags
+// 스냅샷(endingRecords)뿐이라 (개별 대사 선택지는 별도 플래그가 없어 정확히 복원할 수 없음)
+// 확실히 알 수 있는 사건(아이템 발견, 문을 열었는지, QTE 성패, 최종 엔딩)만 서술한다.
+// 엔딩을 여러 개 모았다면 ◀ ▶ 로 각 엔딩의 기록을 넘겨가며 볼 수 있다.
+function buildEndingSummaryParagraphs(endingId, record) {
+  const items = (record && record.items) || [];
+  const flags = (record && record.flags) || {};
   const has = (id) => items.includes(id);
   const paragraphs = [];
-
-  if (!has('broken_badge')) {
-    paragraphs.push('아직 이렇다 할 사건을 겪지 않았다. 아카이브 복도에 발을 들인 지 얼마 되지 않았다.');
-    return paragraphs;
-  }
 
   paragraphs.push(
     '1장, 폐병원. 형광등이 위태롭게 깜빡이는 복도에서 당신은 부서진 신분증 조각을 발견했다. ' +
@@ -269,28 +272,62 @@ function buildPersonalSummary(saveData) {
     paragraphs.push('관리자의 정체가 드러나는 결정적 순간, 손이 늦게 움직였다. 심장이 쿵, 내려앉았다.');
   }
 
-  if (flags.ending_truth) {
-    paragraphs.push('그리고 당신은 끝까지 진실을 세상에 공개하기로 했다. 진실은 밝혀졌지만, 위험은 미처 눈치채지 못한 채였다.');
-  } else if (flags['ending_admin-hands']) {
-    paragraphs.push('그리고 당신은 관리자를 믿고 조용히 물러서기로 했다. 신뢰는, 대가를 남겼다.');
-  } else if (flags['ending_walked-away']) {
-    paragraphs.push('그리고 당신은 지하실 문 앞에서 돌아서기로 했다. R-07의 정체는 끝내 밝혀지지 않았다.');
-  } else if (flags.ending_accomplice) {
-    paragraphs.push(
+  const endingParagraphs = {
+    'truth': '그리고 당신은 끝까지 진실을 세상에 공개하기로 했다. 진실은 밝혀졌지만, 위험은 미처 눈치채지 못한 채였다.',
+    'admin-hands': '그리고 당신은 관리자를 믿고 조용히 물러서기로 했다. 신뢰는, 대가를 남겼다.',
+    'walked-away': '그리고 당신은 지하실 문 앞에서 돌아서기로 했다. R-07의 정체는 끝내 밝혀지지 않았다.',
+    'accomplice':
       '그리고 당신은 서두르지 않고, 모든 것을 침착하게 정리해 기록해두기로 했다. ' +
-      '그 기록이 다음 사람을 위한 이정표였다는 사실은, 훨씬 나중에야 알게 되었다.'
-    );
-  } else {
-    paragraphs.push('...이야기는 아직 끝나지 않았다.');
-  }
+      '그 기록이 다음 사람을 위한 이정표였다는 사실은, 훨씬 나중에야 알게 되었다.',
+  };
+  paragraphs.push(endingParagraphs[endingId] || '...이야기는 아직 끝나지 않았다.');
 
   return paragraphs;
 }
 
+// 실제로 달성한 엔딩 id들을 도달한 순서대로(옛날 세이브라 achievedAt이 없으면 ENDING_IDS 순서로) 정렬
+function getAchievedEndingIds(saveData) {
+  const flags = (saveData && saveData.flags) || {};
+  const records = (saveData && saveData.endingRecords) || {};
+  return ENDING_IDS.filter((id) => flags[`ending_${id}`]).sort((a, b) => {
+    const ta = (records[a] && records[a].achievedAt) || 0;
+    const tb = (records[b] && records[b].achievedAt) || 0;
+    return ta - tb;
+  });
+}
+
+let recapEndingIds = [];
+let recapIndex = 0;
+
 function renderRecapPersonal() {
+  recapEndingIds = getAchievedEndingIds(loggedInSaveData);
+  recapIndex = Math.max(0, recapEndingIds.length - 1); // 가장 최근에 도달한 엔딩부터 보여줌
+  renderRecapPage();
+}
+
+function renderRecapPage() {
   const list = document.getElementById('recap-list');
+  const nav = document.getElementById('recap-nav');
   list.innerHTML = '';
-  const paragraphs = buildPersonalSummary(loggedInSaveData);
+
+  if (recapEndingIds.length === 0) {
+    const p = document.createElement('p');
+    p.className = 'recap-text';
+    p.textContent = '아직 이렇다 할 사건을 겪지 않았다. 아카이브 복도에 발을 들인 지 얼마 되지 않았다.';
+    list.appendChild(p);
+    hide(nav);
+    return;
+  }
+
+  const endingId = recapEndingIds[recapIndex];
+  const records = (loggedInSaveData && loggedInSaveData.endingRecords) || {};
+  // 이 기능이 추가되기 전에 이미 도달했던 엔딩은 별도 스냅샷이 없으므로,
+  // 현재 세이브에 남아있는 items/flags로 최대한 대체해서 보여준다.
+  const record = records[endingId] || {
+    items: (loggedInSaveData && loggedInSaveData.items) || [],
+    flags: (loggedInSaveData && loggedInSaveData.flags) || {},
+  };
+  const paragraphs = buildEndingSummaryParagraphs(endingId, record);
 
   paragraphs.forEach((text) => {
     const p = document.createElement('p');
@@ -298,6 +335,16 @@ function renderRecapPersonal() {
     p.textContent = text;
     list.appendChild(p);
   });
+
+  if (recapEndingIds.length > 1) {
+    reveal(nav);
+    document.getElementById('recap-nav-label').textContent =
+      `${ENDING_LABELS[endingId] || endingId} (${recapIndex + 1}/${recapEndingIds.length})`;
+    document.getElementById('btn-recap-prev').disabled = recapIndex === 0;
+    document.getElementById('btn-recap-next').disabled = recapIndex === recapEndingIds.length - 1;
+  } else {
+    hide(nav);
+  }
 }
 
 // ---- B-2: "완전한 기록" — 001 설계의 핵심 구조를 정리해서 보여주는 고정 콘텐츠 ----
@@ -387,6 +434,18 @@ function bindRecapButtons() {
   });
   document.getElementById('btn-recap-close').addEventListener('click', () => {
     document.getElementById('recap-overlay').classList.remove('is-visible');
+  });
+  document.getElementById('btn-recap-prev').addEventListener('click', () => {
+    if (recapIndex > 0) {
+      recapIndex--;
+      renderRecapPage();
+    }
+  });
+  document.getElementById('btn-recap-next').addEventListener('click', () => {
+    if (recapIndex < recapEndingIds.length - 1) {
+      recapIndex++;
+      renderRecapPage();
+    }
   });
   document.getElementById('btn-recap-rashomon').addEventListener('click', () => {
     renderRashomon();

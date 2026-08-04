@@ -102,15 +102,18 @@ function startNewGame() {
   }
 }
 
-// 완전 초기화(state.reset)는 하되, 이전 회차에서 모은 엔딩 달성 기록(ending_*)만은
-// 보존해서 새로 시작한다 — "게임 입장"으로 재진입할 때 로드맵/달성도가 초기화되지 않도록.
+// 완전 초기화(state.reset)는 하되, 이전 회차에서 모은 엔딩 달성 기록(ending_*)과
+// 엔딩별 스냅샷(endingRecords)은 보존해서 새로 시작한다 — "게임 입장"으로 재진입할 때
+// 로드맵/달성도/지금까지의 기록이 초기화되지 않도록.
 function startFreshRunKeepingEndings() {
   const preservedEndingFlags = {};
   Object.keys(state.flags || {}).forEach((key) => {
     if (key.startsWith('ending_')) preservedEndingFlags[key] = state.flags[key];
   });
+  const preservedEndingRecords = state.endingRecords || {};
   state.reset();
   state.flags = preservedEndingFlags;
+  state.endingRecords = preservedEndingRecords;
   resetHistory();
   if (!state.playerGender) {
     showGenderSelect();
@@ -561,6 +564,17 @@ function renderEnding(scene) {
   document.getElementById('roadmap-flavor').textContent = '';
 
   state.setFlag(`ending_${scene.endingId}`, true);
+
+  // 해당 엔딩에 도달했을 당시의 아이템/플래그 스냅샷을 따로 보관해둔다.
+  // 이후 다른 회차를 진행해 items/flags가 덮어써져도, 타이틀의 "지금까지의 기록"에서
+  // 이 엔딩을 다시 골랐을 때는 그때 그 기록 그대로 보여주기 위함.
+  state.endingRecords = state.endingRecords || {};
+  state.endingRecords[scene.endingId] = {
+    items: [...state.items],
+    flags: { ...state.flags },
+    achievedAt: Date.now(),
+  };
+
   persist();
 }
 
