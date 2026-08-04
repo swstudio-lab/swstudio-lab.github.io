@@ -53,9 +53,7 @@ async function boot() {
   const params = new URLSearchParams(window.location.search);
   if (params.get('continue') === '1' && state.hasSave('auto')) {
     // 타이틀 화면에서 "이어서 열람"을 이미 선택한 경우 — 다시 묻지 않고 바로 이어감
-    state.load('auto');
-    resetHistory();
-    enterScene(state.currentSceneId, true);
+    resumeSavedGame();
   } else if (params.get('new') === '1') {
     // 타이틀 화면에서 "새 기록 열람"을 이미 선택한 경우 (기존 세이브는 타이틀에서 이미 정리됨)
     startNewGame();
@@ -72,9 +70,7 @@ function showContinancePrompt() {
   wrap.classList.add('is-visible');
   document.getElementById('btn-continue').onclick = () => {
     wrap.classList.remove('is-visible');
-    state.load('auto');
-    resetHistory();
-    enterScene(state.currentSceneId, true);
+    resumeSavedGame();
   };
   document.getElementById('btn-new-game').onclick = () => {
     wrap.classList.remove('is-visible');
@@ -83,8 +79,38 @@ function showContinancePrompt() {
   };
 }
 
+// 저장된 씬으로 복귀시킨다. 단, 그 씬이 이미 도달했던 엔딩이면
+// (사건이 끝난 상태이므로) 엔딩 화면을 다시 띄우는 대신 새 회차를 시작한다.
+function resumeSavedGame() {
+  state.load('auto');
+  const savedScene = sceneData.scenes[state.currentSceneId];
+  if (savedScene && savedScene.ending) {
+    startFreshRunKeepingEndings();
+  } else {
+    resetHistory();
+    enterScene(state.currentSceneId, true);
+  }
+}
+
 function startNewGame() {
   state.reset();
+  resetHistory();
+  if (!state.playerGender) {
+    showGenderSelect();
+  } else {
+    enterScene(sceneData.start);
+  }
+}
+
+// 완전 초기화(state.reset)는 하되, 이전 회차에서 모은 엔딩 달성 기록(ending_*)만은
+// 보존해서 새로 시작한다 — "게임 입장"으로 재진입할 때 로드맵/달성도가 초기화되지 않도록.
+function startFreshRunKeepingEndings() {
+  const preservedEndingFlags = {};
+  Object.keys(state.flags || {}).forEach((key) => {
+    if (key.startsWith('ending_')) preservedEndingFlags[key] = state.flags[key];
+  });
+  state.reset();
+  state.flags = preservedEndingFlags;
   resetHistory();
   if (!state.playerGender) {
     showGenderSelect();

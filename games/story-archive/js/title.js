@@ -352,7 +352,18 @@ function showShareToast(text) {
 function bindShareButton() {
   document.getElementById('btn-share').addEventListener('click', async () => {
     const shareData = { title: 'Story Archive', url: window.location.href };
-    if (navigator.share) {
+
+    // navigator.share()는 http/https secure context에서만 정상 동작이 보장됨.
+    // file://로 직접 열어서 테스트하는 경우 등 프로토콜이 다르면 아예 시도하지 않음 —
+    // 일부 크롬 빌드/임베디드 환경에서 file:// URL을 그대로 네이티브 공유 API에 넘기면
+    // 정상적으로 거부되지 않고 렌더러가 RESULT_CODE_KILLED_BAD_MESSAGE로 죽는 크래시가 있음.
+    const canUseNativeShare =
+      typeof navigator.share === 'function' &&
+      window.isSecureContext &&
+      /^https?:$/.test(window.location.protocol) &&
+      (typeof navigator.canShare !== 'function' || navigator.canShare(shareData));
+
+    if (canUseNativeShare) {
       try {
         await navigator.share(shareData);
       } catch (e) {
