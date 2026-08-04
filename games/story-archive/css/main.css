@@ -1,0 +1,160 @@
+/* ==========================================================
+   Story Archive — main.css
+   디자인 토큰: 낡은 아카이브 단말기 + 미스터리 스릴러 톤
+   (사이트 공용 다크골드 테마와 별개로, 게임 내부 전용 팔레트)
+   ========================================================== */
+
+:root {
+  --void: #0a0b0d;          /* 화면 바깥/배경 */
+  --panel: #16181c;         /* 패널/박스 배경 */
+  --panel-border: #2c2f35;  /* 패널 테두리 */
+  --ink: #d9d3c1;           /* 본문 글자 — 바랜 종이톤 오프화이트 */
+  --ink-dim: #8b8d92;       /* 보조 글자 */
+  --accent-amber: #a68a5b;  /* 캐릭터 코트와 연결되는 앰버 */
+  --accent-blood: #7a2e2e;  /* 긴장/경고 포인트 */
+  --focus-ring: #c9a86a;
+
+  --font-display: 'VT323', monospace;
+  --font-body: 'IBM Plex Mono', monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--void);
+  color: var(--ink);
+  font-family: var(--font-body);
+  overflow: hidden;
+  height: 100%;
+}
+
+button {
+  font-family: var(--font-display);
+}
+
+/* ---------- CRT 연출 ---------- */
+.crt-scanlines {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.14) 0px,
+    rgba(0, 0, 0, 0.14) 1px,
+    transparent 2px,
+    transparent 3px
+  );
+  z-index: 40;
+  opacity: 0.55;
+  mix-blend-mode: multiply;
+}
+
+.crt-vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 41;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 55%,
+    rgba(0, 0, 0, 0.55) 100%
+  );
+}
+
+/* 화면 흔들림 / 섬광 */
+.screen-shake { animation: shake 0.4s ease; }
+@keyframes shake {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-6px, 3px); }
+  40% { transform: translate(5px, -4px); }
+  60% { transform: translate(-4px, 4px); }
+  80% { transform: translate(5px, -2px); }
+}
+
+.screen-flash::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: #fff;
+  opacity: 0.85;
+  z-index: 50;
+  animation: flashFade 0.18s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes flashFade { to { opacity: 0; } }
+
+/* 화면 가장자리에서 붉은 기운이 번지는 연출 */
+.screen-bloodbleed::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 38%, rgba(122,46,46,0.5) 100%);
+  animation: bloodBleedInOut 1.4s ease-in-out forwards;
+}
+@keyframes bloodBleedInOut {
+  0% { opacity: 0; }
+  35% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ---------- 상단 바 ---------- */
+#top-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 18px;
+  background: linear-gradient(to bottom, rgba(10,11,13,0.9), transparent);
+}
+
+.top-bar__title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  letter-spacing: 2px;
+  color: var(--accent-amber);
+}
+
+.top-bar__controls {
+  display: flex;
+  gap: 8px;
+}
+
+.ctrl-btn {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--ink);
+  padding: 6px 12px;
+  font-size: 15px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.ctrl-btn:hover { border-color: var(--accent-amber); color: var(--accent-amber); }
+.ctrl-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.ctrl-btn.is-active { border-color: var(--accent-amber); color: var(--accent-amber); }
+.ctrl-btn--primary { border-color: var(--accent-amber); color: var(--accent-amber); }
+
+/* ---------- 버전 표시 (개발/검증용) ---------- */
+#version-tag {
+  position: fixed;
+  bottom: 6px;
+  right: 10px;
+  z-index: 60;
+  font-family: var(--font-display);
+  font-size: 14px;
+  color: var(--ink-dim);
+  opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen-shake, .screen-flash::after { animation: none !important; }
+}

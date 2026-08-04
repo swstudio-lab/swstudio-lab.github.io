@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Story Archive — CASE-001</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/main.css" />
+<link rel="stylesheet" href="css/game.css" />
+</head>
+<body>
+
+<div id="game-root">
+
+  <!-- 배경 레이어 -->
+  <div id="bg-layer"></div>
+  <div class="crt-scanlines"></div>
+  <div class="crt-vignette"></div>
+
+  <!-- 캐릭터 레이어 -->
+  <div id="char-left" class="char-sprite char-sprite--left"></div>
+  <div id="char-right" class="char-sprite char-sprite--right"></div>
+
+  <!-- Point & Click 탐색 핫스팟 -->
+  <div id="hotspot-layer"></div>
+
+  <!-- 상단 바 -->
+  <div id="top-bar">
+    <span class="top-bar__title">STORY ARCHIVE // CASE-001</span>
+    <div class="top-bar__controls">
+      <button id="btn-auto" class="ctrl-btn" type="button">AUTO</button>
+      <button id="btn-skip" class="ctrl-btn" type="button">SKIP</button>
+      <button id="btn-sound-settings" class="ctrl-btn" type="button">⚙ 사운드</button>
+      <button id="btn-log" class="ctrl-btn" type="button">LOG</button>
+      <button id="btn-journal" class="ctrl-btn" type="button">단서노트</button>
+    </div>
+  </div>
+
+  <!-- 대사창 -->
+  <div id="dialogue-box">
+    <button id="btn-back" class="dialogue-back-btn" type="button">◀ 이전</button>
+    <div id="speaker-name"></div>
+    <div id="dialogue-text"></div>
+    <div class="advance-hint">▼ 클릭 또는 Space로 계속</div>
+  </div>
+
+  <!-- 선택지 -->
+  <div id="choices-layer"></div>
+
+  <!-- 로그 패널 -->
+  <div id="log-panel">
+    <div class="log-panel__header">
+      <span>대사 로그</span>
+      <button id="btn-log-close" class="ctrl-btn" type="button">닫기 ✕</button>
+    </div>
+    <div id="log-list"></div>
+  </div>
+
+  <!-- 이어하기 프롬프트 -->
+  <div id="continue-prompt">
+    <div class="prompt-box">
+      <p>[SAVED SESSION DETECTED]</p>
+      <p class="prompt-sub">이전에 열람하던 기록이 있습니다.</p>
+      <div class="prompt-actions">
+        <button id="btn-continue" class="ctrl-btn ctrl-btn--primary" type="button">이어보기</button>
+        <button id="btn-new-game" class="ctrl-btn" type="button">처음부터</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 엔딩 화면 -->
+  <div id="ending-screen">
+    <div class="ending-box">
+      <p class="ending-tag">[FILE CLOSED]</p>
+      <h2 id="ending-title"></h2>
+      <p id="ending-body"></p>
+      <p id="ending-teaser" class="ending-teaser"></p>
+
+      <div class="ending-roadmap">
+        <button id="btn-roadmap-toggle" class="roadmap-toggle-btn" type="button">전체 파일 목록 확인 ▾</button>
+        <div id="roadmap-panel" class="roadmap-panel">
+          <p class="roadmap-title">PROJECT: CASE-FILES</p>
+          <div class="roadmap-list">
+            <div class="roadmap-item is-open" data-case="case001">
+              <span class="roadmap-case-id">CASE-001</span>
+              <span class="roadmap-case-title">잊혀진 기록</span>
+              <span class="roadmap-case-status">[OPEN]</span>
+            </div>
+            <div class="roadmap-item is-locked" data-case="case002">
+              <span class="roadmap-case-id">CASE-002</span>
+              <span class="roadmap-case-title">???</span>
+              <span class="roadmap-case-status">[LOCKED]</span>
+            </div>
+            <div class="roadmap-item is-locked" data-case="case003">
+              <span class="roadmap-case-id">CASE-003</span>
+              <span class="roadmap-case-title">???</span>
+              <span class="roadmap-case-status">[LOCKED]</span>
+            </div>
+          </div>
+          <p id="roadmap-flavor" class="roadmap-flavor"></p>
+        </div>
+      </div>
+
+      <div class="ending-actions">
+        <button id="btn-ending-restart" class="ctrl-btn ctrl-btn--primary" type="button">다시 시작하기</button>
+        <button id="btn-ending-title" class="ctrl-btn" type="button">타이틀로 돌아가기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 아이템 획득 팝업 -->
+  <div id="item-popup">
+    <div class="item-popup-card">
+      <p id="item-popup-tag" class="item-popup-tag">[EVIDENCE ACQUIRED]</p>
+      <div id="item-popup-img" class="item-popup-img"></div>
+      <p id="item-popup-label" class="item-popup-label"></p>
+      <button id="item-popup-btn" class="ctrl-btn ctrl-btn--primary" type="button">확인</button>
+    </div>
+  </div>
+
+  <!-- 아카이브 단서 노트 -->
+  <div id="journal-overlay">
+    <div class="journal-box">
+      <div class="journal-header">
+        <span>[ARCHIVE NOTES]</span>
+        <button id="btn-journal-close" class="ctrl-btn" type="button">닫기 ✕</button>
+      </div>
+      <p class="journal-sub">지금까지 확보한 증거</p>
+      <div id="journal-items" class="journal-items"></div>
+      <p class="journal-sub">기록</p>
+      <p id="journal-hidden-note" class="journal-hidden-note"></p>
+    </div>
+  </div>
+
+  <!-- 사운드 설정 -->
+  <div id="sound-panel">
+    <div class="sound-panel-box">
+      <div class="sound-panel-header">
+        <span>[사운드 설정]</span>
+        <button id="btn-sound-panel-close" class="ctrl-btn" type="button">닫기 ✕</button>
+      </div>
+      <div class="sound-panel-row">
+        <span>전체 소리</span>
+        <button id="btn-sound" class="ctrl-btn" type="button">🔊 사운드</button>
+      </div>
+      <div class="sound-panel-row">
+        <span>효과음</span>
+        <button id="btn-sfx" class="ctrl-btn" type="button">🔔 효과음</button>
+      </div>
+      <div class="sound-panel-divider"></div>
+      <p class="sound-panel-label">배경음악 재생 방식</p>
+      <label class="sound-panel-radio">
+        <input type="radio" name="bgm-mode" id="bgm-mode-scene" value="scene" />
+        <span>장면별 음악 (기본)</span>
+      </label>
+      <label class="sound-panel-radio">
+        <input type="radio" name="bgm-mode" id="bgm-mode-theme" value="theme" />
+        <span>테마 음악 유지</span>
+      </label>
+    </div>
+  </div>
+
+  <!-- P&C 탐색: 클로즈업 -->
+  <div id="closeup-overlay">
+    <div class="closeup-card">
+      <p class="closeup-tag">[CLOSE-UP]</p>
+      <div id="closeup-img" class="closeup-img"></div>
+      <p id="closeup-label" class="closeup-label"></p>
+      <button id="closeup-close-btn" class="ctrl-btn ctrl-btn--primary" type="button">닫기</button>
+    </div>
+  </div>
+
+  <!-- 퍼즐: 코드 입력 -->
+  <div id="puzzle-overlay">
+    <div class="puzzle-box">
+      <p class="puzzle-tag">[LOCK MECHANISM]</p>
+      <p id="puzzle-prompt" class="puzzle-prompt"></p>
+      <input id="puzzle-input" class="puzzle-input" type="text" inputmode="numeric" maxlength="6" autocomplete="off" />
+      <p id="puzzle-feedback" class="puzzle-feedback"></p>
+      <div class="puzzle-actions">
+        <button id="puzzle-submit" class="ctrl-btn ctrl-btn--primary" type="button">입력</button>
+        <button id="puzzle-hint-btn" class="ctrl-btn" type="button">힌트</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 퍼즐: 증거 보드 (연결) -->
+  <div id="board-overlay">
+    <div class="board-box">
+      <p class="board-tag">[EVIDENCE BOARD]</p>
+      <p id="board-prompt" class="board-prompt"></p>
+      <div id="board-grid" class="board-grid"></div>
+      <p id="board-feedback" class="board-feedback"></p>
+      <div class="board-actions">
+        <button id="board-hint-btn" class="ctrl-btn" type="button">힌트</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 퍼즐: 순서 배열 -->
+  <div id="sequence-overlay">
+    <div class="sequence-box">
+      <p class="sequence-tag">[MEMORY FRAGMENTS]</p>
+      <p id="sequence-prompt" class="sequence-prompt"></p>
+      <div id="sequence-answer" class="sequence-answer"></div>
+      <div id="sequence-tray" class="sequence-tray"></div>
+      <p id="sequence-feedback" class="sequence-feedback"></p>
+      <div class="sequence-actions">
+        <button id="sequence-submit" class="ctrl-btn ctrl-btn--primary" type="button">확인</button>
+        <button id="sequence-reset" class="ctrl-btn" type="button">초기화</button>
+        <button id="sequence-hint-btn" class="ctrl-btn" type="button">힌트</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- QTE: 순간 반응 -->
+  <div id="qte-overlay">
+    <div class="qte-box">
+      <p id="qte-prompt" class="qte-prompt"></p>
+      <button id="qte-target" class="qte-target" type="button">CLICK</button>
+      <div class="qte-timer-track"><div id="qte-bar" class="qte-timer-bar"></div></div>
+    </div>
+  </div>
+
+  <div id="version-tag"></div>
+
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="../../assets/firebase-init.js"></script>
+<script src="js/cloud-sync.js"></script>
+<script src="js/engine/state.js"></script>
+<script src="js/engine/sound.js"></script>
+<script src="js/engine/ui.js"></script>
+<script src="js/engine/puzzle.js"></script>
+<script src="cases/case001/scene-data.js"></script>
+<script src="js/main.js"></script>
+<script src="../../assets/nav.js"></script>
+<script src="../../assets/maintenance.js"></script>
+<script src="../../assets/analytics-config.js"></script>
+<script src="../../assets/ga4.js"></script>
+<script src="../../assets/visitor-counter.js"></script>
+</body>
+</html>

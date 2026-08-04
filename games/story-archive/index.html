@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Story Archive</title>
+<meta property="og:title" content="Story Archive — CASE-001" />
+<meta property="og:description" content="오래된 아카이브에 접속해 사건을 추적하는 미스터리 조사 게임" />
+<meta property="og:image" content="https://swstudio-lab.github.io/games/story-archive/cases/case001/assets/items/broken-badge.png" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/main.css" />
+<link rel="stylesheet" href="css/title.css" />
+</head>
+<body>
+
+<div id="title-root">
+  <div id="title-bg"></div>
+  <div class="crt-scanlines"></div>
+  <div class="crt-vignette"></div>
+
+  <div id="title-content">
+    <div class="boot-log" id="boot-log"></div>
+
+    <h1 id="title-logo" class="is-hidden">STORY ARCHIVE</h1>
+    <p id="title-sub" class="is-hidden">CASE FILES — 열람 단말기</p>
+
+    <!-- 로그인/회원가입 -->
+    <div id="auth-panel" class="is-hidden">
+      <div class="auth-tabs">
+        <button id="tab-login" class="auth-tab is-active" type="button">로그인</button>
+        <button id="tab-signup" class="auth-tab" type="button">회원가입</button>
+      </div>
+
+      <form id="login-form" class="auth-form">
+        <input id="login-id" class="auth-input" placeholder="아이디" autocomplete="username" />
+        <input id="login-pw" class="auth-input" type="password" placeholder="비밀번호" autocomplete="current-password" />
+        <button type="submit" class="title-btn">로그인</button>
+        <button type="button" id="btn-forgot-pw" class="link-btn">비밀번호를 잊으셨나요?</button>
+      </form>
+
+      <form id="signup-form" class="auth-form is-hidden">
+        <input id="signup-id" class="auth-input" placeholder="아이디 (영문/숫자/밑줄 3~12자)" autocomplete="username" />
+        <input id="signup-pw" class="auth-input" type="password" placeholder="비밀번호 (4~12자, 조합규칙 없음)" autocomplete="new-password" />
+        <button type="submit" class="title-btn">회원가입</button>
+      </form>
+
+      <p id="auth-message" class="auth-message"></p>
+    </div>
+
+    <!-- 로그인 성공 후 -->
+    <div id="welcome-panel" class="is-hidden">
+      <p id="welcome-text" class="auth-message"></p>
+      <p id="ending-progress" class="auth-message"></p>
+      <div id="title-menu">
+        <button id="btn-enter-game" class="title-btn">게임 입장</button>
+        <button id="btn-recap-personal" class="title-btn">지금까지의 기록</button>
+        <button id="btn-recap-rashomon" class="title-btn">완전한 기록</button>
+        <button id="btn-reset-save" class="title-btn">진행 데이터 초기화</button>
+        <button id="btn-logout" class="link-btn">로그아웃</button>
+      </div>
+    </div>
+
+    <!-- 링크 공유 -->
+    <div id="share-wrap">
+      <button id="btn-share" class="link-btn" type="button">🔗 공유하기</button>
+      <p id="share-toast" class="share-toast"></p>
+    </div>
+  </div>
+
+  <div id="version-tag">build 2026-08-03-03</div>
+</div>
+
+<!-- 복구코드 안내 -->
+<div id="recovery-overlay" class="modal-overlay">
+  <div class="confirm-box">
+    <p>[RECOVERY CODE]</p>
+    <p class="confirm-sub">이 코드는 비밀번호를 잊었을 때만 필요해요.<br />지금 아니면 다시 볼 수 없으니 꼭 저장해두세요.</p>
+    <div id="recovery-code-display" class="recovery-code"></div>
+    <div class="confirm-actions">
+      <button id="btn-recovery-ack" class="title-btn" type="button">확인, 저장했어요</button>
+    </div>
+  </div>
+</div>
+
+<!-- 비밀번호 찾기 -->
+<div id="forgot-overlay" class="modal-overlay">
+  <div class="confirm-box">
+    <p>[PASSWORD RESET]</p>
+    <input id="forgot-id" class="auth-input" placeholder="아이디" />
+    <input id="forgot-code" class="auth-input" placeholder="복구 코드 (예: A3F9-K21X)" />
+    <input id="forgot-newpw" class="auth-input" type="password" placeholder="새 비밀번호 (4~12자)" />
+    <p id="forgot-message" class="auth-message"></p>
+    <div class="confirm-actions">
+      <button id="btn-forgot-submit" class="title-btn" type="button">재설정</button>
+      <button id="btn-forgot-cancel" class="link-btn" type="button">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- 데이터 초기화 확인 -->
+<div id="reset-confirm-overlay" class="modal-overlay">
+  <div class="confirm-box">
+    <p>[WARNING]</p>
+    <p class="confirm-sub">진행 데이터를 초기화합니다.<br />계정은 유지되지만 지금까지의 진행 상황은 사라집니다.</p>
+    <div class="confirm-actions">
+      <button id="btn-confirm-reset" class="title-btn" type="button">그래도 초기화</button>
+      <button id="btn-cancel-reset" class="link-btn" type="button">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- 지금까지의 기록 (개인 리캡) -->
+<div id="recap-overlay" class="modal-overlay">
+  <div class="recap-box">
+    <div class="recap-header">
+      <span>[지금까지의 기록]</span>
+      <button id="btn-recap-close" class="ctrl-btn" type="button">닫기 ✕</button>
+    </div>
+    <div id="recap-list" class="recap-list"></div>
+  </div>
+</div>
+
+<!-- 완전한 기록 (라쇼몽 비교) -->
+<div id="rashomon-overlay" class="modal-overlay">
+  <div class="recap-box">
+    <div class="recap-header">
+      <span>[완전한 기록]</span>
+      <button id="btn-rashomon-close" class="ctrl-btn" type="button">닫기 ✕</button>
+    </div>
+    <div id="rashomon-content" class="rashomon-content"></div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="../../assets/firebase-init.js"></script>
+<script src="js/cloud-sync.js"></script>
+<script src="js/title.js"></script>
+<script src="../../assets/nav.js"></script>
+<script src="../../assets/maintenance.js"></script>
+<script src="../../assets/analytics-config.js"></script>
+<script src="../../assets/ga4.js"></script>
+<script src="../../assets/visitor-counter.js"></script>
+</body>
+</html>
