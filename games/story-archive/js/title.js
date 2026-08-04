@@ -308,6 +308,9 @@ function renderRecapPersonal() {
 function renderRecapPage() {
   const list = document.getElementById('recap-list');
   const nav = document.getElementById('recap-nav');
+  const navLabel = document.getElementById('recap-nav-label');
+  const prevBtn = document.getElementById('btn-recap-prev');
+  const nextBtn = document.getElementById('btn-recap-next');
   list.innerHTML = '';
 
   if (recapEndingIds.length === 0) {
@@ -336,14 +339,17 @@ function renderRecapPage() {
     list.appendChild(p);
   });
 
-  if (recapEndingIds.length > 1) {
-    reveal(nav);
-    document.getElementById('recap-nav-label').textContent =
-      `${ENDING_LABELS[endingId] || endingId} (${recapIndex + 1}/${recapEndingIds.length})`;
-    document.getElementById('btn-recap-prev').disabled = recapIndex === 0;
-    document.getElementById('btn-recap-next').disabled = recapIndex === recapEndingIds.length - 1;
-  } else {
-    hide(nav);
+  // 엔딩 이름표는 몇 개를 모았든 항상 표시하고, ◀ ▶ 버튼은 2개 이상일 때만 보여준다.
+  reveal(nav);
+  const multiple = recapEndingIds.length > 1;
+  navLabel.textContent = multiple
+    ? `${ENDING_LABELS[endingId] || endingId} (${recapIndex + 1}/${recapEndingIds.length})`
+    : `${ENDING_LABELS[endingId] || endingId}`;
+  prevBtn.classList.toggle('is-hidden', !multiple);
+  nextBtn.classList.toggle('is-hidden', !multiple);
+  if (multiple) {
+    prevBtn.disabled = recapIndex === 0;
+    nextBtn.disabled = recapIndex === recapEndingIds.length - 1;
   }
 }
 
