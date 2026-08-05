@@ -38,6 +38,7 @@
       <button id="btn-notes" class="ctrl-btn" type="button">📔 수사노트</button>
       <button id="btn-journal" class="ctrl-btn" type="button">단서노트</button>
       <button id="btn-title" class="ctrl-btn" type="button">타이틀로</button>
+      <button id="btn-help" class="ctrl-btn" type="button">?</button>
     </div>
   </div>
 
@@ -46,6 +47,20 @@
   <div id="system-message-overlay">
     <div class="system-message-box">
       <p id="system-message-text"></p>
+    </div>
+  </div>
+
+  <!-- 게임 시작 시(또는 상단바 ? 버튼으로 언제든) 조작법 안내 -->
+  <div id="tutorial-overlay">
+    <div class="tutorial-box">
+      <p class="tutorial-tag">[OPERATOR MANUAL]</p>
+      <p class="tutorial-item">▸ 대사는 클릭 또는 스페이스바로 진행됩니다.<br />상단 "◀ 이전" 버튼이나 방향키로 이전 대사를 다시 볼 수 있습니다.</p>
+      <p class="tutorial-item">▸ 화면 속 강조되는 지점을 클릭하면 더 자세히 조사할 수 있습니다.</p>
+      <p class="tutorial-item">▸ 습득한 단서는 상단 📔 아이콘(수사노트)에서 언제든 다시 확인할 수 있습니다. 진행하면서 메모 내용이 바뀌기도 하니 가끔 열어보세요.</p>
+      <p class="tutorial-item">▸ 퍼즐이 막히면 화면 안의 "힌트" 버튼을 활용하세요.</p>
+      <div class="tutorial-actions">
+        <button id="btn-tutorial-confirm" class="ctrl-btn ctrl-btn--primary" type="button">확인</button>
+      </div>
     </div>
   </div>
 

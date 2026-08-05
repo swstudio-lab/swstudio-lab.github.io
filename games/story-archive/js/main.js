@@ -118,10 +118,12 @@ async function boot() {
 let pendingCloudEndingFlags = null;
 let pendingCloudEndingRecords = null;
 
+// ending_* 엔딩 기록뿐 아니라 seenTutorial(조작법 안내를 이미 봤는지)도 계정 단위로
+// 계속 남아있어야 하는 값이라 같은 "새 회차를 시작해도 유실되면 안 되는 플래그" 취급으로 묶음
 function pickEndingFlags(flags) {
   const out = {};
   Object.keys(flags || {}).forEach((k) => {
-    if (k.startsWith('ending_')) out[k] = flags[k];
+    if (k.startsWith('ending_') || k === 'seenTutorial') out[k] = flags[k];
   });
   return out;
 }
@@ -189,6 +191,22 @@ function startNewGame() {
   }
 }
 
+// 게임 최초 진입 시 1회 자동으로 뜨고, 이후엔 상단바 "?" 버튼으로 언제든 다시 볼 수 있는
+// 조작법 안내. "확인"을 눌러야 닫히며, 첫 진입 흐름에서는 이 Promise가 끝나야 다음으로 진행됨.
+function showTutorial() {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('tutorial-overlay');
+    overlay.classList.add('is-visible');
+    const btn = document.getElementById('btn-tutorial-confirm');
+    const handler = () => {
+      overlay.classList.remove('is-visible');
+      btn.removeEventListener('click', handler);
+      resolve();
+    };
+    btn.addEventListener('click', handler);
+  });
+}
+
 function showGenderSelect() {
   const firstScene = sceneData.scenes[sceneData.start];
   ui.setBackground(CASE_BASE + firstScene.background);
@@ -200,9 +218,14 @@ function showGenderSelect() {
       { text: '남성 조사관', gender: 'male' },
       { text: '여성 조사관', gender: 'female' },
     ],
-    (choice) => {
+    async (choice) => {
       state.playerGender = choice.gender;
       persist();
+      if (!state.hasFlag('seenTutorial')) {
+        await showTutorial();
+        state.setFlag('seenTutorial', true);
+        persist();
+      }
       enterScene(sceneData.start);
     }
   );
@@ -294,6 +317,11 @@ function bindGlobalControls() {
   document.getElementById('btn-title-confirm-yes').addEventListener('click', () => {
     persist();
     window.location.href = 'index.html';
+  });
+
+  // 조작법 안내를 언제든 다시 볼 수 있는 안전장치 — 이미 seenTutorial이어도 그냥 다시 띄우기만 함
+  document.getElementById('btn-help').addEventListener('click', () => {
+    showTutorial();
   });
 
   document.getElementById('btn-ending-title').addEventListener('click', () => {

@@ -463,6 +463,60 @@
   .system-message-box { padding: 20px 22px; }
 }
 
+/* ---------- 조작법 안내 (게임 최초 진입 시 자동 1회 + 상단바 ? 버튼으로 언제든) ---------- */
+#tutorial-overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10,11,13,0.88);
+  z-index: 59;
+  overflow-y: auto;
+  padding: 24px 0;
+  box-sizing: border-box;
+}
+#tutorial-overlay.is-visible { display: flex; }
+
+.tutorial-box {
+  border: 1px solid var(--panel-border);
+  border-left: 3px solid var(--accent-amber);
+  background: var(--panel);
+  padding: 28px 34px;
+  width: 480px;
+  max-width: 88vw;
+  box-shadow: 0 0 30px rgba(0,0,0,0.6);
+}
+
+.tutorial-tag {
+  font-family: var(--font-display);
+  color: var(--accent-amber);
+  letter-spacing: 2px;
+  font-size: 18px;
+  text-align: center;
+  margin: 0 0 20px;
+}
+
+.tutorial-item {
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--ink);
+  margin: 0 0 16px;
+}
+
+.tutorial-actions {
+  margin-top: 8px;
+  display: flex;
+  justify-content: center;
+}
+
+@media (max-width: 720px) {
+  .tutorial-box { padding: 20px 22px; }
+  .tutorial-tag { font-size: 16px; }
+  .tutorial-item { font-size: 12.5px; }
+}
+
 /* ---------- 대사창 ---------- */
 #dialogue-box {
   position: absolute;
