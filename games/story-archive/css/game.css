@@ -480,21 +480,27 @@
   transition: left 0.3s ease, right 0.3s ease, width 0.3s ease, background 0.3s ease, border-color 0.3s ease;
 }
 
-/* 관리자 대사 — 이미지 없이 위치(오른쪽)/색상(청록·회색)/글리치 텍스트만으로
-   "실체 없는 존재"라는 느낌을 줌. 조사관 쪽 대사창(왼쪽, 앰버색)은 그대로 유지되고,
-   같은 #dialogue-box 요소가 화자에 따라 옮겨 다니는 방식이라 이전 버튼/진행 로직은
+/* 관리자 대사 — 박스 크기/위치는 조사관 쪽과 완전히 동일하게 유지하고, 색상(청록·회색)/
+   텍스트 오른쪽 정렬/글리치 효과로만 "관리자 쪽에서 오는 대사"라는 느낌을 줌.
+   텍스트 정렬만 오른쪽으로 바뀔 뿐, 글자가 읽히는 방향(왼쪽→오른쪽)은 그대로임.
+   같은 #dialogue-box 요소가 화자에 따라 스타일만 바뀌는 방식이라 이전 버튼/진행 로직은
    그대로 재사용됨. */
 #dialogue-box.is-admin {
-  left: auto;
-  right: 4vw;
-  width: 42vw;
-  min-width: 300px;
-  max-width: 560px;
   background: rgba(16, 26, 28, 0.7);
   border-color: rgba(93, 118, 128, 0.4);
-  border-left-color: rgba(93, 118, 128, 0.4);
+  border-left-color: transparent;
   border-right: 3px solid #5d7680;
   animation: adminBoxFlicker 3.5s ease-in-out infinite;
+}
+
+#dialogue-box.is-admin #speaker-name,
+#dialogue-box.is-admin #dialogue-text {
+  text-align: right;
+}
+
+#dialogue-box.is-admin .dialogue-back-btn {
+  left: auto;
+  right: 0;
 }
 
 @keyframes adminBoxFlicker {
@@ -903,9 +909,6 @@
 @media (max-width: 720px) {
   .char-sprite { width: 50vw; bottom: 190px; }
   #dialogue-box { left: 3vw; right: 3vw; bottom: 16px; padding: 16px 18px; }
-  /* 좁은 화면에서는 오른쪽으로 밀어붙일 공간이 부족해서, 관리자 대사도 위치는 그대로
-     전체 폭으로 두고 색상/글리치 효과로만 구분함 */
-  #dialogue-box.is-admin { left: 3vw; right: 3vw; width: auto; }
   #log-panel { width: 86vw; right: -86vw; }
 
   /* 상단바 버튼 7개(이전/AUTO/SKIP/사운드/효과음/LOG/단서노트)가 좁은 화면에서 화면 밖으로
