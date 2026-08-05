@@ -23,8 +23,6 @@
   <!-- 캐릭터 레이어 -->
   <div id="char-left" class="char-sprite char-sprite--left"></div>
   <div id="char-right" class="char-sprite char-sprite--right"></div>
-  <!-- 관리자 검은 실루엣 (D) — 정체는 드러내지 않되 "지금 관리자가 말하고 있다"만 시각적으로 구분 -->
-  <div id="admin-silhouette" class="char-sprite char-sprite--right admin-silhouette"></div>
 
   <!-- Point & Click 탐색 핫스팟 -->
   <div id="hotspot-layer"></div>
@@ -40,6 +38,14 @@
       <button id="btn-notes" class="ctrl-btn" type="button">📔 수사노트</button>
       <button id="btn-journal" class="ctrl-btn" type="button">단서노트</button>
       <button id="btn-title" class="ctrl-btn" type="button">타이틀로</button>
+    </div>
+  </div>
+
+  <!-- 시스템 메시지 ([UNLOCKING FILE...] 등 speaker가 빈 문자열인 라인) — 대사가 아니라
+       시스템이 보여주는 메시지라는 느낌을 주기 위해 하단 대사창 대신 화면 중앙에 별도 표시 -->
+  <div id="system-message-overlay">
+    <div class="system-message-box">
+      <p id="system-message-text"></p>
     </div>
   </div>
 

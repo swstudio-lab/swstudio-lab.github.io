@@ -101,15 +101,41 @@ button {
   100% { opacity: 0; }
 }
 
-/* ---------- 그림자 섬광 / 완전 암전 (JS에서 opacity 직접 토글, transition 없음 = 즉시 컷) ---------- */
+/* ---------- 그림자 섬광 / 완전 암전 ---------- */
+/* 화면 중앙에 딱 나타났다 사라지면 렌더링 버그처럼 보이기 쉬워서, 아주 흐릿하게(blur) +
+   작은 크기로 만들고 좌우로 천천히 드리프트하며 지나가게 함(슥 스쳐가는 느낌) */
 #shadow-flash-layer {
   position: fixed;
-  inset: 0;
+  left: -25vw;
+  width: 32vw;
+  max-width: 360px;
+  height: 65vh;
   z-index: 63;
   pointer-events: none;
   opacity: 0;
-  background-size: cover;
+  background-size: contain;
+  background-repeat: no-repeat;
   background-position: center;
+  filter: blur(9px) brightness(0.85);
+}
+#shadow-flash-layer.sweep-ltr { animation: shadowSweepLTR 900ms ease-in-out; }
+#shadow-flash-layer.sweep-rtl { animation: shadowSweepRTL 900ms ease-in-out; }
+@keyframes shadowSweepLTR {
+  0% { opacity: 0; left: -25vw; }
+  18% { opacity: 0.4; }
+  50% { opacity: 0.55; }
+  82% { opacity: 0.25; }
+  100% { opacity: 0; left: 95vw; }
+}
+@keyframes shadowSweepRTL {
+  0% { opacity: 0; left: 95vw; }
+  18% { opacity: 0.4; }
+  50% { opacity: 0.55; }
+  82% { opacity: 0.25; }
+  100% { opacity: 0; left: -25vw; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #shadow-flash-layer.sweep-ltr, #shadow-flash-layer.sweep-rtl { animation: none !important; }
 }
 
 #blackout-layer {

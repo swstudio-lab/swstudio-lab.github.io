@@ -50,15 +50,6 @@
 .char-sprite--left { left: 6vw; }
 .char-sprite--right { right: 6vw; transform: scaleX(-1); }
 
-/* 관리자 검은 실루엣 (D) — 조사관 스프라이트보다 작고 흐릿하게, 정체를 암시할 디테일은 안 보이게 */
-.admin-silhouette {
-  width: 20vw;
-  max-width: 240px;
-  bottom: 240px;
-  filter: blur(1.5px) saturate(0) brightness(0.55) drop-shadow(0 10px 18px rgba(0,0,0,0.6));
-  transition: opacity 0.35s ease;
-}
-
 /* ---------- P&C 탐색 핫스팟 ---------- */
 #hotspot-layer {
   position: absolute;
@@ -431,6 +422,47 @@
   52% { opacity: 1; }
 }
 
+/* ---------- 시스템 메시지 (화면 중앙, 대사창과 명확히 구분) ---------- */
+#system-message-overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10,11,13,0.8);
+  /* top-bar(z-index:30)보다 낮게 둬서, 시스템 메시지가 떠 있는 동안에도 SKIP/AUTO 등
+     상단바 조작은 계속 가능하게 함 (다른 라인들과 동일한 조작성 유지) */
+  z-index: 22;
+  cursor: pointer;
+}
+#system-message-overlay.is-visible { display: flex; }
+
+.system-message-box {
+  border: 1px solid var(--panel-border);
+  border-left: 3px solid var(--accent-amber);
+  background: var(--panel);
+  padding: 26px 38px;
+  min-width: 320px;
+  max-width: 80vw;
+  text-align: center;
+  box-shadow: 0 0 30px rgba(0,0,0,0.6);
+}
+
+#system-message-text {
+  font-family: var(--font-display);
+  font-size: 20px;
+  letter-spacing: 1px;
+  line-height: 1.7;
+  color: var(--accent-amber);
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  #system-message-text { font-size: 16px; }
+  .system-message-box { padding: 20px 22px; }
+}
+
 /* ---------- 대사창 ---------- */
 #dialogue-box {
   position: absolute;
@@ -445,6 +477,57 @@
   z-index: 20;
   cursor: pointer;
   backdrop-filter: blur(2px);
+  transition: left 0.3s ease, right 0.3s ease, width 0.3s ease, background 0.3s ease, border-color 0.3s ease;
+}
+
+/* 관리자 대사 — 이미지 없이 위치(오른쪽)/색상(청록·회색)/글리치 텍스트만으로
+   "실체 없는 존재"라는 느낌을 줌. 조사관 쪽 대사창(왼쪽, 앰버색)은 그대로 유지되고,
+   같은 #dialogue-box 요소가 화자에 따라 옮겨 다니는 방식이라 이전 버튼/진행 로직은
+   그대로 재사용됨. */
+#dialogue-box.is-admin {
+  left: auto;
+  right: 4vw;
+  width: 42vw;
+  min-width: 300px;
+  max-width: 560px;
+  background: rgba(16, 26, 28, 0.7);
+  border-color: rgba(93, 118, 128, 0.4);
+  border-left-color: rgba(93, 118, 128, 0.4);
+  border-right: 3px solid #5d7680;
+  animation: adminBoxFlicker 3.5s ease-in-out infinite;
+}
+
+@keyframes adminBoxFlicker {
+  0%, 100% { border-right-color: #5d7680; }
+  35% { border-right-color: rgba(93,118,128,0.45); }
+  55% { border-right-color: #8caab3; }
+  75% { border-right-color: rgba(93,118,128,0.55); }
+}
+
+#dialogue-box.is-admin #dialogue-text {
+  animation: adminTextShake 0.28s steps(2) infinite, adminGlitchFlicker 4.2s linear infinite;
+}
+
+@keyframes adminTextShake {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(0.6px, -0.4px); }
+  50% { transform: translate(-0.5px, 0.5px); }
+  75% { transform: translate(0.4px, 0.4px); }
+}
+
+@keyframes adminGlitchFlicker {
+  0%, 90%, 100% { text-shadow: none; }
+  91% { text-shadow: 1.5px 0 rgba(255,70,70,0.55), -1.5px 0 rgba(70,200,255,0.55); }
+  93% { text-shadow: none; }
+  95% { text-shadow: -1.5px 0 rgba(255,70,70,0.5), 1.5px 0 rgba(70,200,255,0.5); }
+  97% { text-shadow: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #dialogue-box.is-admin,
+  #dialogue-box.is-admin #dialogue-text {
+    animation: none !important;
+  }
 }
 
 /* 대사창에 직접 붙은 "이전" 버튼 — 상단바가 아니라 대사를 되감는 기능임을 시각적으로 붙여서 알려줌 */
@@ -820,6 +903,9 @@
 @media (max-width: 720px) {
   .char-sprite { width: 50vw; bottom: 190px; }
   #dialogue-box { left: 3vw; right: 3vw; bottom: 16px; padding: 16px 18px; }
+  /* 좁은 화면에서는 오른쪽으로 밀어붙일 공간이 부족해서, 관리자 대사도 위치는 그대로
+     전체 폭으로 두고 색상/글리치 효과로만 구분함 */
+  #dialogue-box.is-admin { left: 3vw; right: 3vw; width: auto; }
   #log-panel { width: 86vw; right: -86vw; }
 
   /* 상단바 버튼 7개(이전/AUTO/SKIP/사운드/효과음/LOG/단서노트)가 좁은 화면에서 화면 밖으로
@@ -1137,22 +1223,26 @@
   text-align: center;
 }
 
+/* 처음엔 "숨겨서 찾게" 만드는 게 목표였지만 실제로는 거의 안 보여서 반응할 수조차 없다는
+   피드백 — 화면 자체가 위험 신호가 되는 연출(흔들림/붉은기)은 유지하되, 타겟 자체는
+   확실히 눈에 띄는 밝은 글로우 원으로 키움. 위치는 여전히 매번 랜덤이라 "찾아 누르는" 감각은
+   유지되지만, 일단 시야에 들어오면 놓치지 않게 함. */
 .qte-target {
   position: absolute;
-  width: 48px;
-  height: 48px;
+  width: 68px;
+  height: 68px;
   border-radius: 50%;
-  border: 2px solid rgba(200,70,70,0.5);
-  background: radial-gradient(circle, rgba(200,70,70,0.32), rgba(200,70,70,0.04) 70%);
+  border: 3px solid rgba(255,120,120,0.95);
+  background: radial-gradient(circle, rgba(255,90,90,0.6), rgba(255,90,90,0.15) 70%);
   cursor: pointer;
-  filter: blur(0.4px);
-  animation: qteTargetPulse 0.9s ease-in-out infinite;
+  box-shadow: 0 0 26px 10px rgba(255,80,80,0.55);
+  animation: qteTargetPulse 0.7s ease-in-out infinite;
 }
-.qte-target:hover { border-color: rgba(255,140,140,0.9); filter: none; }
+.qte-target:hover { border-color: #fff; box-shadow: 0 0 30px 12px rgba(255,120,120,0.8); }
 .qte-target:active { transform: scale(0.9); }
 @keyframes qteTargetPulse {
-  0%, 100% { opacity: 0.4; transform: scale(1); }
-  50% { opacity: 0.85; transform: scale(1.15); }
+  0%, 100% { opacity: 0.8; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.2); }
 }
 
 /* 남은 시간에 비례해 --qte-danger(0→1)를 JS가 갱신 — 화면 전체가 흔들리고 붉어짐 */

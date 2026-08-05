@@ -71,7 +71,7 @@ window.CASE_DATA = {
       ],
       "lines": [
         { "speaker": "", "text": "[UNLOCKING FILE...]", "effect": "decode" },
-        { "speaker": "내레이션", "text": "형광등 하나가 위태롭게 깜빡인다. 그 빛이 닿을 때마다 복도 끝이 잠깐씩 나타났다 사라진다.", "fx": "shadowflash" },
+        { "speaker": "내레이션", "text": "형광등 하나가 위태롭게 깜빡인다. 그 빛이 닿을 때마다 복도 끝이 잠깐씩 나타났다 사라진다." },
         { "speaker": "내레이션", "text": "아카이브 시스템 — 파일명 CASE-001. 담당자: R-07. 상태: 실종, 수사 미종결.", "setFlag": { "visited_start": true } },
         { "character": "{gender}-neutral", "position": "left", "speaker": "조사관(나)", "text": "...이 자리, 얼마 만이지." },
 
@@ -85,7 +85,7 @@ window.CASE_DATA = {
         { "speaker": "관리자", "text": "자, 눈앞부터 살펴보시죠." },
 
         { "speaker": "내레이션", "text": "복도는 생각보다 넓다. 오른쪽엔 반쯤 열린 병실 문들이 줄지어 있고, 왼쪽 끝엔 간호사 스테이션으로 보이는 자리가 보인다." },
-        { "speaker": "내레이션", "text": "복도 한가운데, 주인 없는 휠체어 하나가 덩그러니 놓여있다. 그 옆에 뭔가 반짝인다." },
+        { "speaker": "내레이션", "text": "복도 한가운데, 주인 없는 휠체어 하나가 덩그러니 놓여있다. 그 옆에 뭔가 반짝인다.", "fx": "shadowflash" },
         {
           "speaker": "내레이션",
           "text": "부서진 신분증 조각. 사번 R-07. 손끝에 닿는 순간, 차갑다.",
@@ -107,7 +107,7 @@ window.CASE_DATA = {
       "background": "assets/backgrounds/patient-room.png",
       "bgm": "assets/bgm/hospital-ambience.mp3",
       "lines": [
-        { "speaker": "내레이션", "text": "매트리스는 뒤집혀 있고, 협탁 위엔 누렇게 바랜 종이 한 장이 놓여 있다.", "fx": "shadowflash" },
+        { "speaker": "내레이션", "text": "매트리스는 뒤집혀 있고, 협탁 위엔 누렇게 바랜 종이 한 장이 놓여 있다." },
         {
           "speaker": "내레이션",
           "text": "지역 신문 스크랩. 날짜는 알아볼 수 없지만, '병원 이전 결정, 주민들 반발' 같은 제목이 겨우 보인다.",
@@ -137,7 +137,7 @@ window.CASE_DATA = {
         },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "'재고 확인 금지'라니, 병원 약품에?" },
         { "speaker": "관리자", "text": "그런 것까지 하나하나 신경 쓰면 끝이 없어요. 본론에 집중하죠." },
-        { "speaker": "내레이션", "text": "그때, 복도 저편 낡은 스피커에서 지지직거리는 소리가 새어 나온다.", "fx": "shadowflash" }
+        { "speaker": "내레이션", "text": "그때, 복도 저편 낡은 스피커에서 지지직거리는 소리가 새어 나온다." }
       ],
       "next": "corridor_logs"
     },
@@ -151,7 +151,7 @@ window.CASE_DATA = {
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "목소리가... 너무 멀쩡한데." },
         { "speaker": "관리자", "text": "초반 기록이니까요. 더 들어보면 도움이 될 거예요." },
 
-        { "speaker": "내레이션", "text": "잡음이 다시 커졌다 작아지길 반복한다. 몇 초 후, 다른 조각이 이어 재생된다." },
+        { "speaker": "내레이션", "text": "잡음이 다시 커졌다 작아지길 반복한다. 몇 초 후, 다른 조각이 이어 재생된다.", "fx": "shadowflash" },
         { "speaker": "R-07 [로그 07]", "text": "...관리자가 준 좌표가, 실제 도면이랑 안 맞는다. 다시 한번 확인해야겠다.", "typingProfile": "decelerating" },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(도면이 안 맞았다고?)" },
         { "speaker": "관리자", "text": "오래된 자료라 오차가 있었던 것뿐이에요. 그때 다 정리된 문제입니다." },
@@ -175,11 +175,11 @@ window.CASE_DATA = {
         { "id": "alley_door", "left": "59%", "top": "50%", "width": "7%", "height": "11%", "closeup": "assets/closeups/alley-door.png", "label": "골목 안쪽 철문", "discoveryText": "자물쇠 옆, 손톱으로 눌러쓴 낙서: '배지 번호, 거꾸로'." }
       ],
       "lines": [
-        { "speaker": "내레이션", "text": "신문 스크랩에 적힌 주소를 따라 병원 밖으로 나온다. 비가 내리고 있다.", "fx": "shadowflash" },
+        { "speaker": "내레이션", "text": "신문 스크랩에 적힌 주소를 따라 병원 밖으로 나온다. 비가 내리고 있다." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "{statLine}" },
         { "speaker": "관리자", "text": "여기까지 오셨네요. 좋습니다 — 다음 단서는 이 근처에 있을 거예요." },
         { "character": "{gender}-neutral", "position": "left", "speaker": "조사관(나)", "text": "(생각보다 위치를 정확히 아네.)" },
-        { "speaker": "내레이션", "text": "젖은 아스팔트 위로 가로등 불빛이 흔들린다. 골목 안쪽, 쓰레기통 사이에 뭔가 끼여 있다." },
+        { "speaker": "내레이션", "text": "젖은 아스팔트 위로 가로등 불빛이 흔들린다. 골목 안쪽, 쓰레기통 사이에 뭔가 끼여 있다.", "fx": "shadowflash" },
         {
           "speaker": "내레이션",
           "text": "찢어진 사진 한 장. 두 사람이 함께 있었던 것 같은데, 한쪽 얼굴이 완전히 뜯겨나가 있다.",
@@ -293,7 +293,7 @@ window.CASE_DATA = {
         },
         { "speaker": "관리자", "text": "...그런 것도 갖고 있었군요. 몰랐던 부분이네요." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "이번엔 진짜로 몰랐던 것처럼 들리는데." },
-        { "speaker": "내레이션", "text": "재생 버튼을 누른다." },
+        { "speaker": "내레이션", "text": "재생 버튼을 누른다.", "fx": "shadowflash" },
         { "speaker": "", "text": "[PLAYING PERSONAL LOG — UNLISTED]", "effect": "decode" },
         { "speaker": "R-07 [개인 로그]", "text": "...관리자 몰래 이걸 남긴다. 혹시 몰라서.", "typingProfile": "decelerating" },
         { "speaker": "R-07 [개인 로그]", "text": "그 사람 목소리, 어딘가 익숙하다. 처음부터 그랬는데, 이제야 왜인지 알 것 같다.", "typingProfile": "decelerating" },
@@ -402,7 +402,7 @@ window.CASE_DATA = {
       "background": "assets/backgrounds/research-facility.png",
       "bgm": "assets/bgm/lab-interference.mp3",
       "lines": [
-        { "speaker": "내레이션", "text": "노트 사이사이, 날짜 없는 메모 조각들이 흩어져 있다. 순서가 뒤죽박죽이다.", "fx": "shadowflash" },
+        { "speaker": "내레이션", "text": "노트 사이사이, 날짜 없는 메모 조각들이 흩어져 있다. 순서가 뒤죽박죽이다." },
         {
           "speaker": "내레이션",
           "text": "조각들을 시간 순서대로 맞춰본다.",
@@ -421,7 +421,7 @@ window.CASE_DATA = {
             "onSuccessSetStat": { "knowledge": 1 }
           }
         },
-        { "speaker": "내레이션", "text": "순서를 맞추자, 지금까지 조각조각 들었던 로그들이 하나의 흐름으로 이어진다 — 의심 → 자기 위안 → 확신." },
+        { "speaker": "내레이션", "text": "순서를 맞추자, 지금까지 조각조각 들었던 로그들이 하나의 흐름으로 이어진다 — 냉정한 보고 → 의심 → 자기 위안 → 확신." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(처음부터 끝까지, 무너지고 있었다.)" }
       ],
       "next": "confrontation"
@@ -434,7 +434,7 @@ window.CASE_DATA = {
         { "speaker": "관리자", "text": "...다 보셨군요.", "setFlag": { "confrontation_seen": true } },
         { "character": "{gender}-neutral", "position": "left", "speaker": "조사관(나)", "text": "이제 좀 확실해졌습니다." },
         { "speaker": "관리자", "text": "(아주 짧게, 목소리가 한 번 갈라진다) 저는— 저는 그냥, 관리자였습니다.", "fx": "shake" },
-        { "speaker": "관리자", "text": "(목소리가 이상하게 겹쳐 들린다) 그냥... 편해지세요." },
+        { "speaker": "관리자", "text": "(목소리가 이상하게 겹쳐 들린다) 그냥... 편해지세요.", "fx": "shadowflash" },
         {
           "speaker": "내레이션",
           "text": "머릿속이 갑자기 무거워진다. 누군가 억지로 생각을 밀어넣으려 한다.",

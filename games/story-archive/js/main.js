@@ -210,6 +210,8 @@ function showGenderSelect() {
 
 function bindGlobalControls() {
   document.getElementById('dialogue-box').addEventListener('click', onAdvance);
+  // 시스템 메시지 오버레이가 대사창을 완전히 덮으므로, 클릭으로 진행하려면 여기도 같은 핸들러가 필요
+  document.getElementById('system-message-overlay').addEventListener('click', onAdvance);
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Space' || e.code === 'Enter' || e.code === 'ArrowRight') onAdvance();
     if (e.code === 'ArrowLeft') goBack();
@@ -375,6 +377,7 @@ function enterScene(sceneId, resuming = false) {
 
   ui.setBackground(CASE_BASE + scene.background);
   ui.clearCharacters();
+  ui.hideSystemMessage();
   sound.playBgm(scene.bgm ? CASE_BASE + scene.bgm : null);
   // 3-2: 장소 이동 시 발소리 — 최초 진입(프롤로그)이나 세이브 이어하기 시에는 재생하지 않음
   if (!resuming && sceneId !== sceneData.start) {
@@ -409,14 +412,19 @@ function onExamineHotspot(spot) {
 // ---- 수사노트 (1-3): 지금까지 모은 아이템 + P&C 발견물을 한 곳에서 보여주고,
 // 스토리 진행에 따라 갱신되는 "조사관의 메모"를 함께 보여준다. 엔딩 이후에만 열리는
 // 기존 "기록보관소"(journal)와 달리 플레이 도중 언제든 열 수 있다.
+// 발견 당시 메모를 지우고 새 메모로 "교체"하면 뭐가 왜 바뀌었는지 알아보기 힘들다는 피드백 —
+// 대신 처음 발견했을 때 메모는 그대로 남기고, 조건을 만족한 갱신 내용을 아래에 이어붙여서
+// "점점 채워지는" 형태로 보여준다. updates가 없는 단순 메모는 기존처럼 한 줄만 표시.
 function getNoteText(id, fallback) {
   const def = sceneData.notes && sceneData.notes[id];
   if (!def) return fallback;
-  let text = def.baseNote;
-  (def.updates || []).forEach((u) => {
-    if (state.evaluateCondition(u.condition)) text = u.text;
+  const updates = def.updates || [];
+  if (updates.length === 0) return def.baseNote;
+  const parts = [`[처음 발견했을 때]\n${def.baseNote}`];
+  updates.forEach((u) => {
+    if (state.evaluateCondition(u.condition)) parts.push(`[${u.label || '그 이후'}]\n${u.text}`);
   });
-  return text;
+  return parts.join('\n\n');
 }
 
 function collectNoteEntries() {
@@ -551,23 +559,25 @@ async function playLines(scene, index) {
     ui.setCharacter(pos, CASE_BASE + `assets/characters/${resolvedChar}.png`);
   }
 
-  // 화자 기반 자동 sfx + D: 관리자 실루엣 — 관리자 대사는 무전 클릭음(또렷하게) + 검은 실루엣 등장,
-  // R-07 로그 재생은 테이프 클릭음. 다른 화자로 넘어가면 실루엣은 다시 사라짐.
+  // 화자 기반 자동 sfx — 관리자 대사는 무전 클릭음(또렷하게), R-07 로그 재생은 테이프 클릭음
   if (line.speaker === '관리자') {
     sound.playSfx(CASE_BASE + 'assets/sfx/radio-click.mp3', 1.0);
-    ui.showAdminSilhouette(CASE_BASE + 'assets/characters/manager-silhouette.png');
-  } else {
-    ui.hideAdminSilhouette();
-    if (line.speaker && line.speaker.startsWith('R-07')) {
-      sound.playSfx(CASE_BASE + 'assets/sfx/tape-click.mp3');
-    }
+  } else if (line.speaker && line.speaker.startsWith('R-07')) {
+    sound.playSfx(CASE_BASE + 'assets/sfx/tape-click.mp3');
   }
 
   const resolvedText = resolveText(line.text);
-  if (line.effect === 'decode') {
-    await ui.decodeLine(line.speaker, resolvedText);
+  // speaker가 빈 문자열 — "누가 하는 말"이 아니라 시스템이 보여주는 메시지이므로
+  // 하단 대사창 대신 화면 중앙 오버레이에 표시 (기존 노이즈-디코딩 연출은 그대로 유지)
+  if (line.speaker === '') {
+    await ui.showSystemMessage(resolvedText);
   } else {
-    await ui.typeLine(line.speaker, resolvedText, line.typingProfile);
+    ui.hideSystemMessage();
+    if (line.effect === 'decode') {
+      await ui.decodeLine(line.speaker, resolvedText);
+    } else {
+      await ui.typeLine(line.speaker, resolvedText, line.typingProfile);
+    }
   }
   if (line.highlight) ui.pulseHighlight();
   ui.appendLog(line.speaker, resolvedText);
@@ -696,14 +706,15 @@ function showHistoryEntry(pos) {
     const resolvedChar = entry.character.replace('{gender}', state.playerGender);
     ui.setCharacter(side, CASE_BASE + `assets/characters/${resolvedChar}.png`);
   }
-  // D: 되감기로 관리자 대사를 다시 볼 때도 실루엣/화자색 일관되게 유지
-  if (entry.speaker === '관리자') {
-    ui.showAdminSilhouette(CASE_BASE + 'assets/characters/manager-silhouette.png');
+  // 시스템 메시지를 되감아 다시 볼 때도 중앙 오버레이로 표시
+  if (entry.speaker === '') {
+    ui.els.systemMessageText.textContent = entry.text;
+    ui.els.systemMessageOverlay.classList.add('is-visible');
   } else {
-    ui.hideAdminSilhouette();
+    ui.hideSystemMessage();
+    ui.setSpeaker(entry.speaker);
+    ui.els.dialogueText.textContent = entry.text;
   }
-  ui.setSpeaker(entry.speaker);
-  ui.els.dialogueText.textContent = entry.text;
   ui.isTyping = false;
   pendingAdvance = () => advanceLine();
 }

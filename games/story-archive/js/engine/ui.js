@@ -15,9 +15,10 @@ class UIManager {
       background: root.querySelector('#bg-layer'),
       charLeft: root.querySelector('#char-left'),
       charRight: root.querySelector('#char-right'),
-      adminSilhouette: root.querySelector('#admin-silhouette'),
       speakerName: root.querySelector('#speaker-name'),
       dialogueText: root.querySelector('#dialogue-text'),
+      systemMessageOverlay: root.querySelector('#system-message-overlay'),
+      systemMessageText: root.querySelector('#system-message-text'),
       choices: root.querySelector('#choices-layer'),
       logPanel: root.querySelector('#log-panel'),
       logList: root.querySelector('#log-list'),
@@ -117,44 +118,43 @@ class UIManager {
     if (el.style.backgroundImage === newBg && el.style.opacity === '1') return;
 
     if (el.style.opacity === '1' && el.style.backgroundImage) {
-      // 표정 전환 크로스페이드: 살짝 페이드아웃 → 이미지 교체 → 페이드인
+      // 표정 전환 크로스페이드: 살짝 페이드아웃 → 이미지 교체 → 페이드인 (이미 화면에 있던 상태라
+      // 슬라이드는 넣지 않음 — 매 표정 변화마다 들어왔다 나가는 것처럼 보이면 산만함)
       el.style.opacity = '0';
       setTimeout(() => {
         el.style.backgroundImage = newBg;
         el.style.opacity = '1';
       }, 160);
     } else {
+      // 화면에 없던 상태에서 새로 등장 — 왼쪽 슬롯은 왼쪽에서, 오른쪽 슬롯은 오른쪽에서
+      // 슥 들어오게 해서 자리에 따른 방향성을 줌.
+      // char-sprite--right는 CSS에서 scaleX(-1)로 좌우반전돼 있으므로, translateX를 먼저
+      // 적용한 뒤 scaleX(-1)을 이어붙여야(반전 전 좌표계 기준 이동) 화면상 방향이 맞음.
+      const fromX = slot === 'left' ? '-30px' : '30px';
+      const mirror = slot === 'right' ? ' scaleX(-1)' : '';
+      el.style.transition = 'none';
+      el.style.transform = `translateX(${fromX})${mirror}`;
+      void el.offsetWidth; // reflow
+      el.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
       el.style.backgroundImage = newBg;
       el.style.opacity = '1';
+      el.style.transform = `translateX(0)${mirror}`;
     }
   }
 
   clearCharacters() {
     this.setCharacter('left', null);
     this.setCharacter('right', null);
-    this.hideAdminSilhouette();
   }
 
-  // D: 화자 이름 표시 + 관리자 대사만 차갑고 기계적인 색으로 구분 (타이핑/디코딩/되감기 공통 경로)
+  // 화자 이름 표시 + 대사창 자체를 화자에 따라 다르게 배치/스타일링.
+  // 관리자는 이미지 없이 "대사창이 오른쪽에, 청록/글리치 톤으로 뜬다"는 것만으로
+  // 실체 없는 존재라는 느낌을 줌 (기존 검은 실루엣 이미지는 어색해서 제거).
   setSpeaker(speaker) {
     this.els.speakerName.textContent = speaker || '';
-    this.els.speakerName.classList.toggle('is-admin-speaker', speaker === '관리자');
-  }
-
-  // D: 관리자가 말하는 동안 화면 구석에 작고 흐릿한 검은 실루엣을 띄워 "누가 말하는지"만
-  // 구분시키고 정체는 드러내지 않음 (001~003 공통 이미지 재사용 예정)
-  showAdminSilhouette(src) {
-    const el = this.els.adminSilhouette;
-    if (!el) return;
-    const newBg = `url("${src}")`;
-    if (el.style.backgroundImage !== newBg) el.style.backgroundImage = newBg;
-    el.style.opacity = '0.55';
-  }
-
-  hideAdminSilhouette() {
-    const el = this.els.adminSilhouette;
-    if (!el) return;
-    el.style.opacity = '0';
+    const isAdmin = speaker === '관리자';
+    this.els.speakerName.classList.toggle('is-admin-speaker', isAdmin);
+    this.els.dialogueBox.classList.toggle('is-admin', isAdmin);
   }
 
   showVersion(text) {
@@ -282,6 +282,57 @@ class UIManager {
     });
   }
 
+  // speaker가 빈 문자열인 "시스템 메시지" 전용 — 하단 대사창이 아니라 화면 중앙 별도 박스에
+  // decodeLine과 같은 노이즈-스크램블 연출로 표시. 개행은 스크램블 대상에서 제외해서
+  // [PROFILE REGISTERED] 같은 여러 줄짜리 메시지도 레이아웃이 흔들리지 않게 함.
+  showSystemMessage(text, duration = 900) {
+    return new Promise((resolve) => {
+      this.els.systemMessageOverlay.classList.add('is-visible');
+      this.isTyping = true;
+
+      if (this.skipMode) {
+        this.els.systemMessageText.textContent = text;
+        this.isTyping = false;
+        resolve();
+        return;
+      }
+
+      this._finishTyping = () => {
+        clearInterval(this._systemMessageTimer);
+        this.els.systemMessageText.textContent = text;
+        this.isTyping = false;
+        this._finishTyping = null;
+        resolve();
+      };
+
+      const noiseChars = '!<>-_\\/[]{}—=+*^?#$%&';
+      const el = this.els.systemMessageText;
+      let frame = 0;
+      const totalFrames = Math.max(8, Math.floor(duration / 40));
+      this._systemMessageTimer = setInterval(() => {
+        frame++;
+        const revealCount = Math.floor((frame / totalFrames) * text.length);
+        let out = '';
+        for (let i = 0; i < text.length; i++) {
+          if (i < revealCount || text[i] === ' ' || text[i] === '\n') out += text[i];
+          else out += noiseChars[Math.floor(Math.random() * noiseChars.length)];
+        }
+        el.textContent = out;
+        if (frame >= totalFrames) {
+          clearInterval(this._systemMessageTimer);
+          el.textContent = text;
+          this.isTyping = false;
+          this._finishTyping = null;
+          resolve();
+        }
+      }, 40);
+    });
+  }
+
+  hideSystemMessage() {
+    this.els.systemMessageOverlay.classList.remove('is-visible');
+  }
+
   // 화면 가장자리에서 붉은 기운이 번지는 연출 (공포 임계치 등에 사용)
   bloodBleed() {
     this.root.classList.add('screen-bloodbleed');
@@ -307,14 +358,19 @@ class UIManager {
     setTimeout(() => this.root.classList.remove('screen-shake'), 400);
   }
 
-  // 2-2: "그림자 섬광" — 예측 불가능한 타이밍에 왜곡된 형체가 스쳐 지나가는 리미널호러 연출.
-  // 페이드 없이 즉시 나타났다 사라져야 하므로 CSS transition 없는 opacity 직접 토글로 구현.
-  flashShadow(src, duration = 200) {
+  // 2-2: "그림자 섬광" — 예측 불가능한 타이밍에 왜곡된 형체가 화면을 슥 스쳐 지나가는
+  // 리미널호러 연출. 화면 중앙에 딱 나타났다 사라지면 렌더링 버그처럼 보이기 쉬워서,
+  // 아주 흐릿하게(blur) 만들고 좌→우 또는 우→좌로 천천히 드리프트하며 지나가게 함.
+  flashShadow(src, duration = 900) {
     const el = this.els.shadowFlashLayer;
     if (!el) return;
     el.style.backgroundImage = `url("${src}")`;
-    el.style.opacity = '1';
-    setTimeout(() => { el.style.opacity = '0'; }, duration);
+    el.style.top = `${8 + Math.random() * 45}%`;
+    const cls = Math.random() < 0.5 ? 'sweep-ltr' : 'sweep-rtl';
+    el.classList.remove('sweep-ltr', 'sweep-rtl');
+    void el.offsetWidth; // reflow — 연달아 발동돼도 애니메이션이 재시작되게 함
+    el.classList.add(cls);
+    setTimeout(() => el.classList.remove(cls), duration);
   }
 
   // 2-1 QTE 실패 등 "완전 암전" 순간 연출
