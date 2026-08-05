@@ -7,7 +7,7 @@ class UIManager {
     this.root = root;
     this.typingSpeed = 22; // ms per char
     this.isTyping = false;
-    this.skipRequested = false;
+    this.skipMode = false; // 3-1: SKIP 버튼 토글 — 켜져있는 동안 타이핑을 즉시 완성 처리
     this.autoMode = false;
     this._typingTimer = null;
 
@@ -15,6 +15,7 @@ class UIManager {
       background: root.querySelector('#bg-layer'),
       charLeft: root.querySelector('#char-left'),
       charRight: root.querySelector('#char-right'),
+      adminSilhouette: root.querySelector('#admin-silhouette'),
       speakerName: root.querySelector('#speaker-name'),
       dialogueText: root.querySelector('#dialogue-text'),
       choices: root.querySelector('#choices-layer'),
@@ -28,10 +29,14 @@ class UIManager {
       itemPopupLabel: root.querySelector('#item-popup-label'),
       itemPopupBtn: root.querySelector('#item-popup-btn'),
 
+      shadowFlashLayer: root.querySelector('#shadow-flash-layer'),
+      blackoutLayer: root.querySelector('#blackout-layer'),
+
       hotspotLayer: root.querySelector('#hotspot-layer'),
       closeupOverlay: root.querySelector('#closeup-overlay'),
       closeupImg: root.querySelector('#closeup-img'),
       closeupLabel: root.querySelector('#closeup-label'),
+      closeupDiscovery: root.querySelector('#closeup-discovery'),
       closeupCloseBtn: root.querySelector('#closeup-close-btn'),
     };
 
@@ -39,9 +44,14 @@ class UIManager {
   }
 
   // P&C 탐색 핫스팟 — 대화 진행과 무관하게 언제든 열고 닫을 수 있는 비차단 팝업
-  showCloseup(src, label) {
+  // discoveryText: 1-4 — P&C에서만 얻을 수 있는 실제 단서 텍스트 (없으면 영역 자체를 숨김)
+  showCloseup(src, label, discoveryText) {
     this.els.closeupImg.style.backgroundImage = `url("${src}")`;
     this.els.closeupLabel.textContent = label || '';
+    if (this.els.closeupDiscovery) {
+      this.els.closeupDiscovery.textContent = discoveryText || '';
+      this.els.closeupDiscovery.style.display = discoveryText ? '' : 'none';
+    }
     this.els.closeupOverlay.classList.add('is-visible');
   }
 
@@ -122,6 +132,29 @@ class UIManager {
   clearCharacters() {
     this.setCharacter('left', null);
     this.setCharacter('right', null);
+    this.hideAdminSilhouette();
+  }
+
+  // D: 화자 이름 표시 + 관리자 대사만 차갑고 기계적인 색으로 구분 (타이핑/디코딩/되감기 공통 경로)
+  setSpeaker(speaker) {
+    this.els.speakerName.textContent = speaker || '';
+    this.els.speakerName.classList.toggle('is-admin-speaker', speaker === '관리자');
+  }
+
+  // D: 관리자가 말하는 동안 화면 구석에 작고 흐릿한 검은 실루엣을 띄워 "누가 말하는지"만
+  // 구분시키고 정체는 드러내지 않음 (001~003 공통 이미지 재사용 예정)
+  showAdminSilhouette(src) {
+    const el = this.els.adminSilhouette;
+    if (!el) return;
+    const newBg = `url("${src}")`;
+    if (el.style.backgroundImage !== newBg) el.style.backgroundImage = newBg;
+    el.style.opacity = '0.55';
+  }
+
+  hideAdminSilhouette() {
+    const el = this.els.adminSilhouette;
+    if (!el) return;
+    el.style.opacity = '0';
   }
 
   showVersion(text) {
@@ -129,12 +162,21 @@ class UIManager {
   }
 
   // 대사 한 줄 출력 (타이핑 효과 포함). 완료 시 resolve.
-  typeLine(speaker, text) {
+  // N: profile === 'decelerating'이면 처음엔 빠르고 정갈하다가 후반부로 갈수록 한 글자씩
+  // 느려지고, 마지막엔 글리치처럼 급히 마무리됨 (R-07/R-03 로그처럼 감정이 무너지는 대사용)
+  typeLine(speaker, text, profile) {
     return new Promise((resolve) => {
-      this.els.speakerName.textContent = speaker || '';
+      this.setSpeaker(speaker);
       this.els.dialogueText.textContent = '';
       this.isTyping = true;
-      this.skipRequested = false;
+
+      // SKIP 모드면 타이핑 애니메이션 없이 즉시 완성된 텍스트를 보여줌
+      if (this.skipMode) {
+        this.els.dialogueText.textContent = text;
+        this.isTyping = false;
+        resolve();
+        return;
+      }
 
       // 타이핑 도중 스킵 요청이 오면 이 함수로 즉시 완성 처리
       this._finishTyping = () => {
@@ -145,12 +187,18 @@ class UIManager {
         resolve();
       };
 
+      const total = text.length;
       let i = 0;
       const step = () => {
-        if (i < text.length) {
+        if (i < total) {
           this.els.dialogueText.textContent += text[i];
           i++;
-          this._typingTimer = setTimeout(step, this.typingSpeed);
+          let delay = this.typingSpeed;
+          if (profile === 'decelerating') {
+            const ratio = i / total;
+            delay = ratio > 0.85 ? this.typingSpeed * 0.4 : this.typingSpeed * (0.5 + ratio * 1.8);
+          }
+          this._typingTimer = setTimeout(step, delay);
         } else {
           this.isTyping = false;
           this._finishTyping = null;
@@ -201,7 +249,16 @@ class UIManager {
   // (예: [UNLOCKING FILE...] 같은 시스템 로그 라인에 사용)
   decodeLine(speaker, text, duration = 700) {
     return new Promise((resolve) => {
-      this.els.speakerName.textContent = speaker || '';
+      this.setSpeaker(speaker);
+
+      // SKIP 모드면 디코딩 애니메이션 없이 즉시 완성된 텍스트를 보여줌
+      if (this.skipMode) {
+        this.els.dialogueText.textContent = text;
+        this.isTyping = false;
+        resolve();
+        return;
+      }
+
       const noiseChars = '!<>-_\\/[]{}—=+*^?#$%&';
       const el = this.els.dialogueText;
       let frame = 0;
@@ -231,6 +288,15 @@ class UIManager {
     setTimeout(() => this.root.classList.remove('screen-bloodbleed'), 1400);
   }
 
+  // O: 아주 중요한 대사 1~2곳에만 제한적으로 쓰는 강조 펄스 — 텍스트 색이 짧게 핏빛으로
+  // 변했다가 원래 색으로 돌아옴 (남발 시 효과 죽음, 그림자섬광과 같은 원칙)
+  pulseHighlight() {
+    const el = this.els.dialogueText;
+    el.classList.remove('dialogue-highlight-pulse');
+    void el.offsetWidth; // reflow — 연달아 호출돼도 애니메이션이 재시작되게 함
+    el.classList.add('dialogue-highlight-pulse');
+  }
+
   flashScreen() {
     this.root.classList.add('screen-flash');
     setTimeout(() => this.root.classList.remove('screen-flash'), 180);
@@ -239,6 +305,24 @@ class UIManager {
   shakeScreen() {
     this.root.classList.add('screen-shake');
     setTimeout(() => this.root.classList.remove('screen-shake'), 400);
+  }
+
+  // 2-2: "그림자 섬광" — 예측 불가능한 타이밍에 왜곡된 형체가 스쳐 지나가는 리미널호러 연출.
+  // 페이드 없이 즉시 나타났다 사라져야 하므로 CSS transition 없는 opacity 직접 토글로 구현.
+  flashShadow(src, duration = 200) {
+    const el = this.els.shadowFlashLayer;
+    if (!el) return;
+    el.style.backgroundImage = `url("${src}")`;
+    el.style.opacity = '1';
+    setTimeout(() => { el.style.opacity = '0'; }, duration);
+  }
+
+  // 2-1 QTE 실패 등 "완전 암전" 순간 연출
+  flashBlackout(duration = 300) {
+    const el = this.els.blackoutLayer;
+    if (!el) return;
+    el.style.opacity = '1';
+    setTimeout(() => { el.style.opacity = '0'; }, duration);
   }
 }
 

@@ -21,6 +21,46 @@ let currentScene = null;
 let history = []; // { sceneId, lineIndex, speaker, text, character, position, background, bgm }
 let historyPos = -1; // history에서 현재 화면에 표시 중인 위치
 let lastRenderedSceneId = null; // 히스토리 이동 중 씬이 바뀌었는지 판단(배경/캐릭터/핫스팟 갱신 여부)에 사용
+let hotspotRegistry = {}; // 모든 씬의 hotspot을 id로 모아둔 맵 — 수사노트가 씬 경계 없이 발견물을 조회할 때 사용
+
+// C: 그림자 섬광(2-2) 쿨다운 — 이미 감정적 절정이 아닌 라인에만 고정 배치했지만(트리거 자체는
+// 여전히 신뢰), 스킵 모드 등으로 배치된 라인들을 짧은 시간에 연달아 지나칠 경우 남발되지 않도록
+// 세션 내 최소 재발동 간격을 둔다. QTE 실패 시의 flashShadow() 재사용은 이 쿨다운과 무관(별도 트리거).
+let lastShadowFlashTime = 0;
+const SHADOW_FLASH_COOLDOWN_MS = 2 * 60 * 1000;
+
+// 대사 텍스트 안의 플레이스홀더 치환:
+// {genderLabel} → 성별 선택 연출/엔딩 A 전용, {statLine} → 2-4 챕터 전환 시 스탯 기반 내면 대사
+function resolveText(text) {
+  if (!text) return text;
+  if (text === '{statLine}') return getStatPersonalityLine();
+  if (text.indexOf('{genderLabel}') !== -1) {
+    return text.replace(/\{genderLabel\}/g, state.playerGender === 'male' ? '남성' : '여성');
+  }
+  return text;
+}
+
+// 2-4: 스탯은 화면에 안 보이지만, 챕터 전환 시점마다 그때까지 가장 높은 스탯에 따라
+// 조사관의 내면을 한 줄로 체감시킨다. 동점 시 우선순위: knowledge > courage > trust > fear.
+const STAT_PERSONALITY_LINES = {
+  knowledge: '(혼잣말) ...하나씩 맞춰보면 답이 나올 거야.',
+  courage: '(혼잣말) ...망설일 시간 없어.',
+  trust: '(혼잣말) ...그래도 믿어보자.',
+  fear: '(혼잣말) ...손이 떨린다. 아무렇지 않은 척하자.',
+};
+function getStatPersonalityLine() {
+  const priority = ['knowledge', 'courage', 'trust', 'fear'];
+  let leader = 'knowledge';
+  let leaderVal = -Infinity;
+  priority.forEach((key) => {
+    const v = state.getStat(key);
+    if (v > leaderVal) {
+      leaderVal = v;
+      leader = key;
+    }
+  });
+  return STAT_PERSONALITY_LINES[leader];
+}
 
 function resetHistory() {
   history = [];
@@ -44,11 +84,18 @@ async function boot() {
     console.error('[main] CASE_DATA가 로드되지 않았습니다. index.html에 scene-data.js 스크립트가 포함되어 있는지 확인하세요.');
     return;
   }
+  Object.values(sceneData.scenes).forEach((scene) => {
+    (scene.hotspots || []).forEach((spot) => { hotspotRegistry[spot.id] = spot; });
+  });
 
   bindGlobalControls();
   document.getElementById('btn-sound').textContent = sound.enabled ? '🔊 사운드' : '🔇 사운드';
   document.getElementById('btn-sfx').textContent = sound.sfxEnabled ? '🔔 효과음' : '🔕 효과음';
   document.getElementById(sound.bgmMode === 'theme' ? 'bgm-mode-theme' : 'bgm-mode-scene').checked = true;
+
+  // H: URL 파라미터를 직접 조작해 들어오는 등 이 기기에 로컬 세이브가 없거나 오래된 경우에도
+  // 로그인된 계정의 엔딩 수집 기록만큼은 항상 먼저 확보해둔다 (아래 분기 전부에 안전망으로 적용됨)
+  await loadCloudEndingSafety();
 
   const params = new URLSearchParams(window.location.search);
   if (params.get('continue') === '1' && state.hasSave('auto')) {
@@ -62,6 +109,34 @@ async function boot() {
     showContinancePrompt();
   } else {
     startNewGame();
+  }
+}
+
+// H: 로그인된 사용자가 있다면 클라우드에 저장된 ending_* 플래그/endingRecords를 미리 읽어와
+// 전역에 보관해둔다. startNewGame()/resumeSavedGame() 양쪽 모두 이 값을 항상 병합하므로,
+// URL 파라미터가 어떤 조합으로 들어오든(정상/비정상 모두) 엔딩 수집 기록은 유실되지 않는다.
+let pendingCloudEndingFlags = null;
+let pendingCloudEndingRecords = null;
+
+function pickEndingFlags(flags) {
+  const out = {};
+  Object.keys(flags || {}).forEach((k) => {
+    if (k.startsWith('ending_')) out[k] = flags[k];
+  });
+  return out;
+}
+
+async function loadCloudEndingSafety() {
+  const userId = window.CloudAuth && window.CloudAuth.getCurrentUser();
+  if (!userId || !window.CloudAuth.isCloudAvailable()) return;
+  try {
+    const res = await window.CloudAuth.getUserSaveData(userId);
+    if (res.ok && res.saveData) {
+      pendingCloudEndingFlags = pickEndingFlags(res.saveData.flags);
+      pendingCloudEndingRecords = res.saveData.endingRecords || null;
+    }
+  } catch (e) {
+    console.warn('[main] 클라우드 엔딩 기록 확인 실패(로컬 상태로 계속 진행):', e);
   }
 }
 
@@ -83,34 +158,26 @@ function showContinancePrompt() {
 // (사건이 끝난 상태이므로) 엔딩 화면을 다시 띄우는 대신 새 회차를 시작한다.
 function resumeSavedGame() {
   state.load('auto');
+  // H: 로컬 세이브를 불러온 뒤에도 클라우드 쪽 엔딩 기록이 더 최신/많을 수 있으니 병합
+  if (pendingCloudEndingFlags) state.flags = { ...state.flags, ...pendingCloudEndingFlags };
+  if (pendingCloudEndingRecords) state.endingRecords = { ...state.endingRecords, ...pendingCloudEndingRecords };
+
   const savedScene = sceneData.scenes[state.currentSceneId];
   if (savedScene && savedScene.ending) {
-    startFreshRunKeepingEndings();
+    startNewGame();
   } else {
     resetHistory();
     enterScene(state.currentSceneId, true);
   }
 }
 
+// 완전 초기화(state.reset)는 하되, 지금까지 모은 엔딩 달성 기록(ending_*)과 엔딩별 스냅샷
+// (endingRecords)은 로컬+클라우드 양쪽에서 항상 보존해서 새로 시작한다 — "게임 입장"으로
+// 재진입하거나 URL 파라미터를 직접 조작해 들어오는 등 어떤 경로로 여기 도달했든,
+// 로드맵/달성도/지금까지의 기록이 유실되지 않도록 하는 유일한 "새 회차 시작" 진입점.
 function startNewGame() {
-  state.reset();
-  resetHistory();
-  if (!state.playerGender) {
-    showGenderSelect();
-  } else {
-    enterScene(sceneData.start);
-  }
-}
-
-// 완전 초기화(state.reset)는 하되, 이전 회차에서 모은 엔딩 달성 기록(ending_*)과
-// 엔딩별 스냅샷(endingRecords)은 보존해서 새로 시작한다 — "게임 입장"으로 재진입할 때
-// 로드맵/달성도/지금까지의 기록이 초기화되지 않도록.
-function startFreshRunKeepingEndings() {
-  const preservedEndingFlags = {};
-  Object.keys(state.flags || {}).forEach((key) => {
-    if (key.startsWith('ending_')) preservedEndingFlags[key] = state.flags[key];
-  });
-  const preservedEndingRecords = state.endingRecords || {};
+  const preservedEndingFlags = { ...pickEndingFlags(state.flags), ...(pendingCloudEndingFlags || {}) };
+  const preservedEndingRecords = { ...(state.endingRecords || {}), ...(pendingCloudEndingRecords || {}) };
   state.reset();
   state.flags = preservedEndingFlags;
   state.endingRecords = preservedEndingRecords;
@@ -195,13 +262,36 @@ function bindGlobalControls() {
     }
   });
 
-  document.getElementById('btn-skip').addEventListener('click', () => {
-    ui.skipRequested = true;
+  document.getElementById('btn-skip').addEventListener('click', (e) => {
+    ui.skipMode = !ui.skipMode;
+    e.target.classList.toggle('is-active', ui.skipMode);
+    if (ui.skipMode === true && pendingAdvance) {
+      const fn = pendingAdvance;
+      pendingAdvance = null;
+      fn();
+    }
   });
 
   document.getElementById('btn-journal').addEventListener('click', () => renderJournal());
   document.getElementById('btn-journal-close').addEventListener('click', () => {
     document.getElementById('journal-overlay').classList.remove('is-visible');
+  });
+
+  document.getElementById('btn-notes').addEventListener('click', () => renderInvestigationNotes());
+  document.getElementById('btn-notes-close').addEventListener('click', () => {
+    document.getElementById('notes-overlay').classList.remove('is-visible');
+  });
+
+  // G: 게임 진행 중 타이틀로 돌아가기 (persist()가 매 라인마다 이미 자동 저장하므로 데이터 손실 없음)
+  document.getElementById('btn-title').addEventListener('click', () => {
+    document.getElementById('title-confirm-overlay').classList.add('is-visible');
+  });
+  document.getElementById('btn-title-confirm-no').addEventListener('click', () => {
+    document.getElementById('title-confirm-overlay').classList.remove('is-visible');
+  });
+  document.getElementById('btn-title-confirm-yes').addEventListener('click', () => {
+    persist();
+    window.location.href = 'index.html';
   });
 
   document.getElementById('btn-ending-title').addEventListener('click', () => {
@@ -286,6 +376,10 @@ function enterScene(sceneId, resuming = false) {
   ui.setBackground(CASE_BASE + scene.background);
   ui.clearCharacters();
   sound.playBgm(scene.bgm ? CASE_BASE + scene.bgm : null);
+  // 3-2: 장소 이동 시 발소리 — 최초 진입(프롤로그)이나 세이브 이어하기 시에는 재생하지 않음
+  if (!resuming && sceneId !== sceneData.start) {
+    sound.playSfx(CASE_BASE + 'assets/sfx/footstep.mp3');
+  }
   ui.renderHotspots(scene.hotspots, onExamineHotspot);
   updateFearOverlay(); // 세이브 이어하기 등으로 fear가 이미 임계치를 넘은 상태로 진입할 수도 있으므로 씬 진입 시에도 재확인
 
@@ -299,10 +393,110 @@ function enterScene(sceneId, resuming = false) {
 }
 
 // P&C 탐색 핫스팟 클릭 — 대사 진행과 무관하게 즉시 클로즈업을 보여줌 (필수 진행 요소 아님)
+// discoveryText/onDiscoverSetStat: 1-4 — P&C를 순수 감상용이 아니라 실제 단서/보상 수단으로 만듦
 function onExamineHotspot(spot) {
-  ui.showCloseup(CASE_BASE + spot.closeup, spot.label || '');
-  state.setFlag(`examined_${spot.id}`, true);
+  const alreadyExamined = state.hasFlag(`examined_${spot.id}`);
+  ui.showCloseup(CASE_BASE + spot.closeup, spot.label || '', spot.discoveryText || '');
+  if (!alreadyExamined) {
+    state.setFlag(`examined_${spot.id}`, true);
+    if (spot.onDiscoverSetStat) {
+      Object.entries(spot.onDiscoverSetStat).forEach(([k, v]) => state.addStat(k, v));
+    }
+    persist();
+  }
+}
+
+// ---- 수사노트 (1-3): 지금까지 모은 아이템 + P&C 발견물을 한 곳에서 보여주고,
+// 스토리 진행에 따라 갱신되는 "조사관의 메모"를 함께 보여준다. 엔딩 이후에만 열리는
+// 기존 "기록보관소"(journal)와 달리 플레이 도중 언제든 열 수 있다.
+function getNoteText(id, fallback) {
+  const def = sceneData.notes && sceneData.notes[id];
+  if (!def) return fallback;
+  let text = def.baseNote;
+  (def.updates || []).forEach((u) => {
+    if (state.evaluateCondition(u.condition)) text = u.text;
+  });
+  return text;
+}
+
+function collectNoteEntries() {
+  const entries = [];
+  state.items.forEach((itemId) => {
+    const meta = sceneData.items[itemId];
+    if (!meta) return;
+    entries.push({ id: itemId, image: meta.image, label: meta.label, note: getNoteText(itemId, meta.label) });
+  });
+  Object.keys(state.flags)
+    .filter((f) => f.startsWith('examined_') && state.flags[f])
+    .forEach((flagKey) => {
+      const hotspotId = flagKey.slice('examined_'.length);
+      const hotspot = hotspotRegistry[hotspotId];
+      if (!hotspot) return;
+      entries.push({
+        id: hotspotId,
+        image: hotspot.closeup,
+        label: hotspot.label,
+        note: getNoteText(hotspotId, hotspot.discoveryText || hotspot.label),
+      });
+    });
+  return entries;
+}
+
+// B: 수사노트 업데이트 알림 배지 — 마지막으로 노트를 열었을 때와 비교해 새로 바뀐/추가된
+// 메모가 있으면 상단바 버튼에 펄싱 점을 띄운다. persist()가 거의 모든 상태 변화 지점에서
+// 호출되므로, 특정 조건마다 배지 로직을 따로 심을 필요 없이 여기 한 곳에서 항상 재계산한다.
+function checkNoteUpdates() {
+  const entries = collectNoteEntries();
+  const hasUnseen = entries.some((e) => state.seenNoteStates[e.id] !== e.note);
+  document.getElementById('btn-notes').classList.toggle('has-badge', hasUnseen);
+}
+
+function renderInvestigationNotes() {
+  const grid = document.getElementById('notes-grid');
+  const detailImg = document.getElementById('notes-detail-img');
+  const detailLabel = document.getElementById('notes-detail-label');
+  const detailText = document.getElementById('notes-detail-text');
+  grid.innerHTML = '';
+  detailImg.style.backgroundImage = '';
+  detailLabel.textContent = '';
+  detailText.textContent = '카드를 선택하면 조사관의 메모를 볼 수 있습니다.';
+
+  const entries = collectNoteEntries();
+  if (entries.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'journal-empty';
+    empty.textContent = '아직 기록할 단서가 없습니다.';
+    grid.appendChild(empty);
+  } else {
+    entries.forEach((entry, i) => {
+      const card = document.createElement('div');
+      card.className = 'journal-item-card notes-item-card';
+      const img = document.createElement('div');
+      img.className = 'journal-item-img';
+      img.style.backgroundImage = `url("${CASE_BASE + entry.image}")`;
+      const label = document.createElement('p');
+      label.className = 'journal-item-label';
+      label.textContent = entry.label;
+      card.appendChild(img);
+      card.appendChild(label);
+      card.addEventListener('click', () => {
+        grid.querySelectorAll('.notes-item-card').forEach((c) => c.classList.remove('is-selected'));
+        card.classList.add('is-selected');
+        detailImg.style.backgroundImage = `url("${CASE_BASE + entry.image}")`;
+        detailLabel.textContent = entry.label;
+        detailText.textContent = entry.note;
+      });
+      grid.appendChild(card);
+      if (i === 0) card.click();
+    });
+  }
+
+  // B: 노트를 실제로 열어봤으니 지금 시점의 메모 내용을 "확인함"으로 기록 — 배지 해제
+  entries.forEach((e) => { state.seenNoteStates[e.id] = e.note; });
+  document.getElementById('btn-notes').classList.remove('has-badge');
   persist();
+
+  document.getElementById('notes-overlay').classList.add('is-visible');
 }
 
 function currentLineIndexFromLog() {
@@ -336,6 +530,15 @@ async function playLines(scene, index) {
   if (line.fx === 'flash') ui.flashScreen();
   if (line.fx === 'shake') ui.shakeScreen();
   if (line.fx === 'bloodbleed') ui.bloodBleed();
+  if (line.fx === 'shadowflash') {
+    const now = Date.now();
+    if (now - lastShadowFlashTime >= SHADOW_FLASH_COOLDOWN_MS) {
+      lastShadowFlashTime = now;
+      ui.flashShadow(CASE_BASE + 'assets/vfx/shadow-flash.png');
+      sound.playImpact();
+    }
+  }
+  if (line.sfx) sound.playSfx(CASE_BASE + `assets/sfx/${line.sfx}.mp3`);
 
   if (line.condition && !state.evaluateCondition(line.condition)) {
     playLines(scene, index + 1);
@@ -348,25 +551,34 @@ async function playLines(scene, index) {
     ui.setCharacter(pos, CASE_BASE + `assets/characters/${resolvedChar}.png`);
   }
 
-  // 화자 기반 자동 sfx: 관리자 대사는 무전 클릭음, R-07 로그 재생은 테이프 클릭음
+  // 화자 기반 자동 sfx + D: 관리자 실루엣 — 관리자 대사는 무전 클릭음(또렷하게) + 검은 실루엣 등장,
+  // R-07 로그 재생은 테이프 클릭음. 다른 화자로 넘어가면 실루엣은 다시 사라짐.
   if (line.speaker === '관리자') {
-    sound.playSfx(CASE_BASE + 'assets/sfx/radio-click.mp3');
-  } else if (line.speaker && line.speaker.startsWith('R-07')) {
-    sound.playSfx(CASE_BASE + 'assets/sfx/tape-click.mp3');
+    sound.playSfx(CASE_BASE + 'assets/sfx/radio-click.mp3', 1.0);
+    ui.showAdminSilhouette(CASE_BASE + 'assets/characters/manager-silhouette.png');
+  } else {
+    ui.hideAdminSilhouette();
+    if (line.speaker && line.speaker.startsWith('R-07')) {
+      sound.playSfx(CASE_BASE + 'assets/sfx/tape-click.mp3');
+    }
   }
 
+  const resolvedText = resolveText(line.text);
   if (line.effect === 'decode') {
-    await ui.decodeLine(line.speaker, line.text);
+    await ui.decodeLine(line.speaker, resolvedText);
   } else {
-    await ui.typeLine(line.speaker, line.text);
+    await ui.typeLine(line.speaker, resolvedText, line.typingProfile);
   }
-  ui.appendLog(line.speaker, line.text);
-  state.pushLog(line.speaker, line.text, state.currentSceneId);
+  if (line.highlight) ui.pulseHighlight();
+  ui.appendLog(line.speaker, resolvedText);
+  state.pushLog(line.speaker, resolvedText, state.currentSceneId);
 
   if (line.addItem && line.itemImage) {
+    sound.playSfx(CASE_BASE + 'assets/sfx/item-chime.mp3');
     await ui.showItemPopup(CASE_BASE + line.itemImage, line.itemLabel || line.addItem, 'EVIDENCE ACQUIRED');
   } else if (line.itemReveal && line.itemImage) {
     // 이미 가진 아이템을 다시 펼쳐보는 연출 — 인벤토리에 새로 추가되지 않음, 반복 재생 가능
+    sound.playSfx(CASE_BASE + 'assets/sfx/paper-flip.mp3');
     await ui.showItemPopup(CASE_BASE + line.itemImage, line.itemLabel || '', 'PAGE REVEALED');
   }
 
@@ -383,11 +595,19 @@ async function playLines(scene, index) {
       if (line.puzzle.onSuccessSetStat) {
         Object.entries(line.puzzle.onSuccessSetStat).forEach(([k, v]) => state.addStat(k, v));
       }
+      // 2-1: QTE 성공 시 긴장이 확 풀리는 느낌을 주기 위해 bgm을 잠깐 죽였다가 복귀시킴
+      if (line.puzzle.type === 'qte') sound.duckBgm();
     } else if (!result.skipped) {
       // QTE 등 실패해도 다음으로 진행되는 퍼즐 타입에서 실패 페널티 적용
       if (line.puzzle.onFailSetFlag) state.setFlag(line.puzzle.onFailSetFlag, true);
       if (line.puzzle.onFailSetStat) {
         Object.entries(line.puzzle.onFailSetStat).forEach(([k, v]) => state.addStat(k, v));
+      }
+      // 2-1: QTE 실패 시 강한 연출 — 완전 암전 + 그림자 섬광 + 사운드 임팩트
+      if (line.puzzle.type === 'qte') {
+        ui.flashBlackout(300);
+        ui.flashShadow(CASE_BASE + 'assets/vfx/shadow-flash.png');
+        sound.playImpact();
       }
     }
   }
@@ -397,7 +617,7 @@ async function playLines(scene, index) {
     sceneId: state.currentSceneId,
     lineIndex: index,
     speaker: line.speaker,
-    text: line.text,
+    text: resolvedText,
     character: line.character,
     position: line.position,
     background: scene.background,
@@ -405,7 +625,9 @@ async function playLines(scene, index) {
   });
   historyPos = history.length - 1;
 
-  if (ui.autoMode === true) {
+  if (ui.skipMode === true) {
+    setTimeout(() => advanceLine(), 150);
+  } else if (ui.autoMode === true) {
     setTimeout(() => advanceLine(), 900);
   } else {
     pendingAdvance = () => advanceLine();
@@ -474,7 +696,13 @@ function showHistoryEntry(pos) {
     const resolvedChar = entry.character.replace('{gender}', state.playerGender);
     ui.setCharacter(side, CASE_BASE + `assets/characters/${resolvedChar}.png`);
   }
-  ui.els.speakerName.textContent = entry.speaker || '';
+  // D: 되감기로 관리자 대사를 다시 볼 때도 실루엣/화자색 일관되게 유지
+  if (entry.speaker === '관리자') {
+    ui.showAdminSilhouette(CASE_BASE + 'assets/characters/manager-silhouette.png');
+  } else {
+    ui.hideAdminSilhouette();
+  }
+  ui.setSpeaker(entry.speaker);
   ui.els.dialogueText.textContent = entry.text;
   ui.isTyping = false;
   pendingAdvance = () => advanceLine();
@@ -485,6 +713,7 @@ let pendingAdvance = null;
 // 로컬 저장 + (로그인 상태면) 클라우드 저장까지 함께 처리
 function persist() {
   state.save('auto');
+  checkNoteUpdates();
   const userId = window.CloudAuth && window.CloudAuth.getCurrentUser();
   if (userId) {
     const raw = localStorage.getItem(`story-archive:${CASE_ID}:auto`);
@@ -541,7 +770,9 @@ async function playReaction(text, nextSceneId) {
   });
   historyPos = history.length - 1;
 
-  if (ui.autoMode === true) {
+  if (ui.skipMode === true) {
+    setTimeout(() => advanceLine(), 150);
+  } else if (ui.autoMode === true) {
     setTimeout(() => advanceLine(), 900);
   } else {
     pendingAdvance = () => advanceLine();
@@ -550,13 +781,17 @@ async function playReaction(text, nextSceneId) {
 
 // 엔딩과 무관하게 공통으로 붙는 R-03 떡밥 — 어떤 엔딩으로 끝나든 동일하게 노출
 const ENDING_TEASER =
-  '기록을 정리하던 중, 오래된 로그 하나가 자동으로 딸려 올라온다.\n\n발신자 표기: R-03.\n\n...이 사건은, 아직 끝나지 않았다.';
+  '기록을 정리하던 중, 오래된 로그 하나가 자동으로 딸려 올라온다.\n\n발신자 표기: R-03. 기록 일자, R-07보다 한참 이전.\n\n...이 사건은, 아직 끝나지 않았다.';
+
+// 3-5: "완전한 기록" — 4개 엔딩을 전부 모았을 때만 노출되는 강화된 전용 티저 (002 설정 암시)
+const COMPLETE_RECORD_TEASER =
+  '[UNCLOSED FILE — SIGNAL DETECTED]\n\nR-03. 발신 위치, 산속. 좌표는 불명확하지만, 신호는 반복되고 있다.\n기상 기록: 폭우. 그날도, 그 이후로도 계속.\n\n이 사건들, R-07 하나로 끝나지 않는다.\n다음 파일이 곧 열릴 것이다.';
+const ALL_ENDING_IDS = ['truth', 'admin-hands', 'walked-away', 'accomplice'];
 
 function renderEnding(scene) {
   document.getElementById('ending-screen').classList.add('is-visible');
   document.getElementById('ending-title').textContent = scene.title || '엔딩';
-  document.getElementById('ending-body').textContent = (scene.lines || []).map((l) => l.text).join('\n\n');
-  document.getElementById('ending-teaser').textContent = ENDING_TEASER;
+  document.getElementById('ending-body').textContent = (scene.lines || []).map((l) => resolveText(l.text)).join('\n\n');
 
   // 시리즈 로드맵은 엔딩을 볼 때마다 접힌 상태로 초기화 (매번 처음부터 발견하는 재미를 위해)
   document.getElementById('roadmap-panel').classList.remove('is-visible');
@@ -564,6 +799,8 @@ function renderEnding(scene) {
   document.getElementById('roadmap-flavor').textContent = '';
 
   state.setFlag(`ending_${scene.endingId}`, true);
+  const hasAllEndings = ALL_ENDING_IDS.every((id) => state.flags[`ending_${id}`]);
+  document.getElementById('ending-teaser').textContent = hasAllEndings ? COMPLETE_RECORD_TEASER : ENDING_TEASER;
 
   // 해당 엔딩에 도달했을 당시의 아이템/플래그 스냅샷을 따로 보관해둔다.
   // 이후 다른 회차를 진행해 items/flags가 덮어써져도, 타이틀의 "지금까지의 기록"에서
@@ -583,5 +820,10 @@ function updateProgress() {
   const visited = Object.keys(state.flags).filter((f) => f.startsWith('visited_')).length;
   state.progressPercent = Math.min(100, Math.round((visited / total) * 100));
 }
+
+// M: 다른 탭으로 전환하면 탭 제목이 순간 바뀌었다가, 돌아오면 원래대로 — "게임이 지켜보고 있다"는 공포감
+document.addEventListener('visibilitychange', () => {
+  document.title = document.hidden ? '[CASE-001] 어디 보고 계십니까?' : 'Story Archive — CASE-001';
+});
 
 window.addEventListener('DOMContentLoaded', boot);

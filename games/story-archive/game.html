@@ -17,10 +17,14 @@
   <div id="bg-layer"></div>
   <div class="crt-scanlines"></div>
   <div class="crt-vignette"></div>
+  <div id="shadow-flash-layer"></div>
+  <div id="blackout-layer"></div>
 
   <!-- 캐릭터 레이어 -->
   <div id="char-left" class="char-sprite char-sprite--left"></div>
   <div id="char-right" class="char-sprite char-sprite--right"></div>
+  <!-- 관리자 검은 실루엣 (D) — 정체는 드러내지 않되 "지금 관리자가 말하고 있다"만 시각적으로 구분 -->
+  <div id="admin-silhouette" class="char-sprite char-sprite--right admin-silhouette"></div>
 
   <!-- Point & Click 탐색 핫스팟 -->
   <div id="hotspot-layer"></div>
@@ -33,7 +37,9 @@
       <button id="btn-skip" class="ctrl-btn" type="button">SKIP</button>
       <button id="btn-sound-settings" class="ctrl-btn" type="button">⚙ 사운드</button>
       <button id="btn-log" class="ctrl-btn" type="button">LOG</button>
+      <button id="btn-notes" class="ctrl-btn" type="button">📔 수사노트</button>
       <button id="btn-journal" class="ctrl-btn" type="button">단서노트</button>
+      <button id="btn-title" class="ctrl-btn" type="button">타이틀로</button>
     </div>
   </div>
 
@@ -65,6 +71,18 @@
       <div class="prompt-actions">
         <button id="btn-continue" class="ctrl-btn ctrl-btn--primary" type="button">이어보기</button>
         <button id="btn-new-game" class="ctrl-btn" type="button">처음부터</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- G: 게임 중 타이틀로 돌아가기 확인 -->
+  <div id="title-confirm-overlay">
+    <div class="prompt-box">
+      <p>[LEAVE SESSION?]</p>
+      <p class="prompt-sub">타이틀로 돌아갈까요?<br />진행 상황은 자동 저장되어 있으니 걱정하지 않으셔도 됩니다.</p>
+      <div class="prompt-actions">
+        <button id="btn-title-confirm-yes" class="ctrl-btn ctrl-btn--primary" type="button">타이틀로 돌아가기</button>
+        <button id="btn-title-confirm-no" class="ctrl-btn" type="button">취소</button>
       </div>
     </div>
   </div>
@@ -119,6 +137,25 @@
     </div>
   </div>
 
+  <!-- 수사 노트 (플레이 도중 언제든 열람 가능) -->
+  <div id="notes-overlay">
+    <div class="notes-box">
+      <div class="journal-header">
+        <span>[수사 노트]</span>
+        <button id="btn-notes-close" class="ctrl-btn" type="button">닫기 ✕</button>
+      </div>
+      <p class="journal-sub">지금까지 확보한 단서 — 클릭해서 조사관의 메모를 확인하세요</p>
+      <div id="notes-grid" class="journal-items"></div>
+      <div class="notes-detail">
+        <div id="notes-detail-img" class="notes-detail-img"></div>
+        <div class="notes-detail-body">
+          <p id="notes-detail-label" class="notes-detail-label"></p>
+          <p id="notes-detail-text" class="notes-detail-text">카드를 선택하면 조사관의 메모를 볼 수 있습니다.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 아카이브 단서 노트 -->
   <div id="journal-overlay">
     <div class="journal-box">
@@ -167,6 +204,7 @@
       <p class="closeup-tag">[CLOSE-UP]</p>
       <div id="closeup-img" class="closeup-img"></div>
       <p id="closeup-label" class="closeup-label"></p>
+      <p id="closeup-discovery" class="closeup-discovery"></p>
       <button id="closeup-close-btn" class="ctrl-btn ctrl-btn--primary" type="button">닫기</button>
     </div>
   </div>
@@ -214,14 +252,14 @@
     </div>
   </div>
 
-  <!-- QTE: 순간 반응 -->
+  <!-- QTE: 순간 반응 — 화면 자체가 위험 신호가 되는 연출 (2-1). 숨겨진 타겟을 직접 찾아 클릭해야 함 -->
   <div id="qte-overlay">
-    <div class="qte-box">
-      <p id="qte-prompt" class="qte-prompt"></p>
-      <button id="qte-target" class="qte-target" type="button">CLICK</button>
-      <div class="qte-timer-track"><div id="qte-bar" class="qte-timer-bar"></div></div>
-    </div>
+    <p id="qte-prompt" class="qte-prompt"></p>
+    <button id="qte-target" class="qte-target" type="button"></button>
   </div>
+
+  <!-- 퍼즐 오답 누적 시 강화 힌트 알림 (3-3) -->
+  <div id="puzzle-toast" class="puzzle-toast"></div>
 
   <div id="version-tag"></div>
 

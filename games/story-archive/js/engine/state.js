@@ -22,6 +22,7 @@ class GameState {
     this.items = [];
     this.flags = {};
     this.endingRecords = {}; // { [endingId]: { items, flags, achievedAt } } — 엔딩별 도달 당시 스냅샷
+    this.seenNoteStates = {}; // B: 수사노트 항목별로 마지막으로 열람했을 때의 메모 텍스트 (업데이트 배지 판단용)
     this.log = []; // { speaker, text }
     this.playerGender = null; // 'male' | 'female'
     this.startedAt = Date.now();
@@ -87,6 +88,7 @@ class GameState {
       items: this.items,
       flags: this.flags,
       endingRecords: this.endingRecords,
+      seenNoteStates: this.seenNoteStates,
       log: this.log,
       playerGender: this.playerGender,
       startedAt: this.startedAt,

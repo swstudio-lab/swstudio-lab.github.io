@@ -175,11 +175,57 @@ class SoundManager {
   }
 
   // src가 없으면 조용히 무시 (효과음 에셋 준비 전) — 전체 소리 OFF거나 효과음만 OFF여도 재생 안 함
-  playSfx(src) {
+  playSfx(src, volume = 0.8) {
     if (!this.enabled || !this.sfxEnabled || !src) return;
     const el = new Audio(src);
-    el.volume = 0.8;
+    el.volume = volume;
     el.play().catch(() => {});
+  }
+
+  // 저음 임팩트 + 노이즈 스침을 Web Audio로 즉석 합성 — 별도 파일 없이 QTE 실패/그림자 섬광 등
+  // "무언가 스쳐 지나갔다" 순간에 쓰는 짧은 충격음. 실패해도(구형 브라우저 등) 조용히 무시.
+  playImpact() {
+    if (!this.enabled || !this.sfxEnabled) return;
+    try {
+      const ctx = this._ctx || (this._ctx = new (window.AudioContext || window.webkitAudioContext)());
+      const now = ctx.currentTime;
+
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(130, now);
+      osc.frequency.exponentialRampToValueAtTime(35, now + 0.26);
+      const oscGain = ctx.createGain();
+      oscGain.gain.setValueAtTime(0.5, now);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+      osc.connect(oscGain).connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.3);
+
+      const bufferSize = Math.floor(ctx.sampleRate * 0.2);
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+      const noiseGain = ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.3, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+      noise.connect(noiseGain).connect(ctx.destination);
+      noise.start(now);
+    } catch (e) {
+      // Web Audio 미지원 환경 — 조용히 무시
+    }
+  }
+
+  // QTE 성공 등 "긴장이 풀리는" 순간 — bgm을 잠깐 죽였다가 자연스럽게 원래 볼륨으로 복귀
+  duckBgm(dip = 900) {
+    if (!this.bgmEl) return;
+    const original = this.BGM_VOLUME;
+    this._fadeVolume(this.bgmEl, this.bgmEl.volume, original * 0.25, 200, () => {
+      setTimeout(() => {
+        if (this.bgmEl) this._fadeVolume(this.bgmEl, this.bgmEl.volume, original, dip);
+      }, 250);
+    });
   }
 }
 

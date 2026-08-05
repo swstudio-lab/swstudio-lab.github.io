@@ -576,4 +576,9 @@ async function boot() {
   reveal(document.getElementById('auth-panel'));
 }
 
+// M: 다른 탭으로 전환하면 탭 제목이 순간 바뀌었다가, 돌아오면 원래대로 — "게임이 지켜보고 있다"는 공포감
+document.addEventListener('visibilitychange', () => {
+  document.title = document.hidden ? '[CASE-001] 어디 보고 계십니까?' : 'Story Archive';
+});
+
 window.addEventListener('DOMContentLoaded', boot);

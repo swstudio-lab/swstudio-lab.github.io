@@ -9,6 +9,7 @@
 class PuzzleManager {
   constructor(ui, root) {
     this.ui = ui;
+    this.root = root;
     this.els = {
       overlay: root.querySelector('#puzzle-overlay'),
       prompt: root.querySelector('#puzzle-prompt'),
@@ -35,7 +36,6 @@ class PuzzleManager {
       qteOverlay: root.querySelector('#qte-overlay'),
       qtePrompt: root.querySelector('#qte-prompt'),
       qteTarget: root.querySelector('#qte-target'),
-      qteBar: root.querySelector('#qte-bar'),
     };
   }
 
@@ -54,6 +54,27 @@ class PuzzleManager {
     }
     console.warn('[puzzle] 알 수 없는 퍼즐 타입, 건너뜀:', puzzleDef);
     return { success: true, skipped: true };
+  }
+
+  // F: 카드/조각 배치를 퍼즐이 열릴 때마다(재도전 포함) 새로 무작위화 — 내용을 안 읽고
+  // 위치만 외워서 푸는 것을 방지 (Fisher-Yates)
+  shuffleArray(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  // 3-3: 오답 3회 누적 시 [추가 힌트 발생] 알림 + 힌트 버튼 강조
+  showToast(text) {
+    const el = document.getElementById('puzzle-toast');
+    if (!el) return;
+    el.textContent = text;
+    el.classList.add('is-visible');
+    clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(() => el.classList.remove('is-visible'), 1800);
   }
 
   runCodePuzzle(def) {
@@ -109,28 +130,32 @@ class PuzzleManager {
     });
   }
 
-  // items: [{ id, label, image? }], pairs: [[idA, idB], ...], connectMessages: { "idA|idB"(정렬됨): "연결 시 문구" }, hint?: string
+  // items: [{ id, label, image? }], pairs: [[idA, idB], ...], connectMessages: { "idA|idB"(정렬됨): "연결 시 문구" },
+  // hint?: string(레벨1), hint2?: string(오답 3회 누적 후 레벨1을 대체하는 더 직접적인 힌트)
   runConnectPuzzle(def) {
     return new Promise((resolve) => {
-      const { prompt, items, pairs, connectMessages = {}, hint } = def;
+      const { prompt, items, pairs, connectMessages = {}, hint, hint2 } = def;
       const pairKey = (a, b) => [a, b].sort().join('|');
       const pairSet = new Set(pairs.map(([a, b]) => pairKey(a, b)));
       const connected = new Set();
       const cardEls = {};
       let selected = null;
       let hintShown = false;
+      let wrongCount = 0;
+      let hint2Unlocked = false;
 
       this.els.boardPrompt.textContent = prompt || '';
       this.els.boardFeedback.textContent = '';
       this.els.boardFeedback.classList.remove('is-ok');
       this.els.boardGrid.innerHTML = '';
       this.els.boardOverlay.classList.add('is-visible');
+      this.els.boardHintBtn.classList.remove('is-emphasized');
 
       const onHint = () => {
         if (!hint) return;
         hintShown = !hintShown;
         this.els.boardFeedback.classList.remove('is-ok');
-        this.els.boardFeedback.textContent = hintShown ? hint : '';
+        this.els.boardFeedback.textContent = hintShown ? (hint2Unlocked && hint2 ? hint2 : hint) : '';
       };
       this.els.boardHintBtn.addEventListener('click', onHint);
 
@@ -168,14 +193,20 @@ class PuzzleManager {
             }, 900);
           }
         } else {
+          wrongCount++;
           this.els.boardFeedback.classList.remove('is-ok');
           this.els.boardFeedback.textContent = '연관성이 보이지 않는다.';
           cardEls[selected].classList.remove('is-selected');
           selected = null;
+          if (wrongCount >= 3 && !hint2Unlocked && hint2) {
+            hint2Unlocked = true;
+            this.els.boardHintBtn.classList.add('is-emphasized');
+            this.showToast('[추가 힌트 발생]');
+          }
         }
       };
 
-      items.forEach((item) => {
+      this.shuffleArray(items).forEach((item) => {
         const card = document.createElement('div');
         card.className = 'board-card';
         if (item.image) {
@@ -195,18 +226,22 @@ class PuzzleManager {
     });
   }
 
-  // fragments: [{ id, text }], order: 정답 순서의 id 배열, hint?: string
+  // fragments: [{ id, text }], order: 정답 순서의 id 배열,
+  // hint?: string(레벨1), hint2?: string(오답 3회 누적 후 레벨1을 대체하는 더 직접적인 힌트)
   runSequencePuzzle(def) {
     return new Promise((resolve) => {
-      const { prompt, fragments, order, hint } = def;
-      const shuffled = [...fragments].sort(() => Math.random() - 0.5);
+      const { prompt, fragments, order, hint, hint2 } = def;
+      const shuffled = this.shuffleArray(fragments);
       let answer = [];
       let hintShown = false;
+      let wrongCount = 0;
+      let hint2Unlocked = false;
 
       this.els.seqPrompt.textContent = prompt || '';
       this.els.seqFeedback.textContent = '';
       this.els.seqFeedback.classList.remove('is-ok');
       this.els.seqOverlay.classList.add('is-visible');
+      this.els.seqHintBtn.classList.remove('is-emphasized');
 
       const renderTray = () => {
         this.els.seqTray.innerHTML = '';
@@ -257,11 +292,17 @@ class PuzzleManager {
             resolve({ success: true });
           }, 600);
         } else {
+          wrongCount++;
           this.els.seqFeedback.classList.remove('is-ok');
           this.els.seqFeedback.textContent = '순서가 맞지 않습니다. 다시 시도하세요.';
           answer = [];
           renderAnswer();
           renderTray();
+          if (wrongCount >= 3 && !hint2Unlocked && hint2) {
+            hint2Unlocked = true;
+            this.els.seqHintBtn.classList.add('is-emphasized');
+            this.showToast('[추가 힌트 발생]');
+          }
         }
       };
 
@@ -276,7 +317,7 @@ class PuzzleManager {
         if (!hint) return;
         hintShown = !hintShown;
         this.els.seqFeedback.classList.remove('is-ok');
-        this.els.seqFeedback.textContent = hintShown ? hint : '';
+        this.els.seqFeedback.textContent = hintShown ? (hint2Unlocked && hint2 ? hint2 : hint) : '';
       };
 
       const cleanup = () => {
@@ -295,24 +336,44 @@ class PuzzleManager {
     });
   }
 
-  // duration(ms) 안에 qte-target을 클릭하면 성공, 시간 초과되면 실패 — 실패해도 진행은 계속됨
+  // duration(ms) 안에 화면 속 숨겨진 qte-target을 찾아 클릭하면 성공, 시간 초과되면 실패
+  // (실패해도 진행은 계속됨). 남은 시간은 숫자/바가 아니라 화면 흔들림+붉은기 강도로만 체감됨.
   runQTE(def) {
     return new Promise((resolve) => {
       const duration = def.duration || 5000;
       this.els.qtePrompt.textContent = def.prompt || '지금 반응하라!';
       this.els.qteOverlay.classList.add('is-visible');
+      if (this.root) this.root.classList.add('qte-danger');
+      this.root && this.root.style.setProperty('--qte-danger', '0');
 
-      this.els.qteBar.style.transition = 'none';
-      this.els.qteBar.style.width = '100%';
-      void this.els.qteBar.offsetWidth; // 강제 reflow — transition 재시작을 위함
-      this.els.qteBar.style.transition = `width ${duration}ms linear`;
-      this.els.qteBar.style.width = '0%';
+      // 타겟을 화면 속 임의의 위치(가장자리 쪽 흐릿한 지점)에 숨겨서 직접 찾아 클릭하게 함
+      const top = 22 + Math.random() * 56; // 22%~78%
+      const left = 12 + Math.random() * 76; // 12%~88%
+      this.els.qteTarget.style.top = `${top}%`;
+      this.els.qteTarget.style.left = `${left}%`;
 
       let settled = false;
+      const startedAt = performance.now();
+      let rafId = null;
+
+      const tick = () => {
+        if (settled) return;
+        const ratio = Math.min(1, (performance.now() - startedAt) / duration);
+        this.els.qteOverlay.style.backgroundColor = `rgba(90,10,10,${0.15 + ratio * 0.55})`;
+        if (this.root) this.root.style.setProperty('--qte-danger', ratio.toFixed(3));
+        if (ratio < 1) rafId = requestAnimationFrame(tick);
+      };
+      rafId = requestAnimationFrame(tick);
 
       const cleanup = () => {
         this.els.qteOverlay.classList.remove('is-visible');
+        this.els.qteOverlay.style.backgroundColor = '';
+        if (this.root) {
+          this.root.classList.remove('qte-danger');
+          this.root.style.removeProperty('--qte-danger');
+        }
         this.els.qteTarget.removeEventListener('click', onHit);
+        if (rafId) cancelAnimationFrame(rafId);
         clearTimeout(timer);
       };
 
