@@ -71,6 +71,7 @@ function resetHistory() {
 async function boot() {
   const root = document.getElementById('game-root');
   ui = new UIManager(root);
+  ui.setNoteToastHandler(() => renderInvestigationNotes()); // D: 토스트 클릭 시 바로 수사노트 열기
   sound = new SoundManager(CASE_BASE + 'assets/bgm/title-theme.mp3');
   puzzle = new PuzzleManager(ui, root);
   ui.showVersion(BUILD_VERSION);
@@ -433,6 +434,8 @@ function onExamineHotspot(spot) {
     if (spot.onDiscoverSetStat) {
       Object.entries(spot.onDiscoverSetStat).forEach(([k, v]) => state.addStat(k, v));
     }
+    state.recordNoteDiscovery(spot.id);
+    ui.showNoteToast(spot.label || '새로운 단서');
     persist();
   }
 }
@@ -455,25 +458,45 @@ function getNoteText(id, fallback) {
   return parts.join('\n\n');
 }
 
+// D: 카드 하나(아이템 또는 P&C 발견물)를 id로 만들어주는 헬퍼 — noteOrder 정렬에 사용
+function buildNoteEntry(id) {
+  const itemMeta = sceneData.items[id];
+  if (itemMeta) {
+    return { id, image: itemMeta.image, label: itemMeta.label, note: getNoteText(id, itemMeta.label) };
+  }
+  const hotspot = hotspotRegistry[id];
+  if (hotspot && state.hasFlag(`examined_${id}`)) {
+    return {
+      id,
+      image: hotspot.closeup,
+      label: hotspot.label,
+      note: getNoteText(id, hotspot.discoveryText || hotspot.label),
+    };
+  }
+  return null;
+}
+
+// D: 정렬 기준은 state.noteOrder(실제 발견 순서). 이 필드가 없던 구버전 세이브 데이터를 위해,
+// noteOrder에 없지만 실제로는 보유 중인 아이템/발견물은 뒤쪽에 이어붙여 누락 없이 보여준다.
 function collectNoteEntries() {
   const entries = [];
+  const seen = new Set();
+  state.noteOrder.forEach((id) => {
+    const entry = buildNoteEntry(id);
+    if (entry) { entries.push(entry); seen.add(id); }
+  });
   state.items.forEach((itemId) => {
-    const meta = sceneData.items[itemId];
-    if (!meta) return;
-    entries.push({ id: itemId, image: meta.image, label: meta.label, note: getNoteText(itemId, meta.label) });
+    if (seen.has(itemId)) return;
+    const entry = buildNoteEntry(itemId);
+    if (entry) { entries.push(entry); seen.add(itemId); }
   });
   Object.keys(state.flags)
     .filter((f) => f.startsWith('examined_') && state.flags[f])
     .forEach((flagKey) => {
       const hotspotId = flagKey.slice('examined_'.length);
-      const hotspot = hotspotRegistry[hotspotId];
-      if (!hotspot) return;
-      entries.push({
-        id: hotspotId,
-        image: hotspot.closeup,
-        label: hotspot.label,
-        note: getNoteText(hotspotId, hotspot.discoveryText || hotspot.label),
-      });
+      if (seen.has(hotspotId)) return;
+      const entry = buildNoteEntry(hotspotId);
+      if (entry) { entries.push(entry); seen.add(hotspotId); }
     });
   return entries;
 }
@@ -507,6 +530,11 @@ function renderInvestigationNotes() {
     entries.forEach((entry, i) => {
       const card = document.createElement('div');
       card.className = 'journal-item-card notes-item-card';
+      // K: 처음 발견했을 때 이후로 갱신 문단이 새로 붙은 카드에만 표시 — 이미 본 적 있는 항목의
+      // 메모 내용이 지난번 열람 시점과 달라졌을 때만이며, 신규 발견 자체는 습득 시 토스트로 이미
+      // 알렸으므로 여기 배지 대상에서 제외한다(seenNoteStates[id]가 undefined면 신규 발견).
+      const isUpdated = state.seenNoteStates[entry.id] !== undefined && state.seenNoteStates[entry.id] !== entry.note;
+      if (isUpdated) card.classList.add('has-update');
       const img = document.createElement('div');
       img.className = 'journal-item-img';
       img.style.backgroundImage = `url("${CASE_BASE + entry.image}")`;
@@ -562,7 +590,13 @@ async function playLines(scene, index) {
 
   if (line.setFlag) Object.entries(line.setFlag).forEach(([k, v]) => state.setFlag(k, v));
   if (line.setStat) Object.entries(line.setStat).forEach(([k, v]) => state.addStat(k, v));
-  if (line.addItem) state.addItem(line.addItem);
+  const isNewItemThisLine = line.addItem && !state.hasItem(line.addItem);
+  if (line.addItem) {
+    state.addItem(line.addItem);
+    // D: itemImage가 없는(팝업 없이 조용히 지급되는) addItem도 노트에는 똑같이 올라가야 하므로
+    // 발견 순서 기록은 itemImage 유무와 무관하게 여기서 한 번만 처리
+    if (isNewItemThisLine) state.recordNoteDiscovery(line.addItem);
+  }
   if (line.fx === 'flash') ui.flashScreen();
   if (line.fx === 'shake') ui.shakeScreen();
   if (line.fx === 'bloodbleed') ui.bloodBleed();
@@ -614,10 +648,14 @@ async function playLines(scene, index) {
   if (line.addItem && line.itemImage) {
     sound.playSfx(CASE_BASE + 'assets/sfx/item-chime.mp3');
     await ui.showItemPopup(CASE_BASE + line.itemImage, line.itemLabel || line.addItem, 'EVIDENCE ACQUIRED');
+    if (isNewItemThisLine) ui.showNoteToast(line.itemLabel || line.addItem);
   } else if (line.itemReveal && line.itemImage) {
     // 이미 가진 아이템을 다시 펼쳐보는 연출 — 인벤토리에 새로 추가되지 않음, 반복 재생 가능
     sound.playSfx(CASE_BASE + 'assets/sfx/paper-flip.mp3');
     await ui.showItemPopup(CASE_BASE + line.itemImage, line.itemLabel || '', 'PAGE REVEALED');
+  } else if (line.addItem && isNewItemThisLine) {
+    // D: 팝업 없이 조용히 지급되는 아이템도 최소한 토스트로는 "수사노트에 추가됐다"는 걸 알려준다
+    ui.showNoteToast(line.itemLabel || line.addItem);
   }
 
   if (line.puzzle) {
@@ -647,6 +685,13 @@ async function playLines(scene, index) {
         ui.flashShadow(CASE_BASE + 'assets/vfx/shadow-flash.png');
         sound.playImpact();
       }
+    }
+    // E: 퍼즐/QTE를 실제로 진행했다면(스킵 케이스 제외) SKIP을 강제로 끔 — 켜진 채로 있으면
+    // 퍼즐 직후의 중요한 반응 대사까지 다시 빨리감기로 지나가버리므로, 여기서부터는 유저가
+    // 다시 눌러야 SKIP이 재개되게 한다.
+    if (!result.skipped && ui.skipMode === true) {
+      ui.skipMode = false;
+      document.getElementById('btn-skip').classList.remove('is-active');
     }
   }
 
@@ -774,7 +819,15 @@ function onAdvance() {
 function handleChoice(choice) {
   if (choice.setFlag) Object.entries(choice.setFlag).forEach(([k, v]) => state.setFlag(k, v));
   if (choice.setStat) Object.entries(choice.setStat).forEach(([k, v]) => state.addStat(k, v));
-  if (choice.addItem) state.addItem(choice.addItem);
+  if (choice.addItem) {
+    const isNewChoiceItem = !state.hasItem(choice.addItem);
+    state.addItem(choice.addItem);
+    if (isNewChoiceItem) {
+      state.recordNoteDiscovery(choice.addItem);
+      const meta = sceneData.items[choice.addItem];
+      ui.showNoteToast((meta && meta.label) || choice.addItem);
+    }
+  }
   updateFearOverlay();
   persist();
 

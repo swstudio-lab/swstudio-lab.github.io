@@ -17,19 +17,26 @@
   background-position: center;
   transition: background-image 0.4s ease;
   filter: saturate(0.85) brightness(0.9);
-  animation: bgFlicker 7s linear infinite;
+  animation: bgFlicker 9s linear infinite;
 }
-/* L: 형광등이 불규칙하게 흔들리는 듯한 아주 미세한 밝기 변화 — "배경이 살아있는 느낌" */
+/* L→G: 형광등이 흔들리는 느낌 — 기존엔 밝기가 2~5%만 흔들려서 거의 안 보였음.
+   실제 고장난 형광등처럼 "훅 꺼졌다 바로 돌아오는" 스터터를 순환 안에 3~4번 넣고,
+   낙차도 훨씬 크게(최대 -30%) 줘서 눈에 띄게 함. 매번 똑같은 타이밍이면 기계적으로
+   보이니 구간 간격도 불규칙하게 배치. */
 @keyframes bgFlicker {
   0%, 100% { opacity: 1; }
-  8% { opacity: 0.97; }
-  9% { opacity: 1; }
-  32% { opacity: 0.96; }
-  33% { opacity: 1; }
-  57% { opacity: 0.98; }
-  58% { opacity: 1; }
-  81% { opacity: 0.95; }
-  82% { opacity: 1; }
+  3% { opacity: 0.78; }
+  3.3% { opacity: 1; }
+  3.5% { opacity: 0.7; }
+  3.9% { opacity: 1; }
+  27% { opacity: 0.84; }
+  27.4% { opacity: 1; }
+  51% { opacity: 0.68; }
+  51.3% { opacity: 0.95; }
+  51.5% { opacity: 0.72; }
+  51.9% { opacity: 1; }
+  77% { opacity: 0.8; }
+  77.4% { opacity: 1; }
 }
 
 /* ---------- 캐릭터 스프라이트 ---------- */
@@ -211,6 +218,13 @@
 }
 #sound-panel.is-visible { display: flex; }
 
+/* O: #ending-screen에서 고쳤던 것과 같은 종류의 버그가 이 파일 안 다른 오버레이 4곳
+   (사운드 설정/조작법 안내/확인창 2종/아이템 팝업)엔 아직 남아있었음 — 바깥 오버레이의
+   align-items:center + overflow-y:auto만으로는, 안쪽 박스가 뷰포트보다 커지는 순간
+   위쪽 일부가 끝까지 스크롤해도 절대 안 보이게 됨(짧은 세로 화면에서 실측 확인).
+   journal-box/notes-box/closeup-card 등 이미 안전한 다른 박스들과 같은 패턴으로,
+   박스 자신에게 max-height + overflow-y:auto를 줘서 내용이 넘치면 박스 안에서만
+   스크롤되게 함(바깥 오버레이의 중앙정렬은 그대로 유지). */
 .sound-panel-box {
   border: 1px solid var(--panel-border);
   border-left: 3px solid var(--accent-amber);
@@ -218,6 +232,8 @@
   padding: 22px 28px;
   width: 340px;
   max-width: 90vw;
+  max-height: 88vh;
+  overflow-y: auto;
 }
 
 .sound-panel-header {
@@ -354,9 +370,26 @@
   overflow-y: auto;
 }
 
-.notes-item-card { cursor: pointer; transition: border-color 0.15s ease; }
+.notes-item-card { position: relative; cursor: pointer; transition: border-color 0.15s ease; }
 .notes-item-card:hover { border-color: var(--accent-amber); }
 .notes-item-card.is-selected { border-color: var(--accent-amber); box-shadow: 0 0 0 1px var(--accent-amber) inset; }
+
+/* K: 카드별 갱신 배지 — 상단바 수사노트 버튼의 배지(main.css .ctrl-btn.has-badge)와 같은
+   시각 언어(붉은 펄싱 점)를 재사용해서, 패널을 열었을 때 어떤 항목의 메모가 새로 갱신됐는지
+   한눈에 알 수 있게 함. noteBadgePulse 키프레임은 main.css에 이미 정의되어 있음. */
+.notes-item-card.has-update::after {
+  content: '';
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--accent-blood);
+  box-shadow: 0 0 6px 2px rgba(122,46,46,0.7);
+  animation: noteBadgePulse 1.2s ease-in-out infinite;
+  z-index: 2;
+}
 
 .notes-detail {
   display: flex;
@@ -485,6 +518,8 @@
   padding: 28px 34px;
   width: 480px;
   max-width: 88vw;
+  max-height: 88vh;
+  overflow-y: auto;
   box-shadow: 0 0 30px rgba(0,0,0,0.6);
 }
 
@@ -565,14 +600,17 @@
 }
 
 #dialogue-box.is-admin #dialogue-text {
-  animation: adminTextShake 0.28s steps(2) infinite, adminGlitchFlicker 4.2s linear infinite;
+  animation: adminTextShake 0.9s ease-in-out infinite, adminGlitchFlicker 4.2s linear infinite;
 }
 
+/* M: 기존엔 0.28s steps(2)라 눈에 계속 스타카토로 튀어서, 대사를 읽는 내내 글자가 떨리는
+   느낌이라 가독성을 해친다는 피드백 — 완전히 없애지는 않되(관리자 특유의 불안정한 느낌은
+   유지) 주기를 3배 이상 늘리고 각지게 튀던 걸 부드러운 sway로 바꾸고 진폭도 줄임. */
 @keyframes adminTextShake {
   0%, 100% { transform: translate(0, 0); }
-  25% { transform: translate(0.6px, -0.4px); }
-  50% { transform: translate(-0.5px, 0.5px); }
-  75% { transform: translate(0.4px, 0.4px); }
+  25% { transform: translate(0.3px, -0.2px); }
+  50% { transform: translate(-0.25px, 0.25px); }
+  75% { transform: translate(0.2px, 0.2px); }
 }
 
 @keyframes adminGlitchFlicker {
@@ -760,6 +798,9 @@
   border-left: 3px solid var(--accent-amber);
   background: var(--panel);
   padding: 28px 34px;
+  max-height: 88vh;
+  overflow-y: auto;
+  box-sizing: border-box;
   text-align: center;
   font-family: var(--font-display);
 }
@@ -772,17 +813,19 @@
   position: fixed;
   inset: 0;
   display: none;
-  align-items: center;
-  justify-content: center;
   background: var(--void);
   z-index: 60;
   overflow-y: auto;
   padding: 40px 0;
   box-sizing: border-box;
 }
-#ending-screen.is-visible { display: flex; }
+/* E: 원래 display:flex + align-items:center로 세로 중앙 정렬했었는데, 이 조합은
+   내용이 화면보다 길어질 때 위쪽이 스크롤 영역 밖으로 잘려서 안 보이는(특히 모바일)
+   고질적인 flexbox 버그가 있음. margin:auto로 중앙 정렬하는 block 레이아웃으로 바꿔서
+   overflow-y:auto가 위/아래 전부 정상적으로 스크롤되게 함. */
+#ending-screen.is-visible { display: block; }
 
-.ending-box { max-width: 560px; padding: 0 24px; text-align: center; }
+.ending-box { max-width: 560px; margin: 0 auto; padding: 0 24px; text-align: center; }
 .ending-tag {
   font-family: var(--font-display);
   color: var(--accent-blood);
@@ -932,6 +975,9 @@
   padding: 26px 32px;
   text-align: center;
   max-width: 320px;
+  max-height: 88vh;
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .item-popup-tag {
@@ -996,6 +1042,72 @@
   .notes-detail { flex-direction: column; }
   .notes-detail-img { width: 100%; height: 160px; }
 }
+
+/* ---------- D: 수사노트 갱신 토스트 ---------- */
+/* 대사/퍼즐 진행을 막지 않는 비차단 알림. #top-bar(z-index:30)와 다른 모달들(최대 60)보다도
+   위에 떠서, 클로즈업 확대조사 중에 새 발견물이 잡혀도 가려지지 않는다. */
+#note-toast {
+  position: fixed;
+  top: 66px;
+  left: 50%;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(420px, 92vw);
+  padding: 12px 16px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-left: 3px solid var(--accent-amber);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.55);
+  cursor: pointer;
+  opacity: 0;
+  transform: translate(-50%, -14px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: none;
+}
+#note-toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+#note-toast:hover { border-left-color: var(--focus-ring); }
+
+.note-toast-icon {
+  font-size: 20px;
+  line-height: 1;
+  flex: none;
+}
+
+.note-toast-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+}
+
+.note-toast-tag {
+  font-family: var(--font-display);
+  color: var(--accent-amber);
+  letter-spacing: 1.5px;
+  font-size: 12.5px;
+}
+
+.note-toast-label {
+  font-family: var(--font-body);
+  color: var(--ink);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+@media (max-width: 720px) {
+  #note-toast {
+    max-width: 92vw;
+    padding: 10px 14px;
+  }
+}
+
+
 
 /* ---------- 퍼즐: 코드 입력 ---------- */
 #puzzle-overlay {
@@ -1266,40 +1378,57 @@
 }
 #qte-overlay.is-visible { display: block; }
 
+/* J: 기존엔 "정신을 붙잡아라!"라는 굵은 느낌표 문구가 게임 UI 배너처럼 튀어서 다른 대사들의
+   낮은 목소리 톤과 안 어울린다는 피드백 — 본문 대사와 같은 서체로, 속삭이듯 흘러나오는
+   내면의 말처럼 보이게 바꿈 */
 .qte-prompt {
   position: absolute;
   top: 14%;
   left: 50%;
   transform: translateX(-50%);
-  font-family: var(--font-display);
-  font-size: 22px;
-  letter-spacing: 2px;
-  color: var(--accent-amber);
-  text-shadow: 0 0 14px rgba(0,0,0,0.85);
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 17px;
+  letter-spacing: 0.5px;
+  color: var(--ink);
+  text-shadow: 0 0 14px rgba(0,0,0,0.9);
   margin: 0;
   text-align: center;
 }
 
-/* 처음엔 "숨겨서 찾게" 만드는 게 목표였지만 실제로는 거의 안 보여서 반응할 수조차 없다는
-   피드백 — 화면 자체가 위험 신호가 되는 연출(흔들림/붉은기)은 유지하되, 타겟 자체는
-   확실히 눈에 띄는 밝은 글로우 원으로 키움. 위치는 여전히 매번 랜덤이라 "찾아 누르는" 감각은
-   유지되지만, 일단 시야에 들어오면 놓치지 않게 함. */
+/* L: 별 모양 clip-path는 각지고 매끈해서 "UI 스티커"처럼 튀고, 66px는 클릭 위치를 대놓고
+   알려줄 만큼 컸음(사용자 피드백, 두 번째 조정) — 세 번째 조정: 뚜렷한 도형을 완전히 버리고,
+   경계가 계속 뭉개지는 흐릿한 "빛 얼룩"으로. border-radius 네 모서리를 qteTargetMorph로
+   계속 다르게 흔들어 고정된 실루엣이 안 생기게 하고, blur(1.8px)로 사진 위에 스며든 것처럼
+   보이게 함. 크기도 30px로 줄여 위치 자체는 여전히 찾아야 하게 유지. */
 .qte-target {
   position: absolute;
-  width: 68px;
-  height: 68px;
-  border-radius: 50%;
-  border: 3px solid rgba(255,120,120,0.95);
-  background: radial-gradient(circle, rgba(255,90,90,0.6), rgba(255,90,90,0.15) 70%);
+  width: 30px;
+  height: 30px;
   cursor: pointer;
-  box-shadow: 0 0 26px 10px rgba(255,80,80,0.55);
-  animation: qteTargetPulse 0.7s ease-in-out infinite;
+  border-radius: 42% 58% 63% 37% / 41% 49% 51% 59%;
+  /* N: 흰빛 파랑 글로우가 붉은 위험 오버레이 위에서 너무 튀어서 위치가 대놓고 보인다는
+     피드백 — 검붉은(핏빛) 톤으로 낮추되, 중심부만 살짝 더 밝은 진홍으로 남겨서 완전히
+     묻히지는 않게 함 */
+  background: radial-gradient(circle, #7a1414 0%, #4a0a0a 45%, rgba(58,10,10,0.5) 75%, transparent 100%);
+  box-shadow: 0 0 12px 5px rgba(90,15,15,0.55);
+  filter: blur(1.8px);
+  animation: qteTargetFlicker 1.1s steps(3, jump-end) infinite, qteTargetMorph 2.6s ease-in-out infinite;
 }
-.qte-target:hover { border-color: #fff; box-shadow: 0 0 30px 12px rgba(255,120,120,0.8); }
-.qte-target:active { transform: scale(0.9); }
-@keyframes qteTargetPulse {
-  0%, 100% { opacity: 0.8; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.2); }
+.qte-target:hover { box-shadow: 0 0 16px 7px rgba(120,25,25,0.85); }
+.qte-target:active { transform: scale(0.85); }
+@keyframes qteTargetFlicker {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  30% { opacity: 0.5; transform: scale(0.94); }
+  45% { opacity: 1; transform: scale(1.05); }
+  60% { opacity: 0.65; transform: scale(0.97); }
+  80% { opacity: 1; transform: scale(1); }
+}
+@keyframes qteTargetMorph {
+  0%, 100% { border-radius: 42% 58% 63% 37% / 41% 49% 51% 59%; }
+  25% { border-radius: 58% 42% 39% 61% / 55% 60% 40% 45%; }
+  50% { border-radius: 47% 53% 55% 45% / 62% 38% 62% 38%; }
+  75% { border-radius: 63% 37% 48% 52% / 44% 57% 43% 56%; }
 }
 
 /* 남은 시간에 비례해 --qte-danger(0→1)를 JS가 갱신 — 화면 전체가 흔들리고 붉어짐 */

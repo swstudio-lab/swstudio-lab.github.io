@@ -40,7 +40,7 @@ window.CASE_DATA = {
         { "condition": { "flag": "chapter4_entered" }, "text": "...이 사건, 우리가 생각한 것보다 훨씬 최근에 벌어진 일이다." }
       ]
     },
-    "torn_photo": { "baseNote": "얼굴이 뜯겨나간 사진. 두 사람 중 하나는, 지워졌다." },
+    "torn_photo": { "baseNote": "얼굴이 뜯겨나간 사진. 이 사람이 누구인지, 알아볼 방법이 없다." },
     "alley_key": { "baseNote": "꼬리표엔 '지하 — B'. 이 열쇠가 어디로 이어질지, 그때는 몰랐다." },
     "voice_recorder": { "baseNote": "R-07이 남긴 마지막 경고. \"그 문, 열기 전에 한 번만 더 생각해.\"" },
     "research_notebook": { "baseNote": "표지가 심하게 헤진 연구 노트. 안에는 낯선 이름들과 날짜들이 가득하다." }
@@ -96,7 +96,7 @@ window.CASE_DATA = {
         },
         { "speaker": "관리자", "text": "찾으셨군요. 잘하셨어요. 그게 첫 단서가 될 겁니다." },
         { "speaker": "관리자", "text": "...잠깐, 이 기록 형식 — 예전에 R-03 때도... 아니, R-07보다 먼저였나. 이거랑 똑같은 양식을 썼던 것 같은데." },
-        { "speaker": "관리자", "text": "아, 신경 쓰지 마세요. 그냥 혼잣말이었어요. 계속하죠." },
+        { "speaker": "관리자", "text": "...아, 죄송해요. 예전 케이스 파일이랑 헷갈렸나 봐요. 워낙 여러 건을 담당하다 보니." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(방금 그 이름, 어디서 들어본 것 같기도 하고.)" },
         { "speaker": "내레이션", "text": "오른쪽 병실 중 하나로 들어가 보기로 한다." }
       ],
@@ -115,9 +115,10 @@ window.CASE_DATA = {
           "itemImage": "assets/items/newspaper-clipping.png",
           "itemLabel": "빛바랜 신문 스크랩"
         },
+        { "speaker": "내레이션", "text": "제목 아래, 작게 적힌 부제가 눈에 들어온다 — \"입원 환자 다수, 원인 불명의 수면 장애 호소\"." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "이 병원, 그냥 낡아서 버려진 게 아니었나." },
-        { "speaker": "관리자", "text": "오래된 얘기예요. 지금 사건이랑은 상관없으니 신경 쓰지 마세요." },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(상관없다면서 왜 저렇게 빨리 대답하지.)" },
+        { "speaker": "관리자", "text": "아, 그거요. 재작년에 지역 이전 문제로 시끄러웠어요. 그 무렵 저희 쪽에 사건 문의도 꽤 왔었죠. 근데 R-07 건이랑은 무관합니다." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(꽤 구체적으로 아네. 무관하다면서.)" },
         { "speaker": "내레이션", "text": "복도로 돌아 나와, 이번엔 간호사 스테이션 쪽으로 향한다." }
       ],
       "next": "nurse_station"
@@ -182,7 +183,7 @@ window.CASE_DATA = {
         { "speaker": "내레이션", "text": "젖은 아스팔트 위로 가로등 불빛이 흔들린다. 골목 안쪽, 쓰레기통 사이에 뭔가 끼여 있다.", "fx": "shadowflash" },
         {
           "speaker": "내레이션",
-          "text": "찢어진 사진 한 장. 두 사람이 함께 있었던 것 같은데, 한쪽 얼굴이 완전히 뜯겨나가 있다.",
+          "text": "찢어진 사진 한 장. 누군가 서 있는데, 얼굴 부분만 통째로 뜯겨나가 있다.",
           "addItem": "torn_photo",
           "itemImage": "assets/items/torn-photo.png",
           "itemLabel": "찢어진 사진",
@@ -202,8 +203,8 @@ window.CASE_DATA = {
         { "speaker": "내레이션", "text": "로커 철문에 잠금장치가 달려있다. 숫자 다이얼식이다." },
         { "speaker": "내레이션", "text": "그 옆 벽에, 뭔가 손으로 눌러쓴 듯한 흔적이 있다. 어두워서 잘 알아보기 힘들다." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(낙서인가... 뭔가 적혀있는 것 같긴 한데.)" },
-        { "speaker": "관리자", "text": "낙서일 뿐이에요. 별 의미 없을 겁니다." },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(별 의미 없다면서 이번에도 빨리 넘어가려고 하네.)" },
+        { "speaker": "관리자", "text": "그 골목, 낙서 많기로 유명해요. 저도 몇 번 헷갈린 적 있어요." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(...아까도 그러더니.)" },
         { "speaker": "내레이션", "text": "가지고 있는 신분증 조각을 다시 꺼내본다. 사번 R-07." }
       ],
       "next": "alley_puzzle"
@@ -247,7 +248,7 @@ window.CASE_DATA = {
       "background": "assets/backgrounds/basement.png",
       "bgm": "assets/bgm/basement-hum.mp3",
       "hotspots": [
-        { "id": "basement_door_glimpse", "left": "47%", "top": "34%", "width": "17%", "height": "37%", "closeup": "assets/closeups/basement-door.png", "label": "지하 안쪽 철문", "discoveryText": "긁힌 자국. 자세히 보니 숫자다 — '13'." }
+        { "id": "basement_door_glimpse", "left": "47%", "top": "34%", "width": "17%", "height": "37%", "closeup": "assets/closeups/basement-door.png", "label": "지하 안쪽 철문", "discoveryText": "긁힌 자국. 자세히 보니 별 모양이다 — 다섯 갈래 선이 한 점에서 뻗어나갔다. 조잡하지만, 우연히 생긴 흠집은 아니다." }
       ],
       "lines": [
         { "speaker": "내레이션", "text": "지하로 이어지는 문에 열쇠를 꽂는다. 오래 안 쓴 자물쇠답지 않게, 뜻밖에 부드럽게 돌아간다.", "sfx": "door-creak" },
@@ -268,8 +269,8 @@ window.CASE_DATA = {
       "bgm": "assets/bgm/basement-hum.mp3",
       "lines": [
         { "speaker": "내레이션", "text": "담요 밑, 작은 금속 상자 하나가 반쯤 가려져 있다. 숫자 다이얼이 달려있다." },
-        { "speaker": "내레이션", "text": "상자 옆 벽면에, 뭔가 긁힌 자국이 있다. 어두워서 잘 보이지 않는다." },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(숫자인가... 여기도 뭔가 남겨놨네.)" },
+        { "speaker": "내레이션", "text": "상자 옆 벽면에, 숫자가 또렷하게 새겨져 있다 — '13'." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(13이라... 여기도 뭔가 남겨놨네.)" },
         { "speaker": "관리자", "text": "그런 낙서까지 다 의미 있게 볼 필요는 없어요." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(신문 스크랩 때도, 로커 철문 때도 똑같은 말을 했었지.)" },
         {
@@ -284,6 +285,7 @@ window.CASE_DATA = {
           }
         },
         { "speaker": "내레이션", "text": "철컥. 상자가 열린다.", "fx": "flash" },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(13... 뭘 셌길래 13이지.)" },
         {
           "speaker": "내레이션",
           "text": "안에는 개인용 보이스 레코더 하나뿐이다. 배터리는 아직 살아있다.",
@@ -315,6 +317,7 @@ window.CASE_DATA = {
         { "speaker": "관리자", "text": "여기서 멈추셔도 됩니다. 지금까지 확보한 것만으로도 충분한 보고가 될 거예요." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(녹음기에 남겼던 그 말이 자꾸 걸린다.)" },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...생각해보면, 그 휠체어도 오래된 게 아니었다. 이 사건은 우리가 생각한 것보다 훨씬 최근에 벌어진 일이다.", "condition": { "flag": "examined_wheelchair" } },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...그러고 보니, 아까 그 별 모양도 그냥 낙서치고는 너무 정교했다. 누가 일부러 새겨넣은 것 같았다.", "condition": { "flag": "examined_basement_door_glimpse" } },
         { "speaker": "관리자", "text": "어떻게 하시겠어요?" }
       ],
       "choices": [
@@ -328,6 +331,7 @@ window.CASE_DATA = {
       "bgm": "assets/bgm/lab-interference.mp3",
       "lines": [
         { "speaker": "내레이션", "text": "연구소 철문 너머, 공기 자체가 다르다. 깨진 집기, 흩어진 서류, 천장에 늘어진 전선들.", "setFlag": { "chapter4_entered": true } },
+        { "speaker": "내레이션", "text": "천장 스피커에서, 알아들을 수 없는 저주파가 낮게 깔린다. 병원에서 들었던 그 잡음과 똑같다." },
         { "speaker": "내레이션", "text": "저 안쪽, 비상구 표시등만 붉게 깜빡이고 있다.", "fx": "shadowflash" },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "{statLine}" },
         { "speaker": "관리자", "text": "(평소보다 아주 조금 늦게) ...예, 여기가 맞습니다. R-07이 마지막으로 향했던 곳." },
@@ -343,7 +347,7 @@ window.CASE_DATA = {
           "fx": "flash"
         },
         { "speaker": "관리자", "text": "...그건 저도 예상 못했던 겁니다. 어차피 열어봐야 해요." },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(또 저 말투다. \"예상 못했다\"는 말, 이번이 몇 번째지.)" },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(그 말, 어디서 많이 들어본 것 같은데.)" },
         { "speaker": "내레이션", "text": "노트를 배낭에 집어넣고, 방 안쪽을 더 살펴보기로 한다." }
       ],
       "next": "evidence_board"
@@ -368,7 +372,7 @@ window.CASE_DATA = {
               { "id": "photo", "label": "찢어진 사진", "image": "assets/items/torn-photo.png" },
               { "id": "voice_recorder_card", "label": "R-07의 개인 녹음기", "image": "assets/items/voice-recorder.png" },
               { "id": "clipping", "label": "신문 스크랩 (병원 이전)", "image": "assets/items/newspaper-clipping.png" },
-              { "id": "wall_mark", "label": "지하실 벽 낙서 위치", "image": "assets/items/wall-mark.png" }
+              { "id": "wall_mark", "label": "반복되는 숫자 자국 — 13", "image": "assets/items/wall-mark.png" }
             ],
             "pairs": [
               ["badge", "notebook_cover"],
@@ -378,7 +382,7 @@ window.CASE_DATA = {
             "connectMessages": {
               "badge|notebook_cover": "필체가 같다.",
               "photo|voice_recorder_card": "목소리는, 사진 속 인물도 알지 모릅니다.",
-              "clipping|wall_mark": "네 개의 시기, 같은 장소를 가리키고 있었다."
+              "clipping|wall_mark": "네 개의 시기, 같은 장소를 가리키고 있었다. 그리고 그 시기마다, 이 근방에서 이상한 잡음 신고가 있었다. 전부 합쳐, 열세 번."
             },
             "hint": "몇몇 흔적들은, 다른 물건에서도 똑같이 반복되고 있다.",
             "hint2": "신분증과 연구 노트 표지 — 이 둘의 필체를 비교해보세요. 나머지 두 쌍도 같은 방식(사진은 소리와, 신문은 장소와)으로 짝지어져 있습니다.",
@@ -433,6 +437,7 @@ window.CASE_DATA = {
       "lines": [
         { "speaker": "관리자", "text": "...다 보셨군요.", "setFlag": { "confrontation_seen": true } },
         { "character": "{gender}-neutral", "position": "left", "speaker": "조사관(나)", "text": "이제 좀 확실해졌습니다." },
+        { "speaker": "관리자", "text": "오해하시는 것 같은데, 저도 이 구조 안에 편입된 겁니다. 만든 사람이 아니라." },
         { "speaker": "관리자", "text": "(아주 짧게, 목소리가 한 번 갈라진다) 저는— 저는 그냥, 관리자였습니다.", "fx": "shake" },
         { "speaker": "관리자", "text": "(목소리가 이상하게 겹쳐 들린다) 그냥... 편해지세요.", "fx": "shadowflash" },
         {
@@ -442,7 +447,7 @@ window.CASE_DATA = {
           "highlight": true,
           "puzzle": {
             "type": "qte",
-            "prompt": "정신을 붙잡아라!",
+            "prompt": "...놓치지 마.",
             "duration": 5000,
             "onSuccessSetFlag": "qte_reflex_success",
             "onSuccessSetStat": { "courage": 1 },

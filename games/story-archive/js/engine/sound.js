@@ -19,6 +19,9 @@ class SoundManager {
     this.BGM_VOLUME = 0.6;
     this.CROSSFADE_MS = 1000; // 트랙 자체가 바뀔 때
     this.LOOP_CROSSFADE_MS = 700; // 같은 트랙이 루프로 이어질 때
+
+    this._swellInterval = null; // G: 앰비언트 볼륨 흔들림 타이머
+    this._swellSrc = null;
   }
 
   _loadPref(key) {
@@ -36,6 +39,7 @@ class SoundManager {
     this.enabled = value;
     localStorage.setItem('story-archive:sound-enabled', String(value));
     if (!value) {
+      this._stopAmbientSwell();
       if (this.bgmEl) this.bgmEl.pause();
     } else if (this.currentBgm) {
       this.playBgm(this.currentBgm);
@@ -90,12 +94,14 @@ class SoundManager {
         this.bgmEl.play().catch(() => {
           // 브라우저 자동재생 정책 — 사용자 첫 클릭 이후 재시도됨
         });
+        this._syncAmbientSwell(target); // G: 음소거 해제 등으로 재생 재개될 때도 흔들림 상태 맞춰줌
       }
       return;
     }
 
     if (!this.enabled) {
       // 재생/페이드 없이 트랙만 교체해두고, setEnabled(true)가 다시 호출될 때 이어서 재생되게 함
+      this._stopAmbientSwell();
       if (this.bgmEl) {
         this._detachLoopWatch(this.bgmEl);
         this.bgmEl.pause();
@@ -111,6 +117,8 @@ class SoundManager {
 
   // fadeIn: 기존에 재생 중이던 트랙과 겹쳐 크로스페이드할지 여부 (트랙 변경 시, 그리고 루프 반복 시 모두 true)
   _spawnBgm(src, fadeIn) {
+    this._stopAmbientSwell(); // G: 크로스페이드 도중엔 흔들림 끔 — 두 setInterval이 동시에 volume을 건드리면 소리가 뚝뚝 끊겨 들림
+
     const prevEl = this.bgmEl;
     const newEl = new Audio(src);
     newEl.volume = fadeIn ? 0 : this.BGM_VOLUME;
@@ -119,7 +127,9 @@ class SoundManager {
     this._watchForSeamlessLoop(newEl, src);
 
     if (fadeIn) {
-      this._fadeVolume(newEl, 0, this.BGM_VOLUME, this.CROSSFADE_MS);
+      this._fadeVolume(newEl, 0, this.BGM_VOLUME, this.CROSSFADE_MS, () => this._syncAmbientSwell(src));
+    } else {
+      this._syncAmbientSwell(src);
     }
 
     if (prevEl) {
@@ -167,11 +177,49 @@ class SoundManager {
   }
 
   stopBgm() {
+    this._stopAmbientSwell();
     if (this.bgmEl) {
       this._detachLoopWatch(this.bgmEl);
       this.bgmEl.pause();
     }
     this.currentBgm = null;
+  }
+
+  // G: 지하실/연구소처럼 긴장감 있는 공간에서, 배경음이 "웅웅거리며" 은은하게 커졌다 작아졌다
+  // 하는 인상을 줌 — 실제로 더 커지는 게 아니라 기준 볼륨(BGM_VOLUME) 이하에서만 오르내림.
+  // 트랙 이름으로 대상 판단 — scene-data 스키마를 안 건드리고 기존 bgm 파일명만으로 자동 적용.
+  _shouldSwell(src) {
+    return !!src && (src.indexOf('basement-hum') !== -1 || src.indexOf('lab-interference') !== -1);
+  }
+
+  _syncAmbientSwell(src) {
+    const should = this._shouldSwell(src);
+    if (should && this._swellSrc !== src) {
+      this._startAmbientSwell(src);
+    } else if (!should && this._swellInterval) {
+      this._stopAmbientSwell();
+    }
+  }
+
+  _startAmbientSwell(src) {
+    this._stopAmbientSwell();
+    this._swellSrc = src;
+    const base = this.BGM_VOLUME;
+    const periodMs = 5200 + Math.random() * 1600; // 트랙마다 살짝 다르게 — 기계적으로 안 느껴지게
+    const start = performance.now();
+    this._swellInterval = setInterval(() => {
+      if (!this.bgmEl || !this.enabled || this.bgmEl.src.indexOf(src) === -1) return; // 트랙이 이미 바뀌었으면 방어적으로 무시
+      const t = (performance.now() - start) / periodMs;
+      const wave = (Math.sin(t * Math.PI * 2) + 1) / 2; // 0~1 사이를 천천히 순환
+      // 기준 볼륨의 62%~100% 사이에서만 오르내림 — "커진다"가 아니라 "웅웅거리며 오르내린다"는 인상만
+      this.bgmEl.volume = base * (0.62 + wave * 0.38);
+    }, 80);
+  }
+
+  _stopAmbientSwell() {
+    if (this._swellInterval) { clearInterval(this._swellInterval); this._swellInterval = null; }
+    this._swellSrc = null;
+    if (this.bgmEl && this.enabled) this.bgmEl.volume = this.BGM_VOLUME;
   }
 
   // src가 없으면 조용히 무시 (효과음 에셋 준비 전) — 전체 소리 OFF거나 효과음만 OFF여도 재생 안 함
@@ -220,10 +268,17 @@ class SoundManager {
   // QTE 성공 등 "긴장이 풀리는" 순간 — bgm을 잠깐 죽였다가 자연스럽게 원래 볼륨으로 복귀
   duckBgm(dip = 900) {
     if (!this.bgmEl) return;
+    this._stopAmbientSwell(); // G: 흔들림이 켜져있으면 duck의 페이드와 volume을 동시에 건드려 꼬일 수 있음
     const original = this.BGM_VOLUME;
     this._fadeVolume(this.bgmEl, this.bgmEl.volume, original * 0.25, 200, () => {
       setTimeout(() => {
-        if (this.bgmEl) this._fadeVolume(this.bgmEl, this.bgmEl.volume, original, dip);
+        if (this.bgmEl) {
+          this._fadeVolume(this.bgmEl, this.bgmEl.volume, original, dip, () => {
+            // H: duck 이전에 스웰 대상 트랙이었다면(지금은 basement-hum/lab-interference에서
+            // QTE가 없어서 실제로는 안 걸리지만, 나중에 그 조합이 생길 걸 대비) 복귀 후 다시 동기화
+            this._syncAmbientSwell(this.currentBgm);
+          });
+        }
       }, 250);
     });
   }

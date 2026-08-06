@@ -39,9 +39,51 @@ class UIManager {
       closeupLabel: root.querySelector('#closeup-label'),
       closeupDiscovery: root.querySelector('#closeup-discovery'),
       closeupCloseBtn: root.querySelector('#closeup-close-btn'),
+
+      noteToast: root.querySelector('#note-toast'),
+      noteToastLabel: root.querySelector('#note-toast-label'),
     };
 
     this.els.closeupCloseBtn.addEventListener('click', () => this.hideCloseup());
+
+    // D: 토스트를 클릭하면 바로 수사노트를 열 수 있게 — main.js에서 setNoteToastHandler로 연결
+    this._noteToastClickHandler = null;
+    this._noteToastTimer = null;
+    if (this.els.noteToast) {
+      this.els.noteToast.addEventListener('click', () => {
+        if (this._noteToastClickHandler) this._noteToastClickHandler();
+        this._hideNoteToast();
+      });
+    }
+  }
+
+  // D: 수사노트 관련 알림을 열었을 때 호출할 콜백 등록 (main.js에서 renderInvestigationNotes를 넘겨줌)
+  setNoteToastHandler(fn) {
+    this._noteToastClickHandler = fn;
+  }
+
+  // D: "[수사노트 갱신] {label} — 새로운 증거가 수집되었습니다" 짧은 비차단 토스트.
+  // 대사 진행을 막지 않으며, 연달아 여러 개가 뜨면 이전 것은 즉시 새 내용으로 교체된다.
+  // I: 토스트를 항상 상단바 바로 아래에 붙임 — 이전엔 top 고정값(66px)이라 모바일에서
+  // 상단바 버튼이 2~3줄로 줄바꿈되면 그 아래로 못 내려가서 본문 위에 겹쳐 보였음.
+  // 매번 뜰 때마다 실제 상단바 높이를 재서 그 바로 아래로 붙게 함.
+  showNoteToast(label) {
+    if (!this.els.noteToast) return;
+    const topBar = document.getElementById('top-bar');
+    const offset = topBar ? Math.round(topBar.getBoundingClientRect().bottom) + 10 : 66;
+    this.els.noteToast.style.top = `${offset}px`;
+    this.els.noteToastLabel.textContent = `${label} — 새로운 증거가 수집되었습니다`;
+    this.els.noteToast.classList.remove('is-visible'); // 재시작 애니메이션을 위해 한 프레임 끊기
+    void this.els.noteToast.offsetWidth;
+    this.els.noteToast.classList.add('is-visible');
+    if (this._noteToastTimer) clearTimeout(this._noteToastTimer);
+    this._noteToastTimer = setTimeout(() => this._hideNoteToast(), 3200);
+  }
+
+  _hideNoteToast() {
+    if (!this.els.noteToast) return;
+    this.els.noteToast.classList.remove('is-visible');
+    if (this._noteToastTimer) { clearTimeout(this._noteToastTimer); this._noteToastTimer = null; }
   }
 
   // P&C 탐색 핫스팟 — 대화 진행과 무관하게 언제든 열고 닫을 수 있는 비차단 팝업

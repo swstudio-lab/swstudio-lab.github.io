@@ -23,6 +23,7 @@ class GameState {
     this.flags = {};
     this.endingRecords = {}; // { [endingId]: { items, flags, achievedAt } } — 엔딩별 도달 당시 스냅샷
     this.seenNoteStates = {}; // B: 수사노트 항목별로 마지막으로 열람했을 때의 메모 텍스트 (업데이트 배지 판단용)
+    this.noteOrder = []; // D: 수사노트 항목(아이템+P&C 발견물)이 "실제로 처음 발견된 순서" — 노트 정렬에 사용
     this.log = []; // { speaker, text }
     this.playerGender = null; // 'male' | 'female'
     this.startedAt = Date.now();
@@ -53,6 +54,12 @@ class GameState {
 
   hasItem(item) {
     return this.items.includes(item);
+  }
+
+  // D: 아이템 획득이든 P&C 발견물이든, 수사노트에 처음 올라가는 시점에 한 번만 호출.
+  // 이 배열의 순서 그대로가 노트 카드 정렬 순서가 된다(종류 구분 없이 실제 발견 순서).
+  recordNoteDiscovery(id) {
+    if (!this.noteOrder.includes(id)) this.noteOrder.push(id);
   }
 
   pushLog(speaker, text, sceneId) {
@@ -89,6 +96,7 @@ class GameState {
       flags: this.flags,
       endingRecords: this.endingRecords,
       seenNoteStates: this.seenNoteStates,
+      noteOrder: this.noteOrder,
       log: this.log,
       playerGender: this.playerGender,
       startedAt: this.startedAt,
