@@ -19,12 +19,13 @@ window.CASE_DATA = {
     "broadcast_logs": { "image": "assets/items/broadcast-logs.png", "label": "방송 로그 사본" },
     "r03_journal": { "image": "assets/items/r03-journal-open.png", "label": "R-03의 개인 기록물" },
     "jamming_device": { "image": "assets/items/jamming-device.png", "label": "방해 장치" },
-    "pill_bottle": { "image": "assets/items/pill-bottle.png", "label": "라벨 없는 약병" }
+    "pill_bottle": { "image": "assets/items/pill-bottle.png", "label": "라벨 없는 약병" },
+    "newspaper_clipping_copy": { "image": "assets/items/newspaper-clipping-copy.png", "label": "신문 스크랩 사본" }
   },
 
   "notes": {
     "symbol_rubbing": {
-      "baseNote": "누군가 남긴 표식을 종이에 문질러 뜬 것. 001의 지하실에서 봤던 그 별 모양과 정확히 같다."
+      "baseNote": "누군가 남긴 표식을 종이에 문질러 뜬 것. 001 사건 기록에 남아있는 그 별 모양과 정확히 같다."
     },
     "broadcast_logs": {
       "baseNote": "정기 점검 기록 사본 4부. 셋은 같은 날짜, 하나만 삼 주 전 — 그리고 표현도 미묘하게 다르다."
@@ -40,9 +41,12 @@ window.CASE_DATA = {
       "updates": [
         {
           "condition": { "flag": "chapter3_entered_case002" },
-          "text": "라벨 없는 약병. 001에서도, 002에서도 나타났다. 우연이라기엔 너무 정확히 반복된다."
+          "text": "라벨 없는 약병. 001에서도, 002에서도 나타났다. R-03의 메모에 따르면 재고 수량이 사라진 사번 개수와 정확히 맞물려 줄어들고 있다 — 001의 '절대 재고 확인 금지' 경고문이 여기서 진짜 의미를 갖는다."
         }
       ]
+    },
+    "newspaper_clipping_copy": {
+      "baseNote": "빛바랜 신문 스크랩 사본. R-03이 여백에 날짜를 동그라미 쳐뒀다 — 병원이 문 닫은 시기와, 이 탑이 가동을 시작한 시기가 겹친다는 뜻."
     }
   },
 
@@ -63,7 +67,6 @@ window.CASE_DATA = {
         { "speaker": "관리자", "text": "새 임무입니다. CASE-001 종결 보고서, 열람 권한 드릴게요." },
         { "speaker": "내레이션", "text": "파일을 넘긴다. R-07. 실종, 수사 종결. 그리고 그 끝에 적힌 사번 하나." },
         { "speaker": "내레이션", "text": "R-03." },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...내가 겪은 일도 아닌데, 왜 이렇게 익숙하지." },
         { "speaker": "관리자", "text": "신호 발신지 — 산속 버려진 중계탑입니다." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...이번엔 처음부터 의심하고 시작하자." },
         { "speaker": "", "text": "[CASE-002: 기음 (거짓된 복음)]", "effect": "decode" }
@@ -78,7 +81,7 @@ window.CASE_DATA = {
       "lines": [
         { "speaker": "내레이션", "text": "산길을 오른다. 빗줄기가 거세다. 나무 사이로 낡은 철탑이 보인다." },
         { "speaker": "관리자", "text": "관리자입니다. 신호 확인. 목적지는 이 앞 중계탑입니다." },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...목소리가 달라졌다. 아니, 같은 사람이 아닌 건가." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...파일에서 읽었던 인상이랑 다르다. 이 목소리, 같은 사람이 맞나." },
         { "speaker": "관리자", "text": "같은 역할을 맡고 있을 뿐입니다. 개인적인 질문은 나중에 하시죠." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...'역할'이라. 그럼 나도 그런 건가." },
         { "speaker": "내레이션", "text": "외벽을 따라 걷다, 정문 대신 반쯤 뜯긴 환기구를 발견한다." }
@@ -143,7 +146,7 @@ window.CASE_DATA = {
           "itemImage": "assets/items/symbol-rubbing.png",
           "itemLabel": "낙인 탁본"
         },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...이 표시, 001 지하실에서 봤던 그 별 모양이랑 정확히 같다." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...이 표시, 001 파일 사진에 있던 그 별 모양이랑 정확히 같다." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) 그때도 우연이 아니라더니 — 여기까지 이어져 있었나." },
         { "speaker": "관리자", "text": "오래된 낙서예요. 안으로 들어가시죠." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...1, 9, 3. 더하면 13이잖아." },
@@ -350,7 +353,7 @@ window.CASE_DATA = {
           "addItem": "pill_bottle"
         },
         {
-          "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...이 약, 001 병원 조사 때 봤던 그 라벨 없는 약병이다. 똑같은 성분이야.",
+          "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...이 약, 001 파일에 사진으로 남아있던 그 약병이랑 똑같이 생겼다.",
           "condition": { "hasCase001Save": true }
         },
         {
@@ -361,6 +364,30 @@ window.CASE_DATA = {
         { "speaker": "내레이션", "text": "약병 옆, 찢어진 신분증 조각. 사번 앞자리 \"03\"만 겨우 보인다." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...R-07도 그랬다. 자기 사번을 뒤에 붙이는 버릇. 코드마다, 자물쇠마다." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...R-03도 같은 버릇이었다면. 03, 그리고 사방에 널린 47." },
+        {
+          "speaker": "내레이션", "text": "약병 옆, 빛바랜 신문 스크랩 사본 한 장이 클립으로 고정되어 있다.",
+          "addItem": "newspaper_clipping_copy",
+          "itemImage": "assets/items/newspaper-clipping-copy.png",
+          "itemLabel": "신문 스크랩 사본"
+        },
+        {
+          "speaker": "내레이션", "text": "스크랩 여백에, R-03의 필체로 날짜 하나가 동그라미 쳐져 있다 — 이 중계탑이 가동을 시작한 날짜와 같다."
+        },
+        {
+          "character": "{gender}-neutral", "speaker": "조사관(나)",
+          "text": "(혼잣말) ...이거, 001에서 봤던 그 병원 이전 기사잖아. R-03도 이걸 갖고 있었다니.",
+          "condition": { "hasCase001Save": true }
+        },
+        {
+          "character": "{gender}-neutral", "speaker": "조사관(나)",
+          "text": "(혼잣말) ...병원 이전 기사? 사본까지 만들어서 모아뒀다는 건, R-03 전에도 이걸 조사하던 사람이 있었다는 뜻이다.",
+          "condition": { "hasCase001Save": false }
+        },
+        { "speaker": "관리자", "text": "오래된 자료예요. 지금이랑은 상관없습니다." },
+        {
+          "character": "{gender}-neutral", "speaker": "조사관(나)",
+          "text": "(혼잣말) ...R-03이 이걸 어디서 구했는지가 더 궁금한데. 파일 보관실이라도 뒤졌던 건가."
+        },
         { "speaker": "내레이션", "text": "책상 서랍에 작은 다이얼 자물쇠가 달려있다." }
       ],
       "next": "r03_drawer_puzzle"
@@ -398,6 +425,7 @@ window.CASE_DATA = {
       "bgm": "assets/bgm/hideout-quiet.mp3",
       "lines": [
         { "speaker": "R-03 [기록]", "text": "\"...47일째. 아무도 못 믿겠다.\"", "typingProfile": "decelerating" },
+        { "speaker": "R-03 [기록]", "text": "\"...재고 수량이 하나씩 준다. 그것도, 지금까지 사라진 사번 개수랑 정확히 같은 속도로.\"", "typingProfile": "decelerating" },
         { "speaker": "R-03 [기록]", "text": "\"...이 신호, 사람을 재우는 게 아니다. 뭔가를 심고 있다.\"", "typingProfile": "decelerating" },
         { "speaker": "R-03 [기록]", "text": "\"...전에도 이런 신호가 있었다는 얘길 들은 적 있다. 병원 쪽에서.\"", "typingProfile": "decelerating" },
         { "speaker": "R-03 [기록]", "text": "\"관리자한테 말했다간 끝이다. 혼자 해야 한다.\"", "typingProfile": "decelerating" },
