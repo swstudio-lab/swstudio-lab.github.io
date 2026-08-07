@@ -935,6 +935,7 @@ function scheduleCloudSave(){
 async function pushToCloud(){
     if (!teamRef || !cryptoKey) return;
     try {
+        await window.authReady;
         const payload = await encryptData(cryptoKey, state.projects);
         await teamRef.set({ enc: payload, updatedAt: Date.now() }, { merge: true });
     } catch(e) {
@@ -968,6 +969,7 @@ async function enterTeam(code){
     const statusEl = document.getElementById('team-status');
     statusEl.textContent = `🔗 팀 코드 "${code}"로 연결됨 · 암호화된 실시간 동기화 중`;
     statusEl.classList.add('connected');
+    await window.authReady;
     teamRef.get().then(async doc => {
         if (!doc.exists) {
             const payload = await encryptData(cryptoKey, state.projects);

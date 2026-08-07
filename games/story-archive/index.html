@@ -54,6 +54,34 @@
     <div id="welcome-panel" class="is-hidden">
       <p id="welcome-text" class="auth-message"></p>
       <p id="ending-progress" class="auth-message"></p>
+
+      <!-- 케이스 허브 — 로그인 직후 바로 보이는 시리즈 목록. 클릭하면 game.html?case=... 로 이동.
+           game.html의 엔딩 화면에 있는 로드맵과 별개의 "추가" 컴포넌트이며, 그 로드맵의 동작(접이식,
+           엔딩 후에만 노출)은 그대로 둔 채 로그인 시점에도 같은 정보를 바로 볼 수 있게 한 것. -->
+      <div class="case-hub">
+        <p class="case-hub-title">PROJECT: CASE-FILES</p>
+        <div class="roadmap-list">
+          <div class="roadmap-item is-open" data-case="case001">
+            <span class="roadmap-case-id">CASE-001</span>
+            <span class="roadmap-case-title">잊혀진 기록</span>
+            <span class="roadmap-case-status">[OPEN]</span>
+          </div>
+          <!-- case002Released(siteConfig/main)가 true로 확인되기 전까지는 항상 잠긴 상태로
+               취급(안전한 기본값) — title.js가 실시간으로 열림/잠김을 갱신함 -->
+          <div class="roadmap-item is-locked" data-case="case002">
+            <span class="roadmap-case-id">CASE-002</span>
+            <span class="roadmap-case-title">기음 (거짓된 복음)</span>
+            <span class="roadmap-case-status">[LOCKED]</span>
+          </div>
+          <div class="roadmap-item is-locked" data-case="case003">
+            <span class="roadmap-case-id">CASE-003</span>
+            <span class="roadmap-case-title">???</span>
+            <span class="roadmap-case-status">[LOCKED]</span>
+          </div>
+        </div>
+        <p id="case-hub-flavor" class="roadmap-flavor"></p>
+      </div>
+
       <div id="title-menu">
         <button id="btn-enter-game" class="title-btn">게임 입장</button>
         <button id="btn-recap-personal" class="title-btn">지금까지의 기록</button>

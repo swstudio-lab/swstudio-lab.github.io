@@ -196,7 +196,7 @@ function activePlayerIds(){
     return Object.keys(roomState.players || {}).sort((a,b) => (roomState.players[a].joinedAt||0) - (roomState.players[b].joinedAt||0)).slice(0, 2);
 }
 
-function joinRoom(code, name){
+async function joinRoom(code, name){
     document.getElementById('gate-overlay').style.display = 'none';
     localStorage.setItem(ROOM_KEY, code);
     localStorage.setItem(NAME_KEY, name);
@@ -204,6 +204,7 @@ function joinRoom(code, name){
     roomRef = db.collection('bombRooms').doc(code);
     document.getElementById('room-status').textContent = `🔗 방 "${code}" 에 연결됨`;
 
+    await window.authReady;
     roomRef.get().then(doc => {
         if (!doc.exists) {
             roomRef.set({

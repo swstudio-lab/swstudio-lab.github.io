@@ -46,9 +46,30 @@
             .then(() => { window.firebase.initializeApp(FIREBASE_CONFIG); });
     }
 
+    // siteStats 쓰기 규칙이 "익명 인증된 사용자만"으로 바뀔 예정이라 로그인을 보장해야 함.
+    // 이 스크립트는 assets/firebase-init.js가 있는 페이지에도, 없는 페이지에도(자체
+    // Firebase 초기화로 대체) 둘 다 쓰이므로, firebase-init.js가 이미 만들어둔
+    // window.authReady가 있으면 그걸 그대로 재사용(같은 익명 세션 공유)하고,
+    // 없으면 이 스크립트가 직접 auth SDK를 불러와 익명 로그인을 처리한다.
+    function ensureAuth() {
+        if (window.authReady) return window.authReady;
+        function signInAnon() {
+            return new Promise((resolve) => {
+                firebase.auth().onAuthStateChanged((user) => {
+                    if (user) { resolve(user); return; }
+                    firebase.auth().signInAnonymously().catch(() => resolve(null));
+                });
+            });
+        }
+        if (typeof firebase.auth === 'function') return signInAnon();
+        return loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js')
+            .then(signInAnon)
+            .catch(() => null);
+    }
+
     const badge = injectBadgeDom();
 
-    ensureFirebase().then(() => {
+    ensureFirebase().then(() => ensureAuth()).then(() => {
         const db = window.firebase.firestore();
         const dateKey = todayStr();
         const ref = db.collection('siteStats').doc(dateKey);

@@ -3,6 +3,10 @@
  * 'code': 숫자 코드 입력 퍼즐
  * 'connect': 증거 보드 — 카드 2개씩 선택해 관련 있는 쌍 연결
  * 'sequence': 조각을 시간 순서대로 배열
+ * 'contradiction': 모순찾기 — 텍스트 블록 여러 개 중 미묘하게 다른 하나를 짚음.
+ *   오답이 maxWrongAttempts(기본 3)에 도달하면 정답을 못 찾은 채로 그 판을 그대로
+ *   종료(success:false)한다 — 무한 재시도 없이, 실패해도 진행은 막지 않되 정보를 덜
+ *   얻은 채 넘어가게 하기 위함(002 설계).
  * 'qte': 제한시간 안에 반응 클릭 (성공/실패 모두 resolve, 실패해도 진행은 계속됨)
  */
 
@@ -36,6 +40,12 @@ class PuzzleManager {
       qteOverlay: root.querySelector('#qte-overlay'),
       qtePrompt: root.querySelector('#qte-prompt'),
       qteTarget: root.querySelector('#qte-target'),
+
+      contradictionOverlay: root.querySelector('#contradiction-overlay'),
+      contradictionPrompt: root.querySelector('#contradiction-prompt'),
+      contradictionGrid: root.querySelector('#contradiction-grid'),
+      contradictionFeedback: root.querySelector('#contradiction-feedback'),
+      contradictionHintBtn: root.querySelector('#contradiction-hint-btn'),
     };
   }
 
@@ -48,6 +58,9 @@ class PuzzleManager {
     }
     if (puzzleDef.type === 'sequence') {
       return this.runSequencePuzzle(puzzleDef);
+    }
+    if (puzzleDef.type === 'contradiction') {
+      return this.runContradictionPuzzle(puzzleDef);
     }
     if (puzzleDef.type === 'qte') {
       return this.runQTE(puzzleDef);
@@ -333,6 +346,85 @@ class PuzzleManager {
 
       renderTray();
       renderAnswer();
+    });
+  }
+
+  // entries: [{ id, text }], answerId: 정답 id, maxWrongAttempts?: 오답 허용 횟수(기본 3),
+  // hint?: string — 정답을 맞히면 success:true, 오답이 maxWrongAttempts에 도달하면 정답을
+  // 못 찾은 채로 success:false로 종료(무한 재시도 없음 — 002 설계 의도)
+  runContradictionPuzzle(def) {
+    return new Promise((resolve) => {
+      const { prompt, entries, answerId, maxWrongAttempts = 3, hint } = def;
+      let wrongCount = 0;
+      let settled = false;
+      let hintShown = false;
+      const cardEls = {};
+
+      this.els.contradictionPrompt.textContent = prompt || '';
+      this.els.contradictionFeedback.textContent = '';
+      this.els.contradictionFeedback.classList.remove('is-ok');
+      this.els.contradictionGrid.innerHTML = '';
+      this.els.contradictionOverlay.classList.add('is-visible');
+
+      const onHint = () => {
+        if (!hint) return;
+        hintShown = !hintShown;
+        this.els.contradictionFeedback.classList.remove('is-ok');
+        this.els.contradictionFeedback.textContent = hintShown ? hint : '';
+      };
+      if (this.els.contradictionHintBtn) {
+        this.els.contradictionHintBtn.classList.toggle('is-hidden', !hint);
+        this.els.contradictionHintBtn.addEventListener('click', onHint);
+      }
+
+      const cleanup = () => {
+        this.els.contradictionOverlay.classList.remove('is-visible');
+        if (this.els.contradictionHintBtn) this.els.contradictionHintBtn.removeEventListener('click', onHint);
+      };
+
+      const onEntryClick = (id) => {
+        if (settled) return;
+        const card = cardEls[id];
+        if (id === answerId) {
+          settled = true;
+          card.classList.add('is-connected');
+          this.els.contradictionFeedback.classList.add('is-ok');
+          this.els.contradictionFeedback.textContent = '이거다.';
+          Object.values(cardEls).forEach((el) => { el.style.pointerEvents = 'none'; });
+          setTimeout(() => {
+            cleanup();
+            resolve({ success: true });
+          }, 700);
+        } else {
+          wrongCount++;
+          card.classList.add('is-selected');
+          setTimeout(() => card.classList.remove('is-selected'), 220);
+          this.els.contradictionFeedback.classList.remove('is-ok');
+          if (wrongCount >= maxWrongAttempts) {
+            settled = true;
+            this.els.contradictionFeedback.textContent = '...시간이 없다. 일단 넘어가자.';
+            Object.values(cardEls).forEach((el) => { el.style.pointerEvents = 'none'; });
+            setTimeout(() => {
+              cleanup();
+              resolve({ success: false });
+            }, 700);
+          } else {
+            this.els.contradictionFeedback.textContent = `다른 곳이다. (${wrongCount}/${maxWrongAttempts})`;
+          }
+        }
+      };
+
+      this.shuffleArray(entries).forEach((entry) => {
+        const card = document.createElement('div');
+        card.className = 'contradiction-card';
+        const text = document.createElement('p');
+        text.className = 'contradiction-card-text';
+        text.textContent = entry.text;
+        card.appendChild(text);
+        card.addEventListener('click', () => onEntryClick(entry.id));
+        this.els.contradictionGrid.appendChild(card);
+        cardEls[entry.id] = card;
+      });
     });
   }
 

@@ -5,8 +5,12 @@
  */
 
 const BUILD_VERSION = 'build 2026-08-03-02';
-const CASE_ID = 'case001';
+// 어떤 케이스를 플레이할지는 ?case=case002 같은 URL 파라미터로 결정됨(없으면 case001).
+// game.html의 인라인 로더 스크립트가 같은 파라미터로 해당 케이스의 scene-data.js를
+// 미리 동기적으로 로드해두므로, 여기서는 파라미터만 다시 읽어서 나머지 상태/저장 키를 맞춘다.
+const CASE_ID = new URLSearchParams(window.location.search).get('case') || 'case001';
 const CASE_BASE = `cases/${CASE_ID}/`;
+const CASE_LABEL = CASE_ID.toUpperCase().replace('CASE', 'CASE-'); // 'case002' -> 'CASE-002'
 
 let sceneData = null;
 let state = null;
@@ -89,7 +93,12 @@ async function boot() {
     (scene.hotspots || []).forEach((spot) => { hotspotRegistry[spot.id] = spot; });
   });
 
+  document.title = `Story Archive — ${CASE_LABEL}`;
+  const topBarTitle = document.querySelector('.top-bar__title');
+  if (topBarTitle) topBarTitle.textContent = `STORY ARCHIVE // ${CASE_LABEL}`;
+
   bindGlobalControls();
+  subscribeSiteConfig();
   document.getElementById('btn-sound').textContent = sound.enabled ? '🔊 사운드' : '🔇 사운드';
   document.getElementById('btn-sfx').textContent = sound.sfxEnabled ? '🔔 효과음' : '🔕 효과음';
   document.getElementById(sound.bgmMode === 'theme' ? 'bgm-mode-theme' : 'bgm-mode-scene').checked = true;
@@ -133,7 +142,7 @@ async function loadCloudEndingSafety() {
   const userId = window.CloudAuth && window.CloudAuth.getCurrentUser();
   if (!userId || !window.CloudAuth.isCloudAvailable()) return;
   try {
-    const res = await window.CloudAuth.getUserSaveData(userId);
+    const res = await window.CloudAuth.getUserSaveData(userId, CASE_ID);
     if (res.ok && res.saveData) {
       pendingCloudEndingFlags = pickEndingFlags(res.saveData.flags);
       pendingCloudEndingRecords = res.saveData.endingRecords || null;
@@ -333,7 +342,7 @@ function bindGlobalControls() {
     state.deleteSave('auto');
     const userId = window.CloudAuth && window.CloudAuth.getCurrentUser();
     if (userId) {
-      await window.CloudAuth.resetSaveData(userId);
+      await window.CloudAuth.resetSaveData(userId, CASE_ID);
     }
     document.getElementById('ending-screen').classList.remove('is-visible');
     document.getElementById('game-root').classList.remove('fear-overlay');
@@ -345,11 +354,56 @@ function bindGlobalControls() {
     e.target.textContent = isVisible ? '전체 파일 목록 확인 ▴' : '전체 파일 목록 확인 ▾';
   });
 
-  document.querySelectorAll('.roadmap-item.is-locked').forEach((item) => {
+  // 로드맵 카드 클릭 — is-locked/is-open은 siteConfig 실시간 구독(subscribeSiteConfig)이
+  // 계속 갱신하므로, 클릭 시점의 현재 클래스를 그때그때 확인한다(바인딩 시점 고정 아님).
+  // 열려있으면 그 케이스로 바로 진입(지금 열람 중인 케이스를 다시 누르면 game.html이
+  // 세이브 유무를 자체 판단해 이어하기를 물어봄), 잠겨있으면 접근 거부 문구만 띄운다.
+  document.querySelectorAll('.roadmap-item').forEach((item) => {
     item.addEventListener('click', () => {
-      document.getElementById('roadmap-flavor').textContent = '[ACCESS DENIED]';
+      if (item.classList.contains('is-locked')) {
+        document.getElementById('roadmap-flavor').textContent = '[ACCESS DENIED]';
+        return;
+      }
+      const targetCase = item.dataset.case;
+      if (!targetCase) return;
+      window.location.href = `game.html?case=${targetCase}`;
     });
   });
+
+  document.getElementById('btn-ending-continue-case002').addEventListener('click', () => {
+    window.location.href = 'game.html?case=case002';
+  });
+}
+
+// ---- siteConfig 실시간 구독 — case002Released가 켜지기 전까지는 002를 항상 잠긴 것으로
+// 취급(안전한 기본값). visitor-counter.js의 showVisitorCount/isPublic 패턴과 동일하게
+// onSnapshot으로 새로고침 없이 즉시 반영한다. manage-9k2x71.html에서 이 값을 토글함.
+let case002Released = false;
+
+function setRoadmapCaseOpen(caseId, isOpen) {
+  const item = document.querySelector(`.roadmap-item[data-case="${caseId}"]`);
+  if (!item) return;
+  item.classList.toggle('is-open', isOpen);
+  item.classList.toggle('is-locked', !isOpen);
+  const statusEl = item.querySelector('.roadmap-case-status');
+  if (statusEl) statusEl.textContent = isOpen ? '[OPEN]' : '[LOCKED]';
+}
+
+// CASE-001의 엔딩에서만 노출되는 버튼이므로, case002Released 값과 무관하게 다른
+// 케이스를 플레이 중일 땐(CASE_ID !== 'case001') 항상 숨겨둔다.
+function updateCase002ContinueButton() {
+  const btn = document.getElementById('btn-ending-continue-case002');
+  if (!btn) return;
+  btn.classList.toggle('is-hidden', !(CASE_ID === 'case001' && case002Released));
+}
+
+function subscribeSiteConfig() {
+  if (!window.db) return;
+  window.db.collection('siteConfig').doc('main').onSnapshot((doc) => {
+    case002Released = !!doc.exists && doc.data().case002Released === true;
+    setRoadmapCaseOpen('case002', case002Released);
+    updateCase002ContinueButton();
+  }, () => {});
 }
 
 function renderJournal() {
@@ -575,13 +629,24 @@ function isChoiceAvailable(choice) {
   return conditions.every((c) => state.evaluateCondition(c));
 }
 
+// scene.next는 문자열(기존) 또는 조건부 분기 배열을 지원 —
+// [{ condition: {...}, goto: "..." }, { goto: "..." }] 형태로, 위에서부터 순서대로 조건을
+// 만족하는 첫 항목의 goto로 이동. condition이 없는 항목은 항상 통과(기본값/최종 폴백).
+// 플레이어 클릭(choices)이 아니라 스탯 값만으로 자동 분기해야 하는 지점(002 4장)에 사용.
+function resolveSceneNext(next) {
+  if (!Array.isArray(next)) return next;
+  const branch = next.find((b) => !b.condition || state.evaluateCondition(b.condition));
+  return branch ? branch.goto : null;
+}
+
 async function playLines(scene, index) {
   if (index >= scene.lines.length) {
     if (scene.choices && scene.choices.length) {
       const visibleChoices = scene.choices.filter(isChoiceAvailable);
       ui.renderChoices(visibleChoices, (choice) => handleChoice(choice));
     } else if (scene.next) {
-      enterScene(scene.next);
+      const nextId = resolveSceneNext(scene.next);
+      if (nextId) enterScene(nextId);
     }
     return;
   }
@@ -621,10 +686,14 @@ async function playLines(scene, index) {
     ui.setCharacter(pos, CASE_BASE + `assets/characters/${resolvedChar}.png`);
   }
 
-  // 화자 기반 자동 sfx — 관리자 대사는 무전 클릭음(또렷하게), R-07 로그 재생은 테이프 클릭음
+  // 화자 기반 자동 sfx — 관리자 대사는 무전 클릭음(또렷하게), 대괄호 태그가 붙은
+  // 화자([로그 03]/[개인 로그]/[기록]/[방송] 등 — 녹음·기록 재생을 뜻함)는 테이프
+  // 클릭음. 예전엔 'R-07'로 시작하는지만 봐서 001에만 통했는데, 정작 이 규칙의
+  // 본질은 이름이 아니라 "이 대사가 녹음 재생이냐"였으므로 대괄호 유무로 일반화함
+  // — 앞으로 다른 케이스의 R-03/R-11 등 누구 기록이든 케이스 안 가리고 통함.
   if (line.speaker === '관리자') {
     sound.playSfx(CASE_BASE + 'assets/sfx/radio-click.mp3', 1.0);
-  } else if (line.speaker && line.speaker.startsWith('R-07')) {
+  } else if (line.speaker && /\[.+\]/.test(line.speaker)) {
     sound.playSfx(CASE_BASE + 'assets/sfx/tape-click.mp3');
   }
 
@@ -871,14 +940,14 @@ async function playReaction(text, nextSceneId) {
   }
 }
 
-// 엔딩과 무관하게 공통으로 붙는 R-03 떡밥 — 어떤 엔딩으로 끝나든 동일하게 노출
-const ENDING_TEASER =
+// 001 전용 폴백 콘텐츠 — 다른 케이스의 scene-data.js가 allEndingIds/endingTeaser/
+// completeRecordTeaser를 직접 정의하지 않으면(즉 001이면) 이 값들을 그대로 사용한다.
+// 케이스마다 결말 목록과 다음 편 떡밥이 다르므로, 있으면 sceneData 쪽을 우선한다.
+const CASE001_ENDING_TEASER =
   '기록을 정리하던 중, 오래된 로그 하나가 자동으로 딸려 올라온다.\n\n발신자 표기: R-03. 기록 일자, R-07보다 한참 이전.\n\n...이 사건은, 아직 끝나지 않았다.';
-
-// 3-5: "완전한 기록" — 4개 엔딩을 전부 모았을 때만 노출되는 강화된 전용 티저 (002 설정 암시)
-const COMPLETE_RECORD_TEASER =
+const CASE001_COMPLETE_RECORD_TEASER =
   '[UNCLOSED FILE — SIGNAL DETECTED]\n\nR-03. 발신 위치, 산속. 좌표는 불명확하지만, 신호는 반복되고 있다.\n기상 기록: 폭우. 그날도, 그 이후로도 계속.\n\n이 사건들, R-07 하나로 끝나지 않는다.\n다음 파일이 곧 열릴 것이다.';
-const ALL_ENDING_IDS = ['truth', 'admin-hands', 'walked-away', 'accomplice'];
+const CASE001_ALL_ENDING_IDS = ['truth', 'admin-hands', 'walked-away', 'accomplice'];
 
 function renderEnding(scene) {
   document.getElementById('ending-screen').classList.add('is-visible');
@@ -890,9 +959,13 @@ function renderEnding(scene) {
   document.getElementById('btn-roadmap-toggle').textContent = '전체 파일 목록 확인 ▾';
   document.getElementById('roadmap-flavor').textContent = '';
 
+  const allEndingIds = sceneData.allEndingIds || CASE001_ALL_ENDING_IDS;
+  const endingTeaser = sceneData.endingTeaser || CASE001_ENDING_TEASER;
+  const completeRecordTeaser = sceneData.completeRecordTeaser || CASE001_COMPLETE_RECORD_TEASER;
+
   state.setFlag(`ending_${scene.endingId}`, true);
-  const hasAllEndings = ALL_ENDING_IDS.every((id) => state.flags[`ending_${id}`]);
-  document.getElementById('ending-teaser').textContent = hasAllEndings ? COMPLETE_RECORD_TEASER : ENDING_TEASER;
+  const hasAllEndings = allEndingIds.every((id) => state.flags[`ending_${id}`]);
+  document.getElementById('ending-teaser').textContent = hasAllEndings ? completeRecordTeaser : endingTeaser;
 
   // 해당 엔딩에 도달했을 당시의 아이템/플래그 스냅샷을 따로 보관해둔다.
   // 이후 다른 회차를 진행해 items/flags가 덮어써져도, 타이틀의 "지금까지의 기록"에서
@@ -915,7 +988,7 @@ function updateProgress() {
 
 // M: 다른 탭으로 전환하면 탭 제목이 순간 바뀌었다가, 돌아오면 원래대로 — "게임이 지켜보고 있다"는 공포감
 document.addEventListener('visibilitychange', () => {
-  document.title = document.hidden ? '[CASE-001] 어디 보고 계십니까?' : 'Story Archive — CASE-001';
+  document.title = document.hidden ? `[${CASE_LABEL}] 어디 보고 계십니까?` : `Story Archive — ${CASE_LABEL}`;
 });
 
 window.addEventListener('DOMContentLoaded', boot);

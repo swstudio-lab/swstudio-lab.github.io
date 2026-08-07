@@ -135,6 +135,12 @@
   width: min(300px, 100%);
 }
 
+/* 케이스 허브(로드맵 카드)가 들어가는 welcome-panel은 auth-panel보다 조금 더 넓게 —
+   좁은 300px 안에서는 CASE 카드의 제목 텍스트가 너무 눌려서 읽기 불편해짐 */
+#welcome-panel {
+  width: min(420px, 92vw);
+}
+
 .auth-tabs {
   display: flex;
   gap: 0;
@@ -182,6 +188,81 @@
   overflow-wrap: break-word;
 }
 .auth-message.is-ok { color: var(--accent-amber); }
+
+/* ---------- 케이스 허브 (game.css의 엔딩 화면 로드맵과 같은 시각 언어를 그대로 재사용) ---------- */
+.case-hub {
+  width: 100%;
+  padding: 18px 20px;
+  border: 1px solid var(--panel-border);
+  border-left: 3px solid var(--accent-amber);
+  background: rgba(10,11,13,0.65);
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.case-hub-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: 3px;
+  color: var(--accent-amber);
+  text-align: center;
+  margin: 0 0 14px;
+  text-shadow: 0 0 14px rgba(166, 138, 91, 0.4);
+}
+
+.roadmap-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.roadmap-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--panel-border);
+  transition: border-color 0.15s ease;
+}
+.roadmap-item.is-locked { cursor: pointer; }
+.roadmap-item.is-locked:hover { border-color: var(--accent-blood); }
+.roadmap-item.is-open { cursor: pointer; }
+.roadmap-item.is-open:hover { border-color: var(--accent-amber); }
+
+.roadmap-case-id {
+  font-family: var(--font-display);
+  font-size: 15px;
+  letter-spacing: 1px;
+  color: var(--ink);
+  min-width: 92px;
+}
+
+.roadmap-case-title {
+  flex: 1;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--ink);
+  word-break: keep-all; /* 좁은 화면에서 한글 단어 중간이 아니라 띄어쓰기 기준으로 줄바꿈 */
+}
+.roadmap-item.is-locked .roadmap-case-title { color: var(--ink-dim); }
+
+.roadmap-case-status {
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+.roadmap-item.is-open .roadmap-case-status { color: var(--accent-amber); }
+.roadmap-item.is-locked .roadmap-case-status { color: var(--accent-blood); }
+
+.roadmap-flavor {
+  margin: 14px 0 0;
+  font-family: var(--font-body);
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  color: var(--accent-blood);
+  text-align: center;
+  min-height: 16px;
+}
 
 /* ---------- 링크 공유 ---------- */
 #share-wrap {

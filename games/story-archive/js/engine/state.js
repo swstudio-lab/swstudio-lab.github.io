@@ -18,6 +18,8 @@ class GameState {
       fear: 0,
       knowledge: 0,
       courage: 0,
+      suspicion: 0,
+      empathy: 0,
     };
     this.items = [];
     this.flags = {};
@@ -67,7 +69,8 @@ class GameState {
   }
 
   // ---- 조건 평가 ----
-  // condition 예시: { flag: "found_key" }, { stat: "trust", gte: 3 }, { item: "old_photo" }
+  // condition 예시: { flag: "found_key" }, { stat: "trust", gte: 3 }, { item: "old_photo" },
+  // { hasCase001Save: true } — 이 기기에 001 세이브(로컬)가 있는지, 케이스 자체와 무관하게 체크
   evaluateCondition(condition) {
     if (!condition) return true;
     if (condition.flag !== undefined) {
@@ -82,6 +85,10 @@ class GameState {
       if (condition.gte !== undefined) return val >= condition.gte;
       if (condition.lte !== undefined) return val <= condition.lte;
       if (condition.eq !== undefined) return val === condition.eq;
+    }
+    if (condition.hasCase001Save !== undefined) {
+      const has = localStorage.getItem(`${STORAGE_PREFIX}case001:auto`) !== null;
+      return has === condition.hasCase001Save;
     }
     return true;
   }

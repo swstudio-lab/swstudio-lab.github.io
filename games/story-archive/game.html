@@ -126,9 +126,11 @@
               <span class="roadmap-case-title">잊혀진 기록</span>
               <span class="roadmap-case-status">[OPEN]</span>
             </div>
+            <!-- case002는 siteConfig/main의 case002Released가 true로 확인되기 전까지는 항상
+                 잠긴 상태로 취급(안전한 기본값) — main.js가 실시간으로 열림/잠김을 갱신함 -->
             <div class="roadmap-item is-locked" data-case="case002">
               <span class="roadmap-case-id">CASE-002</span>
-              <span class="roadmap-case-title">???</span>
+              <span class="roadmap-case-title">기음 (거짓된 복음)</span>
               <span class="roadmap-case-status">[LOCKED]</span>
             </div>
             <div class="roadmap-item is-locked" data-case="case003">
@@ -142,7 +144,9 @@
       </div>
 
       <div class="ending-actions">
-        <button id="btn-ending-restart" class="ctrl-btn ctrl-btn--primary" type="button">다시 시작하기</button>
+        <!-- CASE-001의 엔딩에서만, case002Released가 true일 때만 나타남(main.js가 제어) -->
+        <button id="btn-ending-continue-case002" class="ctrl-btn ctrl-btn--primary is-hidden" type="button">CASE-002로 이어가기</button>
+        <button id="btn-ending-restart" class="ctrl-btn" type="button">다시 시작하기</button>
         <button id="btn-ending-title" class="ctrl-btn" type="button">타이틀로 돌아가기</button>
       </div>
     </div>
@@ -282,6 +286,19 @@
     </div>
   </div>
 
+  <!-- 퍼즐: 모순찾기 (002) — 텍스트 블록 여러 개 중 미묘하게 다른 하나를 클릭해서 짚음 -->
+  <div id="contradiction-overlay">
+    <div class="contradiction-box">
+      <p class="contradiction-tag">[CROSS-CHECK]</p>
+      <p id="contradiction-prompt" class="contradiction-prompt"></p>
+      <div id="contradiction-grid" class="contradiction-grid"></div>
+      <p id="contradiction-feedback" class="contradiction-feedback"></p>
+      <div class="contradiction-actions">
+        <button id="contradiction-hint-btn" class="ctrl-btn" type="button">힌트</button>
+      </div>
+    </div>
+  </div>
+
   <!-- QTE: 순간 반응 — 화면 자체가 위험 신호가 되는 연출 (2-1). 숨겨진 타겟을 직접 찾아 클릭해야 함 -->
   <div id="qte-overlay">
     <p id="qte-prompt" class="qte-prompt"></p>
@@ -303,7 +320,13 @@
 <script src="js/engine/sound.js"></script>
 <script src="js/engine/ui.js"></script>
 <script src="js/engine/puzzle.js"></script>
-<script src="cases/case001/scene-data.js"></script>
+<script>
+  // 어떤 케이스를 플레이할지는 ?case=case002 같은 URL 파라미터로 결정됨(없으면 case001).
+  // document.write로 즉시 삽입해야 아래 main.js가 실행되기 전에 scene-data.js가 동기적으로
+  // 로드/실행되어 window.CASE_DATA가 준비된다(비동기 script 삽입은 타이밍이 보장 안 됨).
+  var CASE_ID_PARAM = new URLSearchParams(window.location.search).get('case') || 'case001';
+  document.write('<script src="cases/' + CASE_ID_PARAM + '/scene-data.js"><\/script>');
+</script>
 <script src="js/main.js"></script>
 <script src="../../assets/nav.js"></script>
 <script src="../../assets/maintenance.js"></script>

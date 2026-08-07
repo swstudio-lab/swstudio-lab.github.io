@@ -502,6 +502,45 @@ function bindWelcomePanel() {
   });
 }
 
+// ---- 케이스 허브 — 로그인 직후 바로 보이는 시리즈 목록. game.html의 엔딩 화면 로드맵과
+// 같은 구조를 재사용하되, 여기선 엔딩을 볼 필요 없이 로그인만 하면 바로 보인다.
+// is-open/is-locked는 subscribeSiteConfig()가 실시간으로 계속 갱신하므로, 클릭 시점의
+// 현재 클래스를 그때그때 확인한다(바인딩 시점에 고정하지 않음). 열려있으면
+// game.html?case=... 로 이동 — game.html이 이미 그 파라미터로 세이브 유무를 자체
+// 판단해 이어하기/새로 시작 여부를 묻으므로, 여기서는 단순히 이동만 하면 된다.
+function bindCaseHub() {
+  document.querySelectorAll('#welcome-panel .roadmap-item').forEach((item) => {
+    item.addEventListener('click', () => {
+      if (item.classList.contains('is-locked')) {
+        document.getElementById('case-hub-flavor').textContent = '[ACCESS DENIED]';
+        return;
+      }
+      const targetCase = item.dataset.case;
+      if (!targetCase) return;
+      window.location.href = `${GAME_URL}?case=${targetCase}`;
+    });
+  });
+}
+
+// ---- siteConfig 실시간 구독 — game.html의 main.js와 동일한 목적/패턴.
+// case002Released가 켜지기 전까지는 항상 잠긴 것으로 취급(안전한 기본값).
+function setCaseHubOpen(caseId, isOpen) {
+  const item = document.querySelector(`#welcome-panel .roadmap-item[data-case="${caseId}"]`);
+  if (!item) return;
+  item.classList.toggle('is-open', isOpen);
+  item.classList.toggle('is-locked', !isOpen);
+  const statusEl = item.querySelector('.roadmap-case-status');
+  if (statusEl) statusEl.textContent = isOpen ? '[OPEN]' : '[LOCKED]';
+}
+
+function subscribeSiteConfig() {
+  if (!window.db) return;
+  window.db.collection('siteConfig').doc('main').onSnapshot((doc) => {
+    const released = !!doc.exists && doc.data().case002Released === true;
+    setCaseHubOpen('case002', released);
+  }, () => {});
+}
+
 // ---- 비밀번호 찾기 ----
 function bindForgotPassword() {
   document.getElementById('btn-forgot-pw').addEventListener('click', () => {
@@ -550,6 +589,8 @@ async function boot() {
   bindLogin();
   bindSignup();
   bindWelcomePanel();
+  bindCaseHub();
+  subscribeSiteConfig();
   bindForgotPassword();
   bindRecapButtons();
   bindShareButton();

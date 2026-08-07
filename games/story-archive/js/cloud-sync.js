@@ -7,11 +7,14 @@
  *   passwordHash, recoveryCodeHash, createdAt, saveData
  *
  * saveData는 케이스별로 네임스페이스가 나뉜 구조: saveData: { case001: {...진행상황...} }
- * 한 계정으로 여러 케이스(002, 003...)의 진행 데이터를 함께 보관하기 위함 —
- * 지금은 case001만 있어서 체감되는 변화는 없지만, 나중에 다른 케이스가 추가돼도
- * 이 구조 덕분에 마이그레이션 없이 확장 가능함.
+ * 한 계정으로 여러 케이스(002, 003...)의 진행 데이터를 함께 보관하기 위함.
  * pushSaveData/resetSaveData는 항상 set({..}, {merge:true})로 saveData의 다른 케이스
  * 키는 건드리지 않고 해당 케이스 키만 병합·교체함.
+ *
+ * logIn/getUserSaveData/resetSaveData는 caseId를 인자로 받아 그 케이스의 saveData만
+ * 꺼내거나 지운다(기본값 'case001' — title.js의 로그인 화면은 항상 case001 기준이라
+ * 인자 없이 호출해도 기존과 동일하게 동작함). main.js는 실행 중인 CASE_ID를 그대로 넘겨서
+ * 어떤 케이스를 플레이 중이든 그 케이스의 진행 데이터를 정확히 불러오고/저장한다.
  *
  * 개인정보 없음 — 아이디/비번/복구코드 전부 임의 문자열이고 실명·이메일·전화 등은 받지 않음.
  * 비번/복구코드는 원문 저장 안 하고 SHA-256 해시만 저장.
@@ -20,7 +23,6 @@
 const AUTH_COLLECTION = 'storyArchiveUsers';
 const CURRENT_USER_KEY = 'story-archive:current-user';
 const ID_RULE = /^[A-Za-z0-9_]{3,12}$/;
-const SAVE_CASE_ID = 'case001'; // logIn/resetSaveData가 saveData에서 꺼내고 지울 케이스 키
 
 // ---- 유틸 ----
 async function sha256(text) {
@@ -106,7 +108,7 @@ async function signUp(id, password) {
   }
 }
 
-async function logIn(id, password) {
+async function logIn(id, password, caseId = 'case001') {
   if (!isCloudAvailable()) return { ok: false, reason: '지금은 온라인 계정 기능을 쓸 수 없어요 (연결 실패).' };
   try {
     const ref = window.db.collection(AUTH_COLLECTION).doc(id);
@@ -117,7 +119,7 @@ async function logIn(id, password) {
     const passwordHash = await sha256(password);
     if (passwordHash !== data.passwordHash) return { ok: false, reason: '비밀번호가 일치하지 않아요.' };
 
-    return { ok: true, saveData: (data.saveData && data.saveData[SAVE_CASE_ID]) || null };
+    return { ok: true, saveData: (data.saveData && data.saveData[caseId]) || null };
   } catch (e) {
     console.error('[cloud-sync] 로그인 실패:', e);
     return { ok: false, reason: '로그인 중 오류가 발생했어요. 다시 시도해주세요.' };
@@ -126,13 +128,13 @@ async function logIn(id, password) {
 
 // 로그인 세션 복원용 — getCurrentUser()로 로컬에 남아있는 아이디를 비밀번호 재입력 없이
 // 다시 불러올 때 사용 (기존 "정확한 문서 ID를 아는 요청만 get 가능" 패턴과 동일한 신뢰 수준)
-async function getUserSaveData(id) {
+async function getUserSaveData(id, caseId = 'case001') {
   if (!isCloudAvailable()) return { ok: false, reason: 'offline' };
   try {
     const doc = await window.db.collection(AUTH_COLLECTION).doc(id).get();
     if (!doc.exists) return { ok: false, reason: 'not-found' };
     const data = doc.data();
-    return { ok: true, saveData: (data.saveData && data.saveData[SAVE_CASE_ID]) || null };
+    return { ok: true, saveData: (data.saveData && data.saveData[caseId]) || null };
   } catch (e) {
     console.error('[cloud-sync] 세션 복원 실패:', e);
     return { ok: false, reason: 'error' };
@@ -162,11 +164,11 @@ async function resetPassword(id, recoveryCode, newPassword) {
   }
 }
 
-// 계정은 유지, 진행 데이터(saveData)만 초기화 — saveData.case001만 지우고 다른 케이스 키는 손대지 않음
-async function resetSaveData(id) {
+// 계정은 유지, 진행 데이터(saveData)만 초기화 — 해당 caseId 키만 지우고 다른 케이스 키는 손대지 않음
+async function resetSaveData(id, caseId = 'case001') {
   if (!isCloudAvailable()) return { ok: false, reason: '지금은 온라인 계정 기능을 쓸 수 없어요 (연결 실패).' };
   try {
-    await window.db.collection(AUTH_COLLECTION).doc(id).set({ saveData: { [SAVE_CASE_ID]: null } }, { merge: true });
+    await window.db.collection(AUTH_COLLECTION).doc(id).set({ saveData: { [caseId]: null } }, { merge: true });
     return { ok: true };
   } catch (e) {
     console.error('[cloud-sync] 초기화 실패:', e);

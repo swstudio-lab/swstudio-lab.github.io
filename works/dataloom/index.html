@@ -677,6 +677,7 @@ function applyRoomData(d){
 async function saveStateToRoom(code){
   if(!db) throw new Error('저장소 연결이 안 돼있어요');
   const payload = await encryptForRoom(code, snapshotState());
+  await window.authReady;
   return db.collection('dashboardRooms').doc(code).set(payload, {merge:true});
 }
 
@@ -691,8 +692,9 @@ const PRESENCE_STALE_MS = 20000; // 20초 넘게 신호 없으면 나간 걸로 
 
 function startPresenceHeartbeat(code){
   stopPresenceHeartbeat();
-  const beat = () => {
+  const beat = async () => {
     if(!db) return;
+    await window.authReady;
     db.collection('dashboardRooms').doc(code).set({ presence: { [clientId]: Date.now() } }, {merge:true}).catch(()=>{});
   };
   beat();

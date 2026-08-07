@@ -269,7 +269,7 @@ function defaultHorses(){
     return names.map((n, i) => ({ id: uid(), name: n, color: PALETTE[i % PALETTE.length] }));
 }
 
-function joinRoom(code, name){
+async function joinRoom(code, name){
     document.getElementById('gate-overlay').style.display = 'none';
     localStorage.setItem(ROOM_KEY, code);
     localStorage.setItem(NAME_KEY, name);
@@ -277,6 +277,7 @@ function joinRoom(code, name){
     roomRef = db.collection('racingRooms').doc(code);
     document.getElementById('room-status').textContent = `🔗 방 "${code}" 에 연결됨`;
 
+    await window.authReady;
     roomRef.get().then(doc => {
         if (!doc.exists) {
             roomRef.set({
@@ -299,8 +300,9 @@ function joinRoom(code, name){
     }).catch(() => toast('연결 실패 - 인터넷 연결을 확인해주세요'));
 }
 
-function heartbeat(){
+async function heartbeat(){
     if (!roomRef) return;
+    await window.authReady;
     roomRef.update({ [`players.${playerId}.lastSeen`]: Date.now() }).catch(() => {});
 }
 

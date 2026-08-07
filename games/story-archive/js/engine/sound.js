@@ -188,8 +188,16 @@ class SoundManager {
   // G: 지하실/연구소처럼 긴장감 있는 공간에서, 배경음이 "웅웅거리며" 은은하게 커졌다 작아졌다
   // 하는 인상을 줌 — 실제로 더 커지는 게 아니라 기준 볼륨(BGM_VOLUME) 이하에서만 오르내림.
   // 트랙 이름으로 대상 판단 — scene-data 스키마를 안 건드리고 기존 bgm 파일명만으로 자동 적용.
+  // 001의 basement-hum/lab-interference에 이어, 002의 tower-hum(2장 복도/방송실)과
+  // server-drone(4장 서버실)도 같은 긴장감 있는 공간이라 동일하게 적용.
   _shouldSwell(src) {
-    return !!src && (src.indexOf('basement-hum') !== -1 || src.indexOf('lab-interference') !== -1);
+    return (
+      !!src &&
+      (src.indexOf('basement-hum') !== -1 ||
+        src.indexOf('lab-interference') !== -1 ||
+        src.indexOf('tower-hum') !== -1 ||
+        src.indexOf('server-drone') !== -1)
+    );
   }
 
   _syncAmbientSwell(src) {

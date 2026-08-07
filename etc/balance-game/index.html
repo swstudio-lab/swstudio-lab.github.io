@@ -232,7 +232,10 @@ document.getElementById('opt-row').addEventListener('click', e => {
     const opt = btn.dataset.opt;
     votedMap[id] = opt;
     saveVoted(votedMap);
-    col.doc(id).set({ [opt]: firebase.firestore.FieldValue.increment(1) }, { merge: true });
+    // 화면 갱신은 즉시(낙관적 UI), 실제 쓰기는 익명 인증이 끝난 뒤 백그라운드로 전송
+    window.authReady.then(() => {
+        col.doc(id).set({ [opt]: firebase.firestore.FieldValue.increment(1) }, { merge: true });
+    });
     renderQuestion();
 });
 
