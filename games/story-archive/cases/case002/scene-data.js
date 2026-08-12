@@ -127,14 +127,17 @@ window.CASE_DATA = {
       "background": "assets/backgrounds/tower-exterior.png",
       "bgm": "assets/bgm/storm-rain.mp3",
       "lines": [
+        { "speaker": "내레이션", "text": "다이얼에 손을 올린다. 자릿수를 세어보니, 딱 두 칸뿐이다." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...숫자는 셋인데 자리는 둘. 그대로는 안 맞는다." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...합쳐야 하나?" },
         {
           "speaker": "내레이션",
-          "text": "다이얼에 손을 올린다.",
+          "text": "1, 9, 3.",
           "puzzle": {
             "type": "code",
-            "prompt": "환기구 덮개의 3자리 다이얼.\n(외벽에서 찾은 숫자: 1, 9, 3)",
-            "code": "193",
-            "hint": "찾은 순서대로 그대로 입력하면?",
+            "prompt": "환기구 덮개의 2자리 다이얼.\n(외벽에서 찾은 숫자: 1, 9, 3 — 자릿수가 안 맞는다)",
+            "code": "13",
+            "hint": "세 숫자를 전부 더하면?",
             "onSuccessSetStat": { "knowledge": 1 }
           }
         },
@@ -146,15 +149,22 @@ window.CASE_DATA = {
           "itemImage": "assets/items/symbol-rubbing.png",
           "itemLabel": "낙인 탁본"
         },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...이 표시, 001 파일 사진에 있던 그 별 모양이랑 정확히 같다." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...이 표시, 001 수사 기록에 있던 그 별 모양이랑 정확히 같다." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) 그때도 우연이 아니라더니 — 여기까지 이어져 있었나." },
+
+        { "character": "{gender}-neutral", "speaker": "조사관(나)",
+          "text": "(혼잣말) ...13이라. 001 파일에도 이 숫자가 반복해서 나온다고 적혀 있었지. 우연은 아닐 것 같다.",
+          "condition": { "hasCase001Save": true } },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)",
+          "text": "(혼잣말) ...13이라. 어디서 자꾸 마주치는 느낌인데, 기분 탓이겠지.",
+          "condition": { "hasCase001Save": false } },
+
         { "speaker": "관리자", "text": "오래된 낙서예요. 안으로 들어가시죠." },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...1, 9, 3. 더하면 13이잖아." },
         { "speaker": "내레이션", "text": "찜찜한 느낌을 지울 수 없지만, 지금은 넘어가는 수밖에 없다." }
       ],
       "choices": [
         {
-          "text": "관리자에게 이 숫자에 대해 물어본다",
+          "text": "관리자에게 이 표시에 대해 물어본다",
           "setStat": { "suspicion": 1 },
           "reaction": "(혼잣말) ...캐물어서 좋을 게 있을지 모르겠지만.",
           "next": "tower_entry_after_ask"
@@ -204,7 +214,7 @@ window.CASE_DATA = {
     },
 
     "broadcast_room_entry": {
-      "background": "assets/backgrounds/tower-corridor.png",
+      "background": "assets/backgrounds/broadcast-room.png",
       "bgm": "assets/bgm/tower-hum.mp3",
       "lines": [
         { "speaker": "내레이션", "text": "작은 방송 제어실. 낡은 릴테이프 여러 개가 선반에 정리되어 있다." },
@@ -216,16 +226,16 @@ window.CASE_DATA = {
           "itemLabel": "방송 로그 사본"
         },
         { "speaker": "관리자", "text": "그건 오래된 정기 점검 기록입니다. 의미 없어요." },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "정기 점검이면, 누가 담당합니까?" },
-        { "speaker": "관리자", "text": "아무도요. 그건 자동으로 처리됩니다. 사람이 손댈 일이 없어요." },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...'사람이 손댈 일이 없다'라. 그럼 이 네 장, 전부 똑같아야 정상 아닌가." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "이 넉 장, 왜 방마다 하나씩 붙어있습니까?" },
+        { "speaker": "관리자", "text": "전부 같은 발신원에서 나온 복사본이에요. 사람이 따로 손볼 게 없죠." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...'같은 발신원에서 나온 복사본'이라. 그럼 넉 장 다 완전히 똑같아야 정상 아닌가." },
         { "speaker": "내레이션", "text": "클립보드를 넘겨본다. 넉 장, 얼핏 보기엔 다 같은 문구다." }
       ],
       "next": "broadcast_contradiction_puzzle"
     },
 
     "broadcast_contradiction_puzzle": {
-      "background": "assets/backgrounds/tower-corridor.png",
+      "background": "assets/backgrounds/broadcast-room.png",
       "bgm": "assets/bgm/tower-hum.mp3",
       "lines": [
         {
@@ -233,12 +243,12 @@ window.CASE_DATA = {
           "text": "넉 장을 나란히 놓고 하나하나 대조한다.",
           "puzzle": {
             "type": "contradiction",
-            "prompt": "정기 점검 기록 4부. 자동화된 기록이라면 전부 같아야 한다 — 다른 한 장을 짚어라.",
+            "prompt": "정기 점검 기록 4부. 같은 발신원의 복사본이라면 전부 완전히 같아야 한다 — 다른 한 장을 짚어라.",
             "entries": [
-              { "id": "log_1", "text": "[정기 점검 기록 — 07/16]\n\"...신호 안정. 이상 없음. 다음 점검까지 대기.\"" },
-              { "id": "log_2", "text": "[정기 점검 기록 — 07/16]\n\"...신호 안정. 이상 없음. 다음 점검까지 대기.\"" },
-              { "id": "log_3", "text": "[정기 점검 기록 — 06/25]\n\"...신호, 안정적임. 이상 없음. 다음 점검까지, 대기.\"" },
-              { "id": "log_4", "text": "[정기 점검 기록 — 07/16]\n\"...신호 안정. 이상 없음. 다음 점검까지 대기.\"" }
+              { "id": "log_1", "text": "[정기 점검 기록 — 07/16]\n발신 코드: TX-114\n\"...신호 안정. 이상 없음. 다음 점검까지 대기.\"" },
+              { "id": "log_2", "text": "[정기 점검 기록 — 07/16]\n발신 코드: TX-114\n\"...신호 안정. 이상 없음. 다음 점검까지 대기.\"" },
+              { "id": "log_3", "text": "[정기 점검 기록 — 06/25]\n발신 코드: TX-097\n\"...신호, 안정적임. 이상 없음. 다음 점검까지, 대기.\"" },
+              { "id": "log_4", "text": "[정기 점검 기록 — 07/16]\n발신 코드: TX-114\n\"...신호 안정. 이상 없음. 다음 점검까지 대기.\"" }
             ],
             "answerId": "log_3",
             "maxWrongAttempts": 3,
@@ -253,15 +263,14 @@ window.CASE_DATA = {
     // suspicion이 오답 누적으로 올라간 경우 / 안 올라간 경우 둘 다 다음 줄부터는 동일하게
     // 이어짐(정답 자체는 대사로 항상 밝혀지되, 몇 번 틀렸는지가 관리자와의 긴장도에 영향을 줌)
     "broadcast_reveal": {
-      "background": "assets/backgrounds/tower-corridor.png",
+      "background": "assets/backgrounds/broadcast-room.png",
       "bgm": "assets/bgm/tower-hum.mp3",
       "lines": [
-        { "speaker": "내레이션", "text": "하나만 다르다. 나머지 셋은 전부 같은 날짜인데, 이것만 삼 주 전이다." },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...날짜만 다른 게 아니야. 말투도 미묘하게 다르다. 쉼표 하나까지." },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...이거, 나중에 끼워 넣은 거다. 누군가 삼 주 전에 손을 댔다." },
+        { "speaker": "내레이션", "text": "하나만 다르다. 날짜도, 발신 코드도, 문구의 쉼표 하나까지 나머지 셋이랑 다르다." },
+        { "character": "{gender}-shock", "speaker": "조사관(나)", "text": "(혼잣말) ...이거, 나중에 끼워 넣은 거다. 누군가 삼 주 전에 이 자리에 손을 댔다." },
         { "speaker": "관리자", "text": "...예리하시네요." },
-        { "speaker": "관리자", "text": "그래도 지금 조사엔 상관없는 부분입니다. 자동화 시스템도 가끔 오류가 나요." },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...방금 그건, 부정이 아니라 변명이었다." },
+        { "speaker": "관리자", "text": "그래도 지금 조사엔 상관없는 부분입니다. 복사본 하나가 밀려서 안 갈렸을 수도 있죠." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...발신 코드까지 다른데, 그게 '안 갈린' 걸로 설명이 되나." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...삼 주 전. R-03이 실종 처리된 시점이랑, 겹치지 않나?" },
         { "speaker": "내레이션", "text": "확신할 순 없다. 하지만 우연이라기엔, 너무 정확히 겹친다." },
         { "speaker": "내레이션", "text": "복도 끝, 잠긴 철문 하나가 더 있다." }
@@ -276,6 +285,7 @@ window.CASE_DATA = {
         { "speaker": "내레이션", "text": "철문에는 자물쇠가 없다. 그냥, 오랫동안 아무도 열지 않은 것처럼 뻑뻑하다." },
         { "speaker": "관리자", "text": "그 안쪽은 R-03이 마지막으로 머물렀던 곳입니다." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...아까 그 로그, 여기서 확인할 수 있을지도 모른다." },
+        { "character": "{gender}-fear", "speaker": "조사관(나)", "text": "(혼잣말) ...여기서부터는, 돌이키기 어려울 것 같다." },
         { "speaker": "내레이션", "text": "문을 민다. 삐걱이며 열린다." }
       ],
       "next": "r03_hideout_entry"
@@ -353,61 +363,71 @@ window.CASE_DATA = {
           "addItem": "pill_bottle"
         },
         {
-          "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...이 약, 001 파일에 사진으로 남아있던 그 약병이랑 똑같이 생겼다.",
+          "character": "{gender}-neutral", "speaker": "조사관(나)",
+          "text": "(혼잣말) ...이 약, 001 수사 기록에 사진으로 남아있던 그 약병이랑 똑같이 생겼다.",
           "condition": { "hasCase001Save": true }
         },
         {
-          "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...라벨 없는 약병. 성분 표기가 지워져 있다. 수상한 약이다.",
+          "character": "{gender}-neutral", "speaker": "조사관(나)",
+          "text": "(혼잣말) ...라벨 없는 약병. 성분 표기가 지워져 있다. 수상한 약이다.",
           "condition": { "hasCase001Save": false }
         },
         { "speaker": "관리자", "text": "흔한 약입니다. 별 의미 없어요." },
-        { "speaker": "내레이션", "text": "약병 옆, 찢어진 신분증 조각. 사번 앞자리 \"03\"만 겨우 보인다." },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...R-07도 그랬다. 자기 사번을 뒤에 붙이는 버릇. 코드마다, 자물쇠마다." },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...R-03도 같은 버릇이었다면. 03, 그리고 사방에 널린 47." },
-        {
-          "speaker": "내레이션", "text": "약병 옆, 빛바랜 신문 스크랩 사본 한 장이 클립으로 고정되어 있다.",
+
+        { "speaker": "내레이션", "text": "약병 옆, 빛바랜 신문 스크랩 사본 한 장이 클립으로 고정되어 있다.",
           "addItem": "newspaper_clipping_copy",
           "itemImage": "assets/items/newspaper-clipping-copy.png",
-          "itemLabel": "신문 스크랩 사본"
-        },
-        {
-          "speaker": "내레이션", "text": "스크랩 여백에, R-03의 필체로 날짜 하나가 동그라미 쳐져 있다 — 이 중계탑이 가동을 시작한 날짜와 같다."
-        },
-        {
-          "character": "{gender}-neutral", "speaker": "조사관(나)",
-          "text": "(혼잣말) ...이거, 001에서 봤던 그 병원 이전 기사잖아. R-03도 이걸 갖고 있었다니.",
-          "condition": { "hasCase001Save": true }
-        },
-        {
-          "character": "{gender}-neutral", "speaker": "조사관(나)",
+          "itemLabel": "신문 스크랩 사본" },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)",
+          "text": "(혼잣말) ...이거, 001 수사 기록에 있던 그 병원 이전 기사잖아. R-03도 이걸 갖고 있었다니.",
+          "condition": { "hasCase001Save": true } },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)",
           "text": "(혼잣말) ...병원 이전 기사? 사본까지 만들어서 모아뒀다는 건, R-03 전에도 이걸 조사하던 사람이 있었다는 뜻이다.",
-          "condition": { "hasCase001Save": false }
-        },
+          "condition": { "hasCase001Save": false } },
         { "speaker": "관리자", "text": "오래된 자료예요. 지금이랑은 상관없습니다." },
-        {
-          "character": "{gender}-neutral", "speaker": "조사관(나)",
-          "text": "(혼잣말) ...R-03이 이걸 어디서 구했는지가 더 궁금한데. 파일 보관실이라도 뒤졌던 건가."
-        },
-        { "speaker": "내레이션", "text": "책상 서랍에 작은 다이얼 자물쇠가 달려있다." }
+
+        { "speaker": "내레이션", "text": "약병 옆, 찢어진 신분증 조각. 사번 앞자리 \"03\"만 겨우 보인다." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)",
+          "text": "(혼잣말) ...001 수사 기록에 이런 내용이 있었다. R-07도 자기 사번을 코드마다 붙이는 버릇이 있었다고." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)",
+          "text": "(혼잣말) ...R-03도 같은 버릇이었다면. 03, 그리고 사방에 널린 47." },
+
+        { "speaker": "내레이션", "text": "벽을 다시 돌아본다. 이 방 전체가 하나의 증거보드다 — 흩어진 게 아니라, 뭔가로 이어져 있을지도 모른다." }
       ],
-      "next": "r03_drawer_puzzle"
+      "next": "r03_evidence_board_puzzle"
     },
 
-    "r03_drawer_puzzle": {
+    "r03_evidence_board_puzzle": {
       "background": "assets/backgrounds/r03-hideout.png",
       "bgm": "assets/bgm/hideout-quiet.mp3",
       "lines": [
+        { "speaker": "내레이션", "text": "지금까지 모은 것들을 벽 앞에 늘어놓는다. 어떤 게 어떤 것과 이어지는지, 직접 실로 이어봐야 한다." },
         {
           "speaker": "내레이션",
-          "text": "서랍 다이얼에 손을 올린다.",
+          "text": "",
           "puzzle": {
-            "type": "code",
-            "prompt": "책상 서랍의 4자리 다이얼.\n(사번 조각: 03 / 방 안에 반복된 숫자: 47)",
-            "code": "0347",
-            "hint": "사번(03)과 방 안 곳곳의 그 숫자(47)를 순서대로 이어붙이면?",
+            "type": "connect",
+            "prompt": "관련 있는 두 쌍을 찾아 이어라.",
+            "items": [
+              { "id": "symbol", "label": "낙인 탁본", "image": "assets/items/symbol-rubbing.png" },
+              { "id": "logs", "label": "방송 로그 사본", "image": "assets/items/broadcast-logs.png" },
+              { "id": "pill", "label": "라벨 없는 약병", "image": "assets/items/pill-bottle.png" },
+              { "id": "clipping", "label": "신문 스크랩 사본", "image": "assets/items/newspaper-clipping-copy.png" }
+            ],
+            "pairs": [
+              ["symbol", "logs"],
+              ["pill", "clipping"]
+            ],
+            "connectMessages": {
+              "symbol|logs": "낙인 탁본이 처음 나타난 시점들과, 방송 이상이 기록된 시점들이 겹친다. 표식과 신호는 같은 것을 가리킨다.",
+              "pill|clipping": "약병 재고가 줄기 시작한 시점과, 병원이 문을 닫은 시점 — 정확히 같은 지점에서 시작된다."
+            },
+            "hint": "낙인 탁본과 방송 로그를 먼저 이어보자.",
             "onSuccessSetStat": { "knowledge": 1 }
           }
         },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...이 두 개, 우연이 아니다. 전부 하나로 이어져 있었어." },
+        { "speaker": "내레이션", "text": "그 순간, 반복해서 눈에 띄던 숫자들이 자연스럽게 조합된다 — 03, 그리고 47. 서랍 쪽으로 걸음을 옮긴다." },
         { "speaker": "내레이션", "text": "달칵. 서랍이 열린다.", "fx": "flash" },
         {
           "speaker": "내레이션",
@@ -454,6 +474,7 @@ window.CASE_DATA = {
       "background": "assets/backgrounds/server-room.png",
       "bgm": "assets/bgm/server-drone.mp3",
       "lines": [
+        { "character": "{gender}-fear", "speaker": "조사관(나)", "text": "(혼잣말) ...심장이 이상하게 빨리 뛴다." },
         { "speaker": "내레이션", "text": "방 전체가 낮게 웅웅거린다. 중앙 콘솔에 미완성 장치가 놓여있다." },
         {
           "speaker": "내레이션",
@@ -485,12 +506,13 @@ window.CASE_DATA = {
         }
       ],
       "next": [
-        { "condition": { "stat": "suspicion", "gte": 2 }, "goto": "server_qte_tense" },
-        { "goto": "server_qte_normal" }
+        { "condition": { "stat": "empathy", "gte": 1 }, "goto": "server_synthesis_photos" },
+        { "goto": "server_synthesis_map" }
       ]
     },
 
-    "server_qte_normal": {
+    "server_synthesis_photos": {
+      // 3장에서 "사진"을 골랐던 사람용 — 가짜 조각은 지도 쪽 내용
       "background": "assets/backgrounds/server-room.png",
       "bgm": "assets/bgm/server-drone.mp3",
       "lines": [
@@ -498,31 +520,40 @@ window.CASE_DATA = {
         {
           "speaker": "내레이션",
           "text": "장치에 다이얼이 달려있다.",
-          "puzzle": {
-            "type": "code",
-            "prompt": "방해 장치의 주파수 다이얼.",
-            "code": "1084",
-            "onSuccessSetStat": { "knowledge": 1 }
-          }
+          "puzzle": { "type": "code", "prompt": "방해 장치의 주파수 다이얼.", "code": "1084", "onSuccessSetStat": { "knowledge": 1 } }
         },
         { "speaker": "내레이션", "text": "장치가 낮게 진동하기 시작한다. 잡음이 흔들린다." },
         { "speaker": "관리자", "text": "지금이라도 멈추십시오." },
-        { "character": "{gender}-resolve", "speaker": "조사관(나)", "text": "(혼잣말) ...이번엔 끝까지 한다." },
+        { "speaker": "관리자", "text": "...여전히 듣고 있습니다. 계속 그렇게 하실 겁니까.", "condition": { "stat": "suspicion", "gte": 2 } },
+        { "character": "{gender}-resolve", "speaker": "조사관(나)", "text": "(혼잣말) ...지금까지 알아낸 걸, 순서대로 정리해야 한다." },
         {
           "speaker": "내레이션",
-          "text": "머릿속이 갑자기 무거워진다. 누군가 억지로 생각을 밀어넣으려 한다.",
-          "fx": "bloodbleed", "highlight": true,
+          "text": "머릿속에 지금까지의 조각들이 떠오른다. 그런데 하나, 낯선 확신이 섞여 있다.",
+          "fx": "bloodbleed",
+          "highlight": true,
           "puzzle": {
-            "type": "qte", "prompt": "...놓치지 마.", "duration": 5000,
-            "onSuccessSetFlag": "qte_reflex_success", "onSuccessSetStat": { "courage": 1 },
-            "onFailSetFlag": "qte_reflex_fail", "onFailSetStat": { "fear": 1 }
+            "type": "sequence",
+            "prompt": "실제로 조사해서 알아낸 것만 골라, 순서대로 배열하라. (조각은 5개, 답은 4개뿐이다)",
+            "fragments": [
+              { "id": "f_13", "text": "13 — 반복되는 숫자, 흩어진 표식에서 나온 합" },
+              { "id": "f_log", "text": "삼 주 전 — 발신 코드까지 다른 가짜 점검 기록" },
+              { "id": "f_symbol", "text": "표식과 신호는 같은 것을 가리킨다" },
+              { "id": "f_pill", "text": "약병 재고 감소 속도 = 병원이 문 닫은 시점" },
+              { "id": "f_fake", "text": "지도 여백에 표시돼 있던 좌표들 — 이 통신탑 말고도 여러 곳을 가리키고 있었다" }
+            ],
+            "order": ["f_13", "f_log", "f_symbol", "f_pill"],
+            "hint": "다섯 조각 중 하나는, 내가 직접 본 게 아니다.",
+            "onSuccessSetStat": { "courage": 1 }
           }
-        }
+        },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...지도? 나는 지도를 본 적이 없다. 그건 그때 사진 쪽을 골랐으니까." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...본 적도 없는 게 이렇게 선명하게 떠오르다니. 이것도 심으려던 건가." }
       ],
       "next": "server_reveal"
     },
 
-    "server_qte_tense": {
+    "server_synthesis_map": {
+      // 3장에서 "지도"를 골랐던 사람용 — 가짜 조각은 사진 쪽 내용
       "background": "assets/backgrounds/server-room.png",
       "bgm": "assets/bgm/server-drone.mp3",
       "lines": [
@@ -530,27 +561,34 @@ window.CASE_DATA = {
         {
           "speaker": "내레이션",
           "text": "장치에 다이얼이 달려있다.",
-          "puzzle": {
-            "type": "code",
-            "prompt": "방해 장치의 주파수 다이얼.",
-            "code": "1084",
-            "onSuccessSetStat": { "knowledge": 1 }
-          }
+          "puzzle": { "type": "code", "prompt": "방해 장치의 주파수 다이얼.", "code": "1084", "onSuccessSetStat": { "knowledge": 1 } }
         },
         { "speaker": "내레이션", "text": "장치가 낮게 진동하기 시작한다. 잡음이 흔들린다." },
-        { "speaker": "관리자", "text": "지금이라도 멈추십시오. 정말로, 마지막 기회입니다." },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...목소리가 아까보다 급하다. 진짜로 뭔가 오고 있다." },
-        { "character": "{gender}-resolve", "speaker": "조사관(나)", "text": "(혼잣말) ...이번엔 끝까지 한다." },
+        { "speaker": "관리자", "text": "지금이라도 멈추십시오." },
+        { "speaker": "관리자", "text": "...여전히 듣고 있습니다. 계속 그렇게 하실 겁니까.", "condition": { "stat": "suspicion", "gte": 2 } },
+        { "character": "{gender}-resolve", "speaker": "조사관(나)", "text": "(혼잣말) ...지금까지 알아낸 걸, 순서대로 정리해야 한다." },
         {
           "speaker": "내레이션",
-          "text": "머릿속이 짓눌린다. 이번엔 훨씬 빠르고, 훨씬 세게.",
-          "fx": "bloodbleed", "highlight": true,
+          "text": "머릿속에 지금까지의 조각들이 떠오른다. 그런데 하나, 낯선 확신이 섞여 있다.",
+          "fx": "bloodbleed",
+          "highlight": true,
           "puzzle": {
-            "type": "qte", "prompt": "...놓치지 마.", "duration": 3200,
-            "onSuccessSetFlag": "qte_reflex_success", "onSuccessSetStat": { "courage": 1 },
-            "onFailSetFlag": "qte_reflex_fail", "onFailSetStat": { "fear": 1 }
+            "type": "sequence",
+            "prompt": "실제로 조사해서 알아낸 것만 골라, 순서대로 배열하라. (조각은 5개, 답은 4개뿐이다)",
+            "fragments": [
+              { "id": "f_13", "text": "13 — 반복되는 숫자, 흩어진 표식에서 나온 합" },
+              { "id": "f_log", "text": "삼 주 전 — 발신 코드까지 다른 가짜 점검 기록" },
+              { "id": "f_symbol", "text": "표식과 신호는 같은 것을 가리킨다" },
+              { "id": "f_pill", "text": "약병 재고 감소 속도 = 병원이 문 닫은 시점" },
+              { "id": "f_fake", "text": "사진 뒷면에 적혀 있던 손글씨 — \"이 사람은 나보다 먼저 알아챘다\"" }
+            ],
+            "order": ["f_13", "f_log", "f_symbol", "f_pill"],
+            "hint": "다섯 조각 중 하나는, 내가 직접 본 게 아니다.",
+            "onSuccessSetStat": { "courage": 1 }
           }
-        }
+        },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...사진 뒷면? 나는 사진을 본 적이 없다. 그때 지도 쪽을 골랐으니까." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...본 적도 없는 게 이렇게 선명하게 떠오르다니. 이것도 심으려던 건가." }
       ],
       "next": "server_reveal"
     },
@@ -559,13 +597,12 @@ window.CASE_DATA = {
       "background": "assets/backgrounds/server-room.png",
       "bgm": "assets/bgm/server-drone.mp3",
       "lines": [
-        { "speaker": "내레이션", "text": "정신이 다시 또렷해진다. 벗어났다.", "condition": { "flag": "qte_reflex_success" } },
-        { "speaker": "내레이션", "text": "잠깐, 생각이 끊겼다. 방금 뭘 하려고 했더라... 아니, 상관없다. 다시 집중하자.", "condition": { "flag": "qte_reflex_fail" } },
-        { "speaker": "내레이션", "text": "잡음이 뚝 끊긴다. 방송이, 한순간 완전한 정적이 된다." },
+        { "speaker": "내레이션", "text": "가짜 조각을 밀어낸 순간, 잡음이 뚝 끊긴다." },
+        { "speaker": "내레이션", "text": "방송이, 한순간 완전한 정적이 된다." },
         { "speaker": "내레이션", "text": "그리고 그 정적 사이로, 아주 짧게 — 육성이 새어 나온다." },
         { "speaker": "", "text": "[BROADCAST — UNSCHEDULED]", "effect": "decode" },
         { "speaker": "R-03 [방송]", "text": "\"...신호 안정. 이상 없음. 다음 점검까지, 대기.\"", "typingProfile": "decelerating" },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...이 목소리." },
+        { "character": "{gender}-shock", "speaker": "조사관(나)", "text": "(혼잣말) ...이 목소리." },
         { "speaker": "내레이션", "text": "2장에서 봤던 그 문구. \"신호, 안정적임. 이상 없음. 다음 점검까지, 대기.\" 쉼표 하나까지 똑같다." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...삼 주 전 그 로그. 자동이 아니었다. 이 목소리가 읽은 거였어." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...R-03. 당신, 사라진 게 아니었군요." },
@@ -677,10 +714,8 @@ window.CASE_DATA = {
       "title": "엔딩: 손을 뻗다",
       "lines": [
         { "text": "다이얼을 반대로 돌린다. 위험하다는 걸 알면서도." },
-        { "text": "잡음이 커졌다가, 한순간 완전히 사람 목소리로 바뀐다.", "condition": { "flag": "qte_reflex_success" } },
-        { "text": "\"...누구세요?\" 삼 주 만에, R-03이 처음으로 다른 말을 한다.", "condition": { "flag": "qte_reflex_success" } },
-        { "text": "잡음이 커지기만 하다가, 결국 아무것도 바뀌지 않은 채 잦아든다.", "condition": { "flag": "qte_reflex_fail" } },
-        { "text": "손을 뻗었지만, 닿지 않았다. R-03의 목소리는 여전히 같은 말만 반복한다.", "condition": { "flag": "qte_reflex_fail" } },
+        { "text": "잡음이 커졌다가, 한순간 완전히 사람 목소리로 바뀐다." },
+        { "text": "\"...누구세요?\" 삼 주 만에, R-03이 처음으로 다른 말을 한다." },
         { "text": "관리자가 다급하게 무전을 보낸다. 이런 반응은 처음 본다는 듯이." },
         { "text": "(엔딩: 손을 뻗다 — 이 신호가 사람을 완전히 지우는 게 아니라면, 되돌릴 수도 있는 걸지도 모른다)" }
       ]

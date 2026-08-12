@@ -3,6 +3,7 @@
  */
 
 const SAVE_KEY = 'story-archive:case001:auto';
+const SAVE_KEY_CASE002 = 'story-archive:case002:auto';
 const GAME_URL = 'game.html';
 
 window.titleMusic = new Audio('cases/case001/assets/bgm/title-theme.mp3');
@@ -30,6 +31,11 @@ const bootLines = [
 // A=truth, B=admin-hands, C=walked-away, D=accomplice
 const ENDING_IDS = ['truth', 'admin-hands', 'accomplice', 'walked-away'];
 
+// CASE-002의 5개 endingId (scene-data.js의 allEndingIds와 동일한 목록) — 케이스별로 완전히
+// 분리 집계하기 위해 별도 목록으로 둔다. 001용 recap/rashomon 콘텐츠(buildEndingSummaryParagraphs,
+// RASHOMON_*)는 001 전용 서술이라 이번 수정 범위에 넣지 않음 — 카운터 집계/표시만 분리한다.
+const CASE002_ENDING_IDS = ['walked-away-002', 'flagged', 'silenced', 'extracted', 'reaching-in'];
+
 const ENDING_LABELS = {
   'truth': '엔딩 A · 진실을 마주하다',
   'admin-hands': '엔딩 B · 관리자의 새 임무자',
@@ -37,9 +43,9 @@ const ENDING_LABELS = {
   'accomplice': '엔딩 D · 공범',
 };
 
-function countEndings(flags) {
+function countEndings(flags, ids = ENDING_IDS) {
   if (!flags) return 0;
-  return ENDING_IDS.filter((id) => flags[`ending_${id}`]).length;
+  return ids.filter((id) => flags[`ending_${id}`]).length;
 }
 
 // B-2 "완전한 기록" 고정 콘텐츠 — 001 설계의 핵심인 "고정된 사실 + 엔딩마다 갈리는 해석" 구조
@@ -55,6 +61,7 @@ const RASHOMON_TEASER = 'R-03의 마지막 신호는, 아직 어딘가에 남아
 let loggedInUserId = null;
 let loggedInHasSave = false;
 let loggedInSaveData = null;
+let loggedInSaveData002 = null; // CASE-002 세이브 — 카운터 집계 전용, recap 기능은 아직 001만 지원
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -138,7 +145,8 @@ function bindLogin() {
       setAuthMessage(res.reason);
       return;
     }
-    enterWelcome(id, res.saveData);
+    const res002 = await window.CloudAuth.getUserSaveData(id, 'case002');
+    enterWelcome(id, res.saveData, res002.ok ? res002.saveData : null);
   });
 }
 
@@ -178,17 +186,24 @@ function showRecoveryCode(code, onAck) {
 }
 
 // ---- 로그인 성공 후 환영 패널 ----
-function enterWelcome(id, saveData) {
+function enterWelcome(id, saveData, saveData002 = null) {
   loggedInUserId = id;
   loggedInHasSave = !!saveData;
   loggedInSaveData = saveData || null;
+  loggedInSaveData002 = saveData002 || null;
   window.CloudAuth.setCurrentUser(id);
 
-  // 클라우드에 저장된 진행상황을 로컬 세이브 슬롯에 반영 (없으면 로컬 세이브도 비움)
+  // 클라우드에 저장된 진행상황을 로컬 세이브 슬롯에 반영 (없으면 로컬 세이브도 비움) —
+  // 001/002 각각 자기 케이스 키에만 반영해서 서로의 진행 데이터를 덮어쓰지 않는다.
   if (saveData) {
     localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
   } else {
     localStorage.removeItem(SAVE_KEY);
+  }
+  if (saveData002) {
+    localStorage.setItem(SAVE_KEY_CASE002, JSON.stringify(saveData002));
+  } else {
+    localStorage.removeItem(SAVE_KEY_CASE002);
   }
 
   hide(document.getElementById('auth-panel'));
@@ -201,13 +216,19 @@ function enterWelcome(id, saveData) {
   document.getElementById('btn-reset-save').classList.toggle('is-hidden', !saveData);
 
   const endingCount = countEndings(saveData && saveData.flags);
-  document.getElementById('ending-progress').textContent =
-    `CASE-001 달성도: ${endingCount}/${ENDING_IDS.length} 엔딩 진입`;
+  const endingCount002 = countEndings(saveData002 && saveData002.flags, CASE002_ENDING_IDS);
+  updateEndingProgressText(endingCount, endingCount002);
   updateRecapButtons(endingCount);
 
-  if (endingCount > 0) {
+  if (endingCount > 0 || endingCount002 > 0) {
     typeLineInto(document.getElementById('boot-log'), '[경고: 이전 세션의 잔사 데이터가 감지되었습니다]');
   }
+}
+
+function updateEndingProgressText(endingCount, endingCount002) {
+  document.getElementById('ending-progress').textContent =
+    `CASE-001 달성도: ${endingCount}/${ENDING_IDS.length} 엔딩 진입 · ` +
+    `CASE-002 달성도: ${endingCount002}/${CASE002_ENDING_IDS.length} 엔딩 진입`;
 }
 
 // B-1/B-2 버튼 잠금 상태 갱신 — B-1은 엔딩 1개 이상, B-2는 4개 전부 모아야 열림
@@ -480,8 +501,9 @@ function bindWelcomePanel() {
     loggedInHasSave = false;
     document.getElementById('welcome-text').textContent = `${loggedInUserId}님, 진행 데이터가 초기화되었습니다.`;
     document.getElementById('btn-reset-save').classList.add('is-hidden');
-    document.getElementById('ending-progress').textContent = `CASE-001 달성도: 0/${ENDING_IDS.length} 엔딩 진입`;
     loggedInSaveData = null;
+    // 이 버튼은 CASE-001 진행 데이터만 초기화한다 — CASE-002 카운트는 그대로 유지해서 표시
+    updateEndingProgressText(0, countEndings(loggedInSaveData002 && loggedInSaveData002.flags, CASE002_ENDING_IDS));
     updateRecapButtons(0);
   });
 
@@ -494,6 +516,7 @@ function bindWelcomePanel() {
     loggedInUserId = null;
     loggedInHasSave = false;
     loggedInSaveData = null;
+    loggedInSaveData002 = null;
     hide(document.getElementById('welcome-panel'));
     reveal(document.getElementById('auth-panel'));
     document.getElementById('login-id').value = '';
@@ -607,7 +630,8 @@ async function boot() {
   if (rememberedId) {
     const res = await window.CloudAuth.getUserSaveData(rememberedId);
     if (res.ok) {
-      enterWelcome(rememberedId, res.saveData);
+      const res002 = await window.CloudAuth.getUserSaveData(rememberedId, 'case002');
+      enterWelcome(rememberedId, res.saveData, res002.ok ? res002.saveData : null);
       return;
     }
     // 계정이 사라졌거나 조회 실패 — 남아있는 세션 정리하고 로그인 화면으로
