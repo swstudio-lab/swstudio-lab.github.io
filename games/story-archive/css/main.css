@@ -188,6 +188,8 @@ button {
 .ctrl-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .ctrl-btn.is-active { border-color: var(--accent-amber); color: var(--accent-amber); }
 .ctrl-btn--primary { border-color: var(--accent-amber); color: var(--accent-amber); }
+.ctrl-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.ctrl-btn:disabled:hover { border-color: var(--panel-border); color: var(--ink); }
 
 /* B: 수사노트 업데이트 알림 배지 — 새 메모가 생기면 버튼 위에 펄싱하는 붉은 점 */
 .ctrl-btn { position: relative; }

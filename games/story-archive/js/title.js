@@ -231,17 +231,20 @@ function updateEndingProgressText(endingCount, endingCount002) {
     `CASE-002 달성도: ${endingCount002}/${CASE002_ENDING_IDS.length} 엔딩 진입`;
 }
 
-// B-1/B-2 버튼 잠금 상태 갱신 — B-1은 엔딩 1개 이상, B-2는 4개 전부 모아야 열림
+// B-1/B-2 버튼 잠금 상태 갱신 — B-1은 엔딩 1개 이상, B-2는 4개 전부 모아야 열림.
+// 두 콘텐츠(buildEndingSummaryParagraphs/renderRashomon) 모두 001 아이템·플래그·엔딩
+// 기준으로 하드코딩되어 있어 002 진행 상황과는 무관 — 그래서 endingCount는 항상 001
+// 기준만 받고, 라벨에도 "(CASE-001)"을 명시해 002 진행이 반영 안 된다는 오해를 막는다.
 function updateRecapButtons(endingCount) {
   const btnPersonal = document.getElementById('btn-recap-personal');
   const btnRashomon = document.getElementById('btn-recap-rashomon');
   btnPersonal.disabled = endingCount === 0;
-  btnPersonal.textContent = endingCount === 0 ? '지금까지의 기록 (엔딩 필요)' : '지금까지의 기록';
+  btnPersonal.textContent = endingCount === 0 ? '지금까지의 기록 (CASE-001, 엔딩 필요)' : '지금까지의 기록 (CASE-001)';
   btnRashomon.disabled = endingCount < ENDING_IDS.length;
   btnRashomon.textContent =
     endingCount < ENDING_IDS.length
-      ? `완전한 기록 (${endingCount}/${ENDING_IDS.length} 엔딩 수집)`
-      : '완전한 기록';
+      ? `완전한 기록 (CASE-001, ${endingCount}/${ENDING_IDS.length} 엔딩 수집)`
+      : '완전한 기록 (CASE-001)';
 }
 
 // ---- B-1: "지금까지의 기록" — 대사 원문을 그대로 나열하지 않고, 실제로 겪은 사건을

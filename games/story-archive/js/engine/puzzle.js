@@ -80,7 +80,7 @@ class PuzzleManager {
     return a;
   }
 
-  // 3-3: 오답 3회 누적 시 [추가 힌트 발생] 알림 + 힌트 버튼 강조
+  // 3-3: 오답 3회 누적 시 힌트 버튼 잠금 해제 알림 + 강조
   showToast(text) {
     const el = document.getElementById('puzzle-toast');
     if (!el) return;
@@ -90,6 +90,8 @@ class PuzzleManager {
     this._toastTimer = setTimeout(() => el.classList.remove('is-visible'), 1800);
   }
 
+  // hint?: string — 오답 3회 누적 전까지 힌트 버튼 비활성화(클릭 무반응), 3회 이후 버튼이
+  // 활성화되며 hint 텍스트 하나만 노출(레벨 구분 없음)
   runCodePuzzle(def) {
     return new Promise((resolve) => {
       const { prompt, code, hint } = def;
@@ -98,9 +100,13 @@ class PuzzleManager {
       this.els.feedback.textContent = '';
       this.els.feedback.classList.remove('is-ok');
       this.els.overlay.classList.add('is-visible');
+      this.els.hintBtn.classList.remove('is-emphasized');
+      this.els.hintBtn.disabled = true;
       this.els.input.focus();
 
       let hintShown = false;
+      let wrongCount = 0;
+      let hintUnlocked = false;
 
       const cleanup = () => {
         this.els.overlay.classList.remove('is-visible');
@@ -119,10 +125,17 @@ class PuzzleManager {
             resolve({ success: true });
           }, 500);
         } else {
+          wrongCount++;
           this.els.feedback.classList.remove('is-ok');
           this.els.feedback.textContent = '일치하지 않습니다.';
           this.els.input.value = '';
           this.els.input.focus();
+          if (wrongCount >= 3 && !hintUnlocked && hint) {
+            hintUnlocked = true;
+            this.els.hintBtn.disabled = false;
+            this.els.hintBtn.classList.add('is-emphasized');
+            this.showToast('[힌트 사용 가능]');
+          }
         }
       };
 
@@ -131,7 +144,7 @@ class PuzzleManager {
       };
 
       const onHint = () => {
-        if (!hint) return;
+        if (!hintUnlocked || !hint) return;
         hintShown = !hintShown;
         this.els.feedback.classList.remove('is-ok');
         this.els.feedback.textContent = hintShown ? hint : '';
@@ -144,10 +157,11 @@ class PuzzleManager {
   }
 
   // items: [{ id, label, image? }], pairs: [[idA, idB], ...], connectMessages: { "idA|idB"(정렬됨): "연결 시 문구" },
-  // hint?: string(레벨1), hint2?: string(오답 3회 누적 후 레벨1을 대체하는 더 직접적인 힌트)
+  // hint?: string — 오답 3회 누적 전까지 힌트 버튼 비활성화(클릭 무반응), 3회 이후 버튼이
+  // 활성화되며 hint 텍스트 하나만 노출(레벨 구분 없음)
   runConnectPuzzle(def) {
     return new Promise((resolve) => {
-      const { prompt, items, pairs, connectMessages = {}, hint, hint2 } = def;
+      const { prompt, items, pairs, connectMessages = {}, hint } = def;
       const pairKey = (a, b) => [a, b].sort().join('|');
       const pairSet = new Set(pairs.map(([a, b]) => pairKey(a, b)));
       const connected = new Set();
@@ -155,7 +169,7 @@ class PuzzleManager {
       let selected = null;
       let hintShown = false;
       let wrongCount = 0;
-      let hint2Unlocked = false;
+      let hintUnlocked = false;
 
       this.els.boardPrompt.textContent = prompt || '';
       this.els.boardFeedback.textContent = '';
@@ -163,12 +177,13 @@ class PuzzleManager {
       this.els.boardGrid.innerHTML = '';
       this.els.boardOverlay.classList.add('is-visible');
       this.els.boardHintBtn.classList.remove('is-emphasized');
+      this.els.boardHintBtn.disabled = true;
 
       const onHint = () => {
-        if (!hint) return;
+        if (!hintUnlocked || !hint) return;
         hintShown = !hintShown;
         this.els.boardFeedback.classList.remove('is-ok');
-        this.els.boardFeedback.textContent = hintShown ? (hint2Unlocked && hint2 ? hint2 : hint) : '';
+        this.els.boardFeedback.textContent = hintShown ? hint : '';
       };
       this.els.boardHintBtn.addEventListener('click', onHint);
 
@@ -211,10 +226,11 @@ class PuzzleManager {
           this.els.boardFeedback.textContent = '연관성이 보이지 않는다.';
           cardEls[selected].classList.remove('is-selected');
           selected = null;
-          if (wrongCount >= 3 && !hint2Unlocked && hint2) {
-            hint2Unlocked = true;
+          if (wrongCount >= 3 && !hintUnlocked && hint) {
+            hintUnlocked = true;
+            this.els.boardHintBtn.disabled = false;
             this.els.boardHintBtn.classList.add('is-emphasized');
-            this.showToast('[추가 힌트 발생]');
+            this.showToast('[힌트 사용 가능]');
           }
         }
       };
@@ -240,21 +256,23 @@ class PuzzleManager {
   }
 
   // fragments: [{ id, text }], order: 정답 순서의 id 배열,
-  // hint?: string(레벨1), hint2?: string(오답 3회 누적 후 레벨1을 대체하는 더 직접적인 힌트)
+  // hint?: string — 오답 3회 누적 전까지 힌트 버튼 비활성화(클릭 무반응), 3회 이후 버튼이
+  // 활성화되며 hint 텍스트 하나만 노출(레벨 구분 없음)
   runSequencePuzzle(def) {
     return new Promise((resolve) => {
-      const { prompt, fragments, order, hint, hint2 } = def;
+      const { prompt, fragments, order, hint } = def;
       const shuffled = this.shuffleArray(fragments);
       let answer = [];
       let hintShown = false;
       let wrongCount = 0;
-      let hint2Unlocked = false;
+      let hintUnlocked = false;
 
       this.els.seqPrompt.textContent = prompt || '';
       this.els.seqFeedback.textContent = '';
       this.els.seqFeedback.classList.remove('is-ok');
       this.els.seqOverlay.classList.add('is-visible');
       this.els.seqHintBtn.classList.remove('is-emphasized');
+      this.els.seqHintBtn.disabled = true;
 
       const renderTray = () => {
         this.els.seqTray.innerHTML = '';
@@ -311,10 +329,11 @@ class PuzzleManager {
           answer = [];
           renderAnswer();
           renderTray();
-          if (wrongCount >= 3 && !hint2Unlocked && hint2) {
-            hint2Unlocked = true;
+          if (wrongCount >= 3 && !hintUnlocked && hint) {
+            hintUnlocked = true;
+            this.els.seqHintBtn.disabled = false;
             this.els.seqHintBtn.classList.add('is-emphasized');
-            this.showToast('[추가 힌트 발생]');
+            this.showToast('[힌트 사용 가능]');
           }
         }
       };
@@ -327,10 +346,10 @@ class PuzzleManager {
       };
 
       const onHint = () => {
-        if (!hint) return;
+        if (!hintUnlocked || !hint) return;
         hintShown = !hintShown;
         this.els.seqFeedback.classList.remove('is-ok');
-        this.els.seqFeedback.textContent = hintShown ? (hint2Unlocked && hint2 ? hint2 : hint) : '';
+        this.els.seqFeedback.textContent = hintShown ? hint : '';
       };
 
       const cleanup = () => {

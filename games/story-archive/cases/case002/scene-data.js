@@ -68,7 +68,7 @@ window.CASE_DATA = {
         { "speaker": "내레이션", "text": "파일을 넘긴다. R-07. 실종, 수사 종결. 그리고 그 끝에 적힌 사번 하나." },
         { "speaker": "내레이션", "text": "R-03." },
         { "speaker": "관리자", "text": "신호 발신지 — 산속 버려진 중계탑입니다." },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...이번엔 처음부터 의심하고 시작하자." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...파일만 읽었는데도 이 정도라니. 처음부터 의심하면서 시작하자." },
         { "speaker": "", "text": "[CASE-002: 기음 (거짓된 복음)]", "effect": "decode" }
       ],
       "next": "tower_approach"
@@ -84,7 +84,9 @@ window.CASE_DATA = {
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...파일에서 읽었던 인상이랑 다르다. 이 목소리, 같은 사람이 맞나." },
         { "speaker": "관리자", "text": "같은 역할을 맡고 있을 뿐입니다. 개인적인 질문은 나중에 하시죠." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...'역할'이라. 그럼 나도 그런 건가." },
-        { "speaker": "내레이션", "text": "외벽을 따라 걷다, 정문 대신 반쯤 뜯긴 환기구를 발견한다." }
+        { "speaker": "내레이션", "text": "외벽을 따라 걷다, 정문 대신 반쯤 뜯긴 환기구를 발견한다." },
+        { "speaker": "내레이션", "text": "나무 사이로, 뭔가 움직인 것 같다. 돌아보면 아무것도 없다.", "fx": "shadowflash" },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...비바람 때문에 헛것을 본 건가." }
       ],
       "next": "tower_exterior_search"
     },
@@ -101,7 +103,7 @@ window.CASE_DATA = {
         {
           "id": "mark_b", "left": "47%", "top": "44%", "width": "8%", "height": "10%",
           "closeup": "assets/closeups/mark-b.png", "label": "외벽 두 번째 자국",
-          "discoveryText": "여기도 마찬가지다 — 숫자 '9'."
+          "discoveryText": "여기도 마찬가지다 — 숫자 '9'. 그 옆에, 아주 흐릿하게 십자 모양이 함께 새겨져 있다."
         },
         {
           "id": "mark_c", "left": "68%", "top": "62%", "width": "8%", "height": "10%",
@@ -129,7 +131,6 @@ window.CASE_DATA = {
       "lines": [
         { "speaker": "내레이션", "text": "다이얼에 손을 올린다. 자릿수를 세어보니, 딱 두 칸뿐이다." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...숫자는 셋인데 자리는 둘. 그대로는 안 맞는다." },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...합쳐야 하나?" },
         {
           "speaker": "내레이션",
           "text": "1, 9, 3.",
@@ -137,7 +138,7 @@ window.CASE_DATA = {
             "type": "code",
             "prompt": "환기구 덮개의 2자리 다이얼.\n(외벽에서 찾은 숫자: 1, 9, 3 — 자릿수가 안 맞는다)",
             "code": "13",
-            "hint": "세 숫자를 전부 더하면?",
+            "hint": "(혼잣말) ...9 옆에 있던 그 십자 모양. 뭔가 뜻이 있었을지도.",
             "onSuccessSetStat": { "knowledge": 1 }
           }
         },
@@ -153,13 +154,13 @@ window.CASE_DATA = {
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) 그때도 우연이 아니라더니 — 여기까지 이어져 있었나." },
 
         { "character": "{gender}-neutral", "speaker": "조사관(나)",
-          "text": "(혼잣말) ...13이라. 001 파일에도 이 숫자가 반복해서 나온다고 적혀 있었지. 우연은 아닐 것 같다.",
+          "text": "(혼잣말) ...그러고 보니, 방금 그 코드. 13이라. 001 파일에도 이 숫자가 반복해서 나온다고 적혀 있었지. 우연은 아닐 것 같다.",
           "condition": { "hasCase001Save": true } },
         { "character": "{gender}-neutral", "speaker": "조사관(나)",
-          "text": "(혼잣말) ...13이라. 어디서 자꾸 마주치는 느낌인데, 기분 탓이겠지.",
+          "text": "(혼잣말) ...그러고 보니, 방금 그 코드. 13이라. 어디서 자꾸 마주치는 느낌인데, 기분 탓이겠지.",
           "condition": { "hasCase001Save": false } },
 
-        { "speaker": "관리자", "text": "오래된 낙서예요. 안으로 들어가시죠." },
+        { "speaker": "관리자", "text": "낙서치곤 오래됐네요. 저희 쪽 기록엔 남아있지 않은 걸 보면, 여기 등록되기 전부터 있었나 봐요." },
         { "speaker": "내레이션", "text": "찜찜한 느낌을 지울 수 없지만, 지금은 넘어가는 수밖에 없다." }
       ],
       "choices": [
@@ -225,10 +226,10 @@ window.CASE_DATA = {
           "itemImage": "assets/items/broadcast-logs.png",
           "itemLabel": "방송 로그 사본"
         },
-        { "speaker": "관리자", "text": "그건 오래된 정기 점검 기록입니다. 의미 없어요." },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "이 넉 장, 왜 방마다 하나씩 붙어있습니까?" },
-        { "speaker": "관리자", "text": "전부 같은 발신원에서 나온 복사본이에요. 사람이 따로 손볼 게 없죠." },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...'같은 발신원에서 나온 복사본'이라. 그럼 넉 장 다 완전히 똑같아야 정상 아닌가." },
+        { "speaker": "관리자", "text": "다들 그렇듯, 정기 점검 기록이에요." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "이 넉 장, 왜 한꺼번에 여기 철해져 있습니까? 점검할 때마다 새로 쓰는 거 아닙니까?" },
+        { "speaker": "관리자", "text": "점검할 때마다 자동으로 갱신돼서 남는 거예요. 오래된 건 버리고 최신 것만 남기는 방식이라, 지금 이 넉 장은 전부 같은 시점의 기록이어야 하죠." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...'같은 시점의 기록'이라. 그럼 넉 장 다 완전히 똑같아야 정상 아닌가." },
         { "speaker": "내레이션", "text": "클립보드를 넘겨본다. 넉 장, 얼핏 보기엔 다 같은 문구다." }
       ],
       "next": "broadcast_contradiction_puzzle"
@@ -271,8 +272,7 @@ window.CASE_DATA = {
         { "speaker": "관리자", "text": "...예리하시네요." },
         { "speaker": "관리자", "text": "그래도 지금 조사엔 상관없는 부분입니다. 복사본 하나가 밀려서 안 갈렸을 수도 있죠." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...발신 코드까지 다른데, 그게 '안 갈린' 걸로 설명이 되나." },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...삼 주 전. R-03이 실종 처리된 시점이랑, 겹치지 않나?" },
-        { "speaker": "내레이션", "text": "확신할 순 없다. 하지만 우연이라기엔, 너무 정확히 겹친다." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...삼 주 전이라니. 최근이다. 누군가 최근까지 이 자리에 있었다는 뜻이다." },
         { "speaker": "내레이션", "text": "복도 끝, 잠긴 철문 하나가 더 있다." }
       ],
       "next": "tower_locked_door"
@@ -301,6 +301,7 @@ window.CASE_DATA = {
         { "speaker": "내레이션", "text": "사진 모서리에도, 메모 여백에도, 심지어 벽지 위에도 — 같은 숫자가 긁혀 있다." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...뭘 셌던 걸까." },
         { "speaker": "내레이션", "text": "바깥 복도 쪽에서, 아까 그 잡음이 다시 가까워진다.", "fx": "shadowflash" },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...또 그 형체다. 이번엔 확실히 봤다 — 사람 모양이었어." },
         { "speaker": "관리자", "text": "오래 머무를 곳은 아닙니다. 필요한 것만 빠르게 보고 나오시죠." }
       ],
       "next": "r03_hideout_choice"
@@ -372,25 +373,24 @@ window.CASE_DATA = {
           "text": "(혼잣말) ...라벨 없는 약병. 성분 표기가 지워져 있다. 수상한 약이다.",
           "condition": { "hasCase001Save": false }
         },
-        { "speaker": "관리자", "text": "흔한 약입니다. 별 의미 없어요." },
+        { "speaker": "관리자", "text": "그 약, 예전부터 여기저기 굴러다니던 거예요. 재고 관리가 안 된 지 오래됐죠." },
 
         { "speaker": "내레이션", "text": "약병 옆, 빛바랜 신문 스크랩 사본 한 장이 클립으로 고정되어 있다.",
           "addItem": "newspaper_clipping_copy",
           "itemImage": "assets/items/newspaper-clipping-copy.png",
           "itemLabel": "신문 스크랩 사본" },
+        { "speaker": "내레이션", "text": "스크랩 여백에, R-03의 필체로 날짜 하나가 동그라미 쳐져 있다 — 이 중계탑이 가동을 시작한 날짜와 같다." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)",
           "text": "(혼잣말) ...이거, 001 수사 기록에 있던 그 병원 이전 기사잖아. R-03도 이걸 갖고 있었다니.",
           "condition": { "hasCase001Save": true } },
         { "character": "{gender}-neutral", "speaker": "조사관(나)",
           "text": "(혼잣말) ...병원 이전 기사? 사본까지 만들어서 모아뒀다는 건, R-03 전에도 이걸 조사하던 사람이 있었다는 뜻이다.",
           "condition": { "hasCase001Save": false } },
-        { "speaker": "관리자", "text": "오래된 자료예요. 지금이랑은 상관없습니다." },
+        { "speaker": "관리자", "text": "그 기사, 저도 본 기억이 있네요. 근데 이 사건이랑 엮을 만한 내용은 아니었어요." },
 
         { "speaker": "내레이션", "text": "약병 옆, 찢어진 신분증 조각. 사번 앞자리 \"03\"만 겨우 보인다." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)",
-          "text": "(혼잣말) ...001 수사 기록에 이런 내용이 있었다. R-07도 자기 사번을 코드마다 붙이는 버릇이 있었다고." },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)",
-          "text": "(혼잣말) ...R-03도 같은 버릇이었다면. 03, 그리고 사방에 널린 47." },
+          "text": "(혼잣말) ...이렇게까지 정리해둔 걸 보면, 뭐든 이유 없이 붙여놓진 않았을 것 같다." },
 
         { "speaker": "내레이션", "text": "벽을 다시 돌아본다. 이 방 전체가 하나의 증거보드다 — 흩어진 게 아니라, 뭔가로 이어져 있을지도 모른다." }
       ],
@@ -422,12 +422,12 @@ window.CASE_DATA = {
               "symbol|logs": "낙인 탁본이 처음 나타난 시점들과, 방송 이상이 기록된 시점들이 겹친다. 표식과 신호는 같은 것을 가리킨다.",
               "pill|clipping": "약병 재고가 줄기 시작한 시점과, 병원이 문을 닫은 시점 — 정확히 같은 지점에서 시작된다."
             },
-            "hint": "낙인 탁본과 방송 로그를 먼저 이어보자.",
+            "hint": "(혼잣말) ...답은 이미 이 방에 있다. 실이 원래 어디로 이어져 있었는지, 잘 보면.",
             "onSuccessSetStat": { "knowledge": 1 }
           }
         },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...이 두 개, 우연이 아니다. 전부 하나로 이어져 있었어." },
-        { "speaker": "내레이션", "text": "그 순간, 반복해서 눈에 띄던 숫자들이 자연스럽게 조합된다 — 03, 그리고 47. 서랍 쪽으로 걸음을 옮긴다." },
+        { "speaker": "내레이션", "text": "그 순간, 두 가지 진실이 겹쳐 보인다. 자연스럽게 서랍 쪽으로 손이 간다." },
         { "speaker": "내레이션", "text": "달칵. 서랍이 열린다.", "fx": "flash" },
         {
           "speaker": "내레이션",
@@ -450,7 +450,7 @@ window.CASE_DATA = {
         { "speaker": "R-03 [기록]", "text": "\"...전에도 이런 신호가 있었다는 얘길 들은 적 있다. 병원 쪽에서.\"", "typingProfile": "decelerating" },
         { "speaker": "R-03 [기록]", "text": "\"관리자한테 말했다간 끝이다. 혼자 해야 한다.\"", "typingProfile": "decelerating" },
         { "speaker": "내레이션", "text": "기록은 거기서 끊긴다." },
-        { "character": "{gender}-grief", "speaker": "조사관(나)", "text": "(혼잣말) ...끝까지 못 갔구나, 이 사람도." },
+        { "character": "{gender}-grief", "speaker": "조사관(나)", "text": "(혼잣말) ...끝까지 못 갔구나, R-03." },
         { "speaker": "관리자", "text": "여기까지 온 것만으로도 충분한 성과입니다. 돌아가시겠습니까?" }
       ],
       "choices": [
@@ -475,6 +475,8 @@ window.CASE_DATA = {
       "bgm": "assets/bgm/server-drone.mp3",
       "lines": [
         { "character": "{gender}-fear", "speaker": "조사관(나)", "text": "(혼잣말) ...심장이 이상하게 빨리 뛴다." },
+        { "speaker": "내레이션", "text": "저 안쪽, 그림자 하나가 스치듯 지나간다.", "fx": "shadowflash" },
+        { "character": "{gender}-fear", "speaker": "조사관(나)", "text": "(혼잣말) ...여기까지 따라왔다." },
         { "speaker": "내레이션", "text": "방 전체가 낮게 웅웅거린다. 중앙 콘솔에 미완성 장치가 놓여있다." },
         {
           "speaker": "내레이션",
@@ -542,7 +544,7 @@ window.CASE_DATA = {
               { "id": "f_fake", "text": "지도 여백에 표시돼 있던 좌표들 — 이 통신탑 말고도 여러 곳을 가리키고 있었다" }
             ],
             "order": ["f_13", "f_log", "f_symbol", "f_pill"],
-            "hint": "다섯 조각 중 하나는, 내가 직접 본 게 아니다.",
+            "hint": "(혼잣말) ...그때, 사진과 지도 중 하나만 봤었지.",
             "onSuccessSetStat": { "courage": 1 }
           }
         },
@@ -583,7 +585,7 @@ window.CASE_DATA = {
               { "id": "f_fake", "text": "사진 뒷면에 적혀 있던 손글씨 — \"이 사람은 나보다 먼저 알아챘다\"" }
             ],
             "order": ["f_13", "f_log", "f_symbol", "f_pill"],
-            "hint": "다섯 조각 중 하나는, 내가 직접 본 게 아니다.",
+            "hint": "(혼잣말) ...그때, 사진과 지도 중 하나만 봤었지.",
             "onSuccessSetStat": { "courage": 1 }
           }
         },
@@ -601,14 +603,16 @@ window.CASE_DATA = {
         { "speaker": "내레이션", "text": "방송이, 한순간 완전한 정적이 된다." },
         { "speaker": "내레이션", "text": "그리고 그 정적 사이로, 아주 짧게 — 육성이 새어 나온다." },
         { "speaker": "", "text": "[BROADCAST — UNSCHEDULED]", "effect": "decode" },
-        { "speaker": "R-03 [방송]", "text": "\"...신호 안정. 이상 없음. 다음 점검까지, 대기.\"", "typingProfile": "decelerating" },
+        { "speaker": "R-03 [방송]", "text": "\"...신호, 안정적임. 이상 없음. 다음 점검까지, 대기.\"", "typingProfile": "decelerating" },
         { "character": "{gender}-shock", "speaker": "조사관(나)", "text": "(혼잣말) ...이 목소리." },
         { "speaker": "내레이션", "text": "2장에서 봤던 그 문구. \"신호, 안정적임. 이상 없음. 다음 점검까지, 대기.\" 쉼표 하나까지 똑같다." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...삼 주 전 그 로그. 자동이 아니었다. 이 목소리가 읽은 거였어." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...R-03. 당신, 사라진 게 아니었군요." },
         { "speaker": "내레이션", "text": "죽지 않았다. 신호 안에 목소리가 심긴 채, 지금도 같은 말을 반복하고 있다." },
         { "speaker": "관리자", "text": "(갈라지는 목소리) ...당신, 이런 식으로 나올 줄은—" },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(지금 이 말, R-03한테도 똑같이 했을까.)" }
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...예상하지 못한 건 그쪽이면서, 왜 그렇게 놀라지." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...그러고 보니, 계속 스쳐 지나가던 그 형체. 처음부터 R-03이었을지도 모른다." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) 목소리만 신호에 갇힌 게 아니었다. 뭔가가, 계속 이 탑 안을 떠돌고 있었다." }
       ],
       "next": [
         { "condition": { "stat": "suspicion", "gte": 2 }, "goto": "ending_caught_002" },
