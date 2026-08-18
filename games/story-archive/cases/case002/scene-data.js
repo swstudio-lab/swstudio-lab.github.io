@@ -59,7 +59,8 @@ window.CASE_DATA = {
       "lines": [
         { "speaker": "", "text": "[RESUMING SESSION...]", "effect": "decode" },
         { "speaker": "", "text": "[신규 등록 절차 진행 중...]", "effect": "decode" },
-        { "speaker": "내레이션", "text": "사번 발급. 데이터 등록. 낯익은 과정이다 — 아니, 낯익을 리가 없는데." },
+        { "speaker": "내레이션", "text": "사번 발급. 데이터 등록." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...낯익은 과정이다. 아니, 낯익을 리가 없는데." },
         { "speaker": "내레이션", "text": "화면에 얼굴이 떠오른다. 잠깐, 반사된 자신의 얼굴을 보다가 멈칫한다." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...나, 처음 온 게 맞나?" },
         { "speaker": "관리자", "text": "시스템 지연입니다. 신경 쓰지 마세요. 사번 배정하겠습니다 — R-11." },
@@ -161,7 +162,7 @@ window.CASE_DATA = {
           "condition": { "hasCase001Save": false } },
 
         { "speaker": "관리자", "text": "낙서치곤 오래됐네요. 저희 쪽 기록엔 남아있지 않은 걸 보면, 여기 등록되기 전부터 있었나 봐요." },
-        { "speaker": "내레이션", "text": "찜찜한 느낌을 지울 수 없지만, 지금은 넘어가는 수밖에 없다." }
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...찜찜한 느낌을 지울 수 없지만, 지금은 넘어가는 수밖에 없다." }
       ],
       "choices": [
         {
@@ -392,7 +393,8 @@ window.CASE_DATA = {
         { "character": "{gender}-neutral", "speaker": "조사관(나)",
           "text": "(혼잣말) ...이렇게까지 정리해둔 걸 보면, 뭐든 이유 없이 붙여놓진 않았을 것 같다." },
 
-        { "speaker": "내레이션", "text": "벽을 다시 돌아본다. 이 방 전체가 하나의 증거보드다 — 흩어진 게 아니라, 뭔가로 이어져 있을지도 모른다." }
+        { "speaker": "내레이션", "text": "벽을 다시 돌아본다. 이 방 전체가 하나의 증거보드다." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...흩어진 게 아니라, 뭔가로 이어져 있을지도 모른다." }
       ],
       "next": "r03_evidence_board_puzzle"
     },

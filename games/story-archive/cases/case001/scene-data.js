@@ -58,7 +58,7 @@ window.CASE_DATA = {
         { "speaker": "내레이션", "text": "첫 배정 파일. CASE-001. 사번 R-07. 담당 조사관, 실종." },
         { "speaker": "내레이션", "text": "\"현장에 직접 접속해 기록을 수집하십시오. 관리자가 안내할 것입니다.\"" },
         { "speaker": "내레이션", "text": "계약서 맨 아래, 작은 글씨 — \"기록된 것은 사라지지 않습니다.\"" },
-        { "speaker": "내레이션", "text": "어디서 본 문구 같은데, 기억이 안 난다." }
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...어디서 본 문구 같은데, 기억이 안 난다." }
       ],
       "next": "corridor_intro"
     },
@@ -257,8 +257,8 @@ window.CASE_DATA = {
         { "character": "{gender}-neutral", "position": "left", "speaker": "조사관(나)", "text": "몰랐다고요? 저 여기로 보낸 사람이 누군데." },
         { "speaker": "관리자", "text": "표현이 잘못됐네요. 그만큼 빠르다는 뜻이었어요." },
         { "speaker": "내레이션", "text": "공기가 무겁다. 낡은 상자들 사이로, 누군가 오래 머문 흔적이 있는 구석 하나가 눈에 띈다.", "fx": "shadowflash" },
-        { "speaker": "내레이션", "text": "담요, 손전등, 반쯤 먹다 만 통조림. 여기서 살다시피 했던 것 같다." },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(사무실이 아니라 여기서 지냈다고?)" },
+        { "speaker": "내레이션", "text": "담요, 손전등, 반쯤 먹다 만 통조림." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(여기서 살다시피 했던 것 같은데... 사무실이 아니라 여기서 지냈다고?)" },
         { "speaker": "관리자", "text": "임무에 몰입하는 스타일이었으니까요. 특별한 일은 아니에요." }
       ],
       "next": "basement_safe"
@@ -340,12 +340,13 @@ window.CASE_DATA = {
         { "speaker": "내레이션", "text": "부서진 선반 아래쪽, 먼지가 그을린 노트 한 권이 놓여 있다." },
         {
           "speaker": "내레이션",
-          "text": "연구 노트. 표지가 심하게 헤진 이 책이 지금은 펼쳐볼 엄두가 안 든다.",
+          "text": "표지가 심하게 헤진 연구 노트 한 권.",
           "addItem": "research_notebook",
           "itemImage": "assets/items/research-notebook-closed.png",
           "itemLabel": "연구 노트 (덮인 상태)",
           "fx": "flash"
         },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...지금은 이걸 펼쳐볼 엄두가 안 난다." },
         { "speaker": "관리자", "text": "...그건 저도 예상 못했던 겁니다. 어차피 열어봐야 해요." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(그 말, 어디서 많이 들어본 것 같은데.)" },
         { "speaker": "내레이션", "text": "노트를 배낭에 집어넣고, 방 안쪽을 더 살펴보기로 한다." }
@@ -358,7 +359,7 @@ window.CASE_DATA = {
       "bgm": "assets/bgm/lab-interference.mp3",
       "lines": [
         { "speaker": "내레이션", "text": "지금까지 모은 것들을 전부 꺼내 바닥에 펼쳐놓는다." },
-        { "speaker": "내레이션", "text": "부서진 신분증, 빛바랜 신문 스크랩, 찢어진 사진 — 그리고 이 방 곳곳의 흔적들. 나란히 놓으니 뭔가 이상하다." },
+        { "speaker": "내레이션", "text": "부서진 신분증, 빛바랜 신문 스크랩, 찢어진 사진 — 그리고 이 방 곳곳의 흔적들." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "하나씩 보면 별거 아닌데, 나란히 놓으니 뭔가 이상하다." },
         {
           "speaker": "내레이션",
@@ -390,7 +391,8 @@ window.CASE_DATA = {
           }
         },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(전부 연결된다. 우연이라기엔 너무 많다.)" },
-        { "speaker": "내레이션", "text": "세 조합을 다 연결하자, 노트를 펼쳐볼 용기가 생긴다." },
+        { "speaker": "내레이션", "text": "세 조합을 다 연결했다." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...이제야, 노트를 펼쳐볼 용기가 생긴다." },
         {
           "speaker": "내레이션",
           "text": "가져온 연구 노트를 조심스럽게 펼친다.",
@@ -456,7 +458,8 @@ window.CASE_DATA = {
           }
         },
         { "speaker": "내레이션", "text": "정신이 다시 또렷해진다. 벗어났다.", "condition": { "flag": "qte_reflex_success" } },
-        { "speaker": "내레이션", "text": "잠깐, 생각이 끊겼다. 방금 뭘 하려고 했더라... 아니, 상관없다. 다시 집중하자.", "condition": { "flag": "qte_reflex_fail" } },
+        { "speaker": "내레이션", "text": "잠깐, 생각이 끊겼다.", "condition": { "flag": "qte_reflex_fail" } },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...방금 뭘 하려고 했더라... 아니, 상관없다. 다시 집중하자.", "condition": { "flag": "qte_reflex_fail" } },
         { "speaker": "관리자", "text": "지금이라도 늦지 않았어요. 여기서 발을 빼세요. 제가 나머지 정리하겠습니다." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(지금 이 말, R-07한테도 똑같이 했을까.)" },
         { "speaker": "관리자", "text": "어떻게 하시겠어요, 조사관님." }
