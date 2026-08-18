@@ -62,21 +62,37 @@
         <p class="case-hub-title">PROJECT: CASE-FILES</p>
         <div class="roadmap-list">
           <div class="roadmap-item is-open" data-case="case001">
-            <span class="roadmap-case-id">CASE-001</span>
-            <span class="roadmap-case-title">잊혀진 기록</span>
-            <span class="roadmap-case-status">[OPEN]</span>
+            <div class="roadmap-case-main">
+              <span class="roadmap-case-id">CASE-001</span>
+              <span class="roadmap-case-title">잊혀진 기록</span>
+              <span class="roadmap-case-status">[OPEN]</span>
+            </div>
+            <!-- 케이스별 기록 보기 버튼 — 클릭 시 roadmap-item 자체의 입장 클릭으로 번지지
+                 않도록 title.js에서 이 버튼들에 stopPropagation을 건다. -->
+            <div class="roadmap-case-actions">
+              <button class="roadmap-recap-btn" type="button" data-case="case001" data-action="personal">지금까지의 기록</button>
+              <button class="roadmap-recap-btn" type="button" data-case="case001" data-action="rashomon">완전한 기록</button>
+            </div>
           </div>
           <!-- case002Released(siteConfig/main)가 true로 확인되기 전까지는 항상 잠긴 상태로
                취급(안전한 기본값) — title.js가 실시간으로 열림/잠김을 갱신함 -->
           <div class="roadmap-item is-locked" data-case="case002">
-            <span class="roadmap-case-id">CASE-002</span>
-            <span class="roadmap-case-title">기음 (거짓된 복음)</span>
-            <span class="roadmap-case-status">[LOCKED]</span>
+            <div class="roadmap-case-main">
+              <span class="roadmap-case-id">CASE-002</span>
+              <span class="roadmap-case-title">기음 (거짓된 복음)</span>
+              <span class="roadmap-case-status">[LOCKED]</span>
+            </div>
+            <div class="roadmap-case-actions">
+              <button class="roadmap-recap-btn" type="button" data-case="case002" data-action="personal">지금까지의 기록</button>
+              <button class="roadmap-recap-btn" type="button" data-case="case002" data-action="rashomon">완전한 기록</button>
+            </div>
           </div>
           <div class="roadmap-item is-locked" data-case="case003">
-            <span class="roadmap-case-id">CASE-003</span>
-            <span class="roadmap-case-title">???</span>
-            <span class="roadmap-case-status">[LOCKED]</span>
+            <div class="roadmap-case-main">
+              <span class="roadmap-case-id">CASE-003</span>
+              <span class="roadmap-case-title">???</span>
+              <span class="roadmap-case-status">[LOCKED]</span>
+            </div>
           </div>
         </div>
         <p id="case-hub-flavor" class="roadmap-flavor"></p>
@@ -84,8 +100,6 @@
 
       <div id="title-menu">
         <button id="btn-enter-game" class="title-btn">게임 입장</button>
-        <button id="btn-recap-personal" class="title-btn">지금까지의 기록</button>
-        <button id="btn-recap-rashomon" class="title-btn">완전한 기록</button>
         <button id="btn-reset-save" class="title-btn">진행 데이터 초기화</button>
         <button id="btn-logout" class="link-btn">로그아웃</button>
       </div>
@@ -144,7 +158,7 @@
 <div id="recap-overlay" class="modal-overlay">
   <div class="recap-box">
     <div class="recap-header">
-      <span>[지금까지의 기록]</span>
+      <span id="recap-title-text">[지금까지의 기록]</span>
       <button id="btn-recap-close" class="ctrl-btn" type="button">닫기 ✕</button>
     </div>
     <div id="recap-nav" class="recap-nav is-hidden">
@@ -160,7 +174,7 @@
 <div id="rashomon-overlay" class="modal-overlay">
   <div class="recap-box">
     <div class="recap-header">
-      <span>[완전한 기록]</span>
+      <span id="rashomon-title-text">[완전한 기록]</span>
       <button id="btn-rashomon-close" class="ctrl-btn" type="button">닫기 ✕</button>
     </div>
     <div id="rashomon-content" class="rashomon-content"></div>

@@ -32,8 +32,7 @@ const bootLines = [
 const ENDING_IDS = ['truth', 'admin-hands', 'accomplice', 'walked-away'];
 
 // CASE-002의 5개 endingId (scene-data.js의 allEndingIds와 동일한 목록) — 케이스별로 완전히
-// 분리 집계하기 위해 별도 목록으로 둔다. 001용 recap/rashomon 콘텐츠(buildEndingSummaryParagraphs,
-// RASHOMON_*)는 001 전용 서술이라 이번 수정 범위에 넣지 않음 — 카운터 집계/표시만 분리한다.
+// 분리 집계하기 위해 별도 목록으로 둔다.
 const CASE002_ENDING_IDS = ['walked-away-002', 'flagged', 'silenced', 'extracted', 'reaching-in'];
 
 const ENDING_LABELS = {
@@ -41,6 +40,14 @@ const ENDING_LABELS = {
   'admin-hands': '엔딩 B · 관리자의 새 임무자',
   'walked-away': '엔딩 C · 돌아선 자',
   'accomplice': '엔딩 D · 공범',
+};
+
+const CASE002_ENDING_LABELS = {
+  'walked-away-002': '엔딩 · 돌아선 자, 두 번째',
+  'flagged': '엔딩 · 너무 많이 물었다',
+  'silenced': '엔딩 · 침묵시키다',
+  'extracted': '엔딩 · 확보',
+  'reaching-in': '엔딩 · 손을 뻗다',
 };
 
 function countEndings(flags, ids = ENDING_IDS) {
@@ -58,10 +65,21 @@ const RASHOMON_ENDINGS = [
 ];
 const RASHOMON_TEASER = 'R-03의 마지막 신호는, 아직 어딘가에 남아있을지도 모른다.';
 
+// CASE-002용 "완전한 기록" 고정 콘텐츠 — 001과 정확히 같은 구조
+const CASE002_RASHOMON_FACTS = ['R-03은 실존했다', '중계탑은 실존했다', '관리자는 R-03과 관련이 있다'];
+const CASE002_RASHOMON_ENDINGS = [
+  { name: '엔딩 · 돌아선 자, 두 번째', text: 'R-07도, 이번에도, 마지막 문 앞에서 걸음을 돌린 사람이 있었다' },
+  { name: '엔딩 · 너무 많이 물었다', text: '의심은 정당했지만, 들키지 않는 것도 재주다' },
+  { name: '엔딩 · 침묵시키다', text: '신호는 끊겼다. 그게 구원이었는지는, 아무도 알려주지 않는다' },
+  { name: '엔딩 · 확보', text: '아무것도 해결하지 못했지만, 적어도 다음 사람에게 넘길 것은 남겼다' },
+  { name: '엔딩 · 손을 뻗다', text: '이 신호가 사람을 완전히 지우는 게 아니라면, 되돌릴 수도 있는 걸지도 모른다' },
+];
+const CASE002_RASHOMON_TEASER = '13이 세고 있던 게 정확히 무엇이었는지는, 아직 아무도 모른다.';
+
 let loggedInUserId = null;
 let loggedInHasSave = false;
 let loggedInSaveData = null;
-let loggedInSaveData002 = null; // CASE-002 세이브 — 카운터 집계 전용, recap 기능은 아직 001만 지원
+let loggedInSaveData002 = null; // CASE-002 세이브
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -218,7 +236,8 @@ function enterWelcome(id, saveData, saveData002 = null) {
   const endingCount = countEndings(saveData && saveData.flags);
   const endingCount002 = countEndings(saveData002 && saveData002.flags, CASE002_ENDING_IDS);
   updateEndingProgressText(endingCount, endingCount002);
-  updateRecapButtons(endingCount);
+  updateCaseRecapButtons('case001', endingCount);
+  updateCaseRecapButtons('case002', endingCount002);
 
   if (endingCount > 0 || endingCount002 > 0) {
     typeLineInto(document.getElementById('boot-log'), '[경고: 이전 세션의 잔사 데이터가 감지되었습니다]');
@@ -231,20 +250,23 @@ function updateEndingProgressText(endingCount, endingCount002) {
     `CASE-002 달성도: ${endingCount002}/${CASE002_ENDING_IDS.length} 엔딩 진입`;
 }
 
-// B-1/B-2 버튼 잠금 상태 갱신 — B-1은 엔딩 1개 이상, B-2는 4개 전부 모아야 열림.
-// 두 콘텐츠(buildEndingSummaryParagraphs/renderRashomon) 모두 001 아이템·플래그·엔딩
-// 기준으로 하드코딩되어 있어 002 진행 상황과는 무관 — 그래서 endingCount는 항상 001
-// 기준만 받고, 라벨에도 "(CASE-001)"을 명시해 002 진행이 반영 안 된다는 오해를 막는다.
-function updateRecapButtons(endingCount) {
-  const btnPersonal = document.getElementById('btn-recap-personal');
-  const btnRashomon = document.getElementById('btn-recap-rashomon');
-  btnPersonal.disabled = endingCount === 0;
-  btnPersonal.textContent = endingCount === 0 ? '지금까지의 기록 (CASE-001, 엔딩 필요)' : '지금까지의 기록 (CASE-001)';
-  btnRashomon.disabled = endingCount < ENDING_IDS.length;
-  btnRashomon.textContent =
-    endingCount < ENDING_IDS.length
-      ? `완전한 기록 (CASE-001, ${endingCount}/${ENDING_IDS.length} 엔딩 수집)`
-      : '완전한 기록 (CASE-001)';
+// B-1/B-2 버튼 잠금 상태 갱신 — B-1은 엔딩 1개 이상, B-2는 전부 모아야 열림.
+// 케이스별 로드맵 행에 붙은 버튼(.roadmap-recap-btn[data-case=...])을 대상으로 하므로
+// caseId별로 따로 호출한다.
+function updateCaseRecapButtons(caseId, endingCount) {
+  const config = CASE_RECAP_CONFIG[caseId];
+  if (!config) return;
+  const total = config.endingIds.length;
+  const btnPersonal = document.querySelector(`.roadmap-recap-btn[data-case="${caseId}"][data-action="personal"]`);
+  const btnRashomon = document.querySelector(`.roadmap-recap-btn[data-case="${caseId}"][data-action="rashomon"]`);
+  if (btnPersonal) {
+    btnPersonal.disabled = endingCount === 0;
+    btnPersonal.textContent = endingCount === 0 ? '지금까지의 기록 (엔딩 필요)' : '지금까지의 기록';
+  }
+  if (btnRashomon) {
+    btnRashomon.disabled = endingCount < total;
+    btnRashomon.textContent = endingCount < total ? `완전한 기록 (${endingCount}/${total} 엔딩 수집)` : '완전한 기록';
+  }
 }
 
 // ---- B-1: "지금까지의 기록" — 대사 원문을 그대로 나열하지 않고, 실제로 겪은 사건을
@@ -309,32 +331,112 @@ function buildEndingSummaryParagraphs(endingId, record) {
   return paragraphs;
 }
 
-// 실제로 달성한 엔딩 id들을 도달한 순서대로(옛날 세이브라 achievedAt이 없으면 ENDING_IDS 순서로) 정렬
-function getAchievedEndingIds(saveData) {
+// ---- B-1 CASE-002 버전 — buildEndingSummaryParagraphs와 정확히 같은 패턴 ----
+function buildCase002EndingSummaryParagraphs(endingId, record) {
+  const items = (record && record.items) || [];
+  const stats = (record && record.stats) || {};
+  const has = (id) => items.includes(id);
+  const paragraphs = [];
+
+  paragraphs.push(
+    '1장, 산속 버려진 중계탑. 빗속에서 당신은 외벽에 새겨진 세 개의 숫자를 발견하고, ' +
+    '그 안에서 낙인을 문질러 뜬 종이 한 장을 찾아냈다. 001 수사 기록에 있던 그 별 모양과 정확히 같았다.'
+  );
+
+  if (has('broadcast_logs')) {
+    paragraphs.push(
+      '2장, 방송 제어실. 정기 점검 기록 넉 장을 대조한 끝에, 당신은 그중 하나가 삼 주 전에 ' +
+      '몰래 끼워 넣어진 것임을 알아챘다. 관리자는 대수롭지 않다는 듯 넘기려 했지만, 눈치는 이미 늦었다.'
+    );
+  }
+
+  if (has('r03_journal')) {
+    const branchText = stats.empathy >= 1
+      ? 'R-03이 남긴 사진들 속에서, 당신은 이 실종이 R-03 혼자만의 일이 아니었음을 읽어냈다.'
+      : '지도 속 흩어진 좌표들에서, 당신은 이 탑이 유일한 거점이 아니라는 걸 알게 됐다.';
+    paragraphs.push(
+      `3장, R-03의 은신처. ${branchText} 흩어진 증거들을 하나로 이어붙인 끝에 열린 서랍 안, ` +
+      '개인 기록엔 "이 신호는 사람을 재우는 게 아니라, 뭔가를 심고 있다"는 문장이 남아있었다.'
+    );
+  }
+
+  if (has('jamming_device')) {
+    paragraphs.push(
+      '4장, 서버실. 지금까지 알아낸 것들을 순서대로 정리하던 그 순간, 한 번도 겪은 적 없는 확신 하나가 ' +
+      '끼어들었다. 당신은 그것이 가짜라는 걸 알아채고 밀어냈다.'
+    );
+  }
+
+  const endingParagraphs = {
+    'walked-away-002': '그리고 당신은 R-03의 은신처 문 앞에서 걸음을 돌렸다. 진실은 끝내 미궁으로 남았다.',
+    'flagged': '그리고 당신은 너무 많은 것을 물었다. 관리자가 먼저 손을 썼고, 당신의 사번은 R-14로 바뀌었다.',
+    'silenced': '그리고 당신은 장치를 파괴해 신호를 완전히 끊었다. 그게 구원이었는지는, 아직도 알 수 없다.',
+    'extracted': '그리고 당신은 위험을 감수하지 않고, 확보한 증거만 챙겨 안전하게 철수했다.',
+    'reaching-in': '그리고 당신은 위험을 무릅쓰고 신호 안으로 손을 뻗었다. 삼 주 만에, R-03이 처음으로 다른 말을 했다.',
+  };
+  paragraphs.push(endingParagraphs[endingId] || '...이야기는 아직 끝나지 않았다.');
+
+  return paragraphs;
+}
+
+// 케이스별 recap/rashomon에 필요한 데이터·함수를 한데 묶어둔 설정표 — caseId만 받으면
+// renderRecapPage/renderRashomon/updateCaseRecapButtons가 이 표에서 골라 쓴다.
+// 새 케이스(003 등)가 recap을 지원하게 되면 이 표에 항목만 추가하면 됨.
+const CASE_TITLE_LABELS = { case001: 'CASE-001', case002: 'CASE-002' };
+const CASE_RECAP_CONFIG = {
+  case001: {
+    endingIds: ENDING_IDS,
+    endingLabels: ENDING_LABELS,
+    buildSummary: buildEndingSummaryParagraphs,
+    rashomonFacts: RASHOMON_FACTS,
+    rashomonEndings: RASHOMON_ENDINGS,
+    rashomonTeaser: RASHOMON_TEASER,
+    getSaveData: () => loggedInSaveData,
+  },
+  case002: {
+    endingIds: CASE002_ENDING_IDS,
+    endingLabels: CASE002_ENDING_LABELS,
+    buildSummary: buildCase002EndingSummaryParagraphs,
+    rashomonFacts: CASE002_RASHOMON_FACTS,
+    rashomonEndings: CASE002_RASHOMON_ENDINGS,
+    rashomonTeaser: CASE002_RASHOMON_TEASER,
+    getSaveData: () => loggedInSaveData002,
+  },
+};
+
+// 실제로 달성한 엔딩 id들을 도달한 순서대로(옛날 세이브라 achievedAt이 없으면 endingIds 순서로) 정렬
+function getAchievedEndingIds(saveData, endingIds = ENDING_IDS) {
   const flags = (saveData && saveData.flags) || {};
   const records = (saveData && saveData.endingRecords) || {};
-  return ENDING_IDS.filter((id) => flags[`ending_${id}`]).sort((a, b) => {
+  return endingIds.filter((id) => flags[`ending_${id}`]).sort((a, b) => {
     const ta = (records[a] && records[a].achievedAt) || 0;
     const tb = (records[b] && records[b].achievedAt) || 0;
     return ta - tb;
   });
 }
 
+let recapCaseId = 'case001';
 let recapEndingIds = [];
 let recapIndex = 0;
 
-function renderRecapPersonal() {
-  recapEndingIds = getAchievedEndingIds(loggedInSaveData);
+function renderRecapPersonal(caseId) {
+  recapCaseId = caseId;
+  const config = CASE_RECAP_CONFIG[caseId];
+  recapEndingIds = getAchievedEndingIds(config.getSaveData(), config.endingIds);
   recapIndex = Math.max(0, recapEndingIds.length - 1); // 가장 최근에 도달한 엔딩부터 보여줌
   renderRecapPage();
 }
 
 function renderRecapPage() {
+  const config = CASE_RECAP_CONFIG[recapCaseId];
+  const saveData = config.getSaveData();
   const list = document.getElementById('recap-list');
   const nav = document.getElementById('recap-nav');
   const navLabel = document.getElementById('recap-nav-label');
   const prevBtn = document.getElementById('btn-recap-prev');
   const nextBtn = document.getElementById('btn-recap-next');
+  const titleText = document.getElementById('recap-title-text');
+  if (titleText) titleText.textContent = `[지금까지의 기록 — ${CASE_TITLE_LABELS[recapCaseId] || recapCaseId}]`;
   list.innerHTML = '';
 
   if (recapEndingIds.length === 0) {
@@ -347,14 +449,14 @@ function renderRecapPage() {
   }
 
   const endingId = recapEndingIds[recapIndex];
-  const records = (loggedInSaveData && loggedInSaveData.endingRecords) || {};
+  const records = (saveData && saveData.endingRecords) || {};
   // 이 기능이 추가되기 전에 이미 도달했던 엔딩은 별도 스냅샷이 없으므로,
   // 현재 세이브에 남아있는 items/flags로 최대한 대체해서 보여준다.
   const record = records[endingId] || {
-    items: (loggedInSaveData && loggedInSaveData.items) || [],
-    flags: (loggedInSaveData && loggedInSaveData.flags) || {},
+    items: (saveData && saveData.items) || [],
+    flags: (saveData && saveData.flags) || {},
   };
-  const paragraphs = buildEndingSummaryParagraphs(endingId, record);
+  const paragraphs = config.buildSummary(endingId, record);
 
   paragraphs.forEach((text) => {
     const p = document.createElement('p');
@@ -367,8 +469,8 @@ function renderRecapPage() {
   reveal(nav);
   const multiple = recapEndingIds.length > 1;
   navLabel.textContent = multiple
-    ? `${ENDING_LABELS[endingId] || endingId} (${recapIndex + 1}/${recapEndingIds.length})`
-    : `${ENDING_LABELS[endingId] || endingId}`;
+    ? `${config.endingLabels[endingId] || endingId} (${recapIndex + 1}/${recapEndingIds.length})`
+    : `${config.endingLabels[endingId] || endingId}`;
   prevBtn.classList.toggle('is-hidden', !multiple);
   nextBtn.classList.toggle('is-hidden', !multiple);
   if (multiple) {
@@ -377,17 +479,21 @@ function renderRecapPage() {
   }
 }
 
-// ---- B-2: "완전한 기록" — 001 설계의 핵심 구조를 정리해서 보여주는 고정 콘텐츠 ----
-function renderRashomon() {
+// ---- B-2: "완전한 기록" — 케이스 설계의 핵심 구조를 정리해서 보여주는 고정 콘텐츠 ----
+function renderRashomon(caseId) {
+  const config = CASE_RECAP_CONFIG[caseId];
   const el = document.getElementById('rashomon-content');
   el.innerHTML = '';
+
+  const titleText = document.getElementById('rashomon-title-text');
+  if (titleText) titleText.textContent = `[완전한 기록 — ${CASE_TITLE_LABELS[caseId] || caseId}]`;
 
   const factsTitle = document.createElement('p');
   factsTitle.className = 'rashomon-section-title';
   factsTitle.textContent = '[고정된 사실]';
   el.appendChild(factsTitle);
 
-  RASHOMON_FACTS.forEach((fact) => {
+  config.rashomonFacts.forEach((fact) => {
     const p = document.createElement('p');
     p.className = 'rashomon-fact';
     p.textContent = `- ${fact}`;
@@ -399,7 +505,7 @@ function renderRashomon() {
   branchTitle.textContent = '[하지만 당신이 어떻게 조사했느냐에 따라]';
   el.appendChild(branchTitle);
 
-  RASHOMON_ENDINGS.forEach((ending) => {
+  config.rashomonEndings.forEach((ending) => {
     const p = document.createElement('p');
     p.className = 'rashomon-ending-row';
     const name = document.createElement('span');
@@ -412,7 +518,7 @@ function renderRashomon() {
 
   const teaser = document.createElement('p');
   teaser.className = 'rashomon-teaser';
-  teaser.textContent = RASHOMON_TEASER;
+  teaser.textContent = config.rashomonTeaser;
   el.appendChild(teaser);
 }
 
@@ -458,9 +564,20 @@ function bindShareButton() {
 }
 
 function bindRecapButtons() {
-  document.getElementById('btn-recap-personal').addEventListener('click', () => {
-    renderRecapPersonal();
-    document.getElementById('recap-overlay').classList.add('is-visible');
+  // 로드맵 각 행(CASE-001/002)에 붙은 "지금까지의 기록"/"완전한 기록" 버튼 — 클릭이
+  // roadmap-item 자체의 입장 클릭(bindCaseHub)으로 번지지 않게 stopPropagation을 건다.
+  document.querySelectorAll('.roadmap-recap-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const caseId = btn.dataset.case;
+      if (btn.dataset.action === 'personal') {
+        renderRecapPersonal(caseId);
+        document.getElementById('recap-overlay').classList.add('is-visible');
+      } else {
+        renderRashomon(caseId);
+        document.getElementById('rashomon-overlay').classList.add('is-visible');
+      }
+    });
   });
   document.getElementById('btn-recap-close').addEventListener('click', () => {
     document.getElementById('recap-overlay').classList.remove('is-visible');
@@ -476,10 +593,6 @@ function bindRecapButtons() {
       recapIndex++;
       renderRecapPage();
     }
-  });
-  document.getElementById('btn-recap-rashomon').addEventListener('click', () => {
-    renderRashomon();
-    document.getElementById('rashomon-overlay').classList.add('is-visible');
   });
   document.getElementById('btn-rashomon-close').addEventListener('click', () => {
     document.getElementById('rashomon-overlay').classList.remove('is-visible');
@@ -507,7 +620,7 @@ function bindWelcomePanel() {
     loggedInSaveData = null;
     // 이 버튼은 CASE-001 진행 데이터만 초기화한다 — CASE-002 카운트는 그대로 유지해서 표시
     updateEndingProgressText(0, countEndings(loggedInSaveData002 && loggedInSaveData002.flags, CASE002_ENDING_IDS));
-    updateRecapButtons(0);
+    updateCaseRecapButtons('case001', 0);
   });
 
   document.getElementById('btn-cancel-reset').addEventListener('click', () => {

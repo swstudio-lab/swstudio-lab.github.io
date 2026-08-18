@@ -228,8 +228,9 @@ html, body {
 
 .roadmap-item {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
   padding: 10px 14px;
   border: 1px solid var(--panel-border);
   transition: border-color 0.15s ease;
@@ -238,6 +239,34 @@ html, body {
 .roadmap-item.is-locked:hover { border-color: var(--accent-blood); }
 .roadmap-item.is-open { cursor: pointer; }
 .roadmap-item.is-open:hover { border-color: var(--accent-amber); }
+
+.roadmap-case-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 케이스별 "지금까지의 기록"/"완전한 기록" 버튼 — roadmap-item 클릭(입장)과 별개 동작이라
+   title.js가 클릭 시 stopPropagation을 걸어준다. */
+.roadmap-case-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.roadmap-recap-btn {
+  font-family: var(--font-body);
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  color: var(--ink-dim);
+  background: rgba(10, 11, 13, 0.5);
+  border: 1px solid var(--panel-border);
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.roadmap-recap-btn:hover:not(:disabled) { color: var(--accent-amber); border-color: var(--accent-amber); }
+.roadmap-recap-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
 .roadmap-case-id {
   font-family: var(--font-display);
