@@ -240,18 +240,6 @@ button {
   50% { box-shadow: 0 0 10px 3px rgba(166,138,91,0.55); }
 }
 
-/* ---------- 버전 표시 (개발/검증용) ---------- */
-#version-tag {
-  position: fixed;
-  bottom: 6px;
-  right: 10px;
-  z-index: 60;
-  font-family: var(--font-display);
-  font-size: 14px;
-  color: var(--ink-dim);
-  opacity: 0.6;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .screen-shake, .screen-flash::after { animation: none !important; }
 }

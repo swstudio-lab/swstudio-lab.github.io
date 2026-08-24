@@ -763,3 +763,14 @@ document.addEventListener('visibilitychange', () => {
 });
 
 window.addEventListener('DOMContentLoaded', boot);
+
+// 브라우저 뒤로가기로 게임 화면에서 타이틀로 돌아올 때 bfcache(뒤로/앞으로가기 캐시)에서
+// 페이지가 그대로 복원되면 DOMContentLoaded가 다시 발생하지 않아 boot()이 재실행되지
+// 않는다 — 그 결과 세이브 데이터는 갱신됐는데도 엔딩 달성 카운트("ending-progress" 등)가
+// 복원 시점의 stale한 값(혹은 0)으로 남는 문제가 있었음. 가장 확실한 해결책은 복원 시
+// 페이지를 통째로 새로고침해서 boot()을 처음부터 다시 태우는 것.
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) {
+    location.reload();
+  }
+});

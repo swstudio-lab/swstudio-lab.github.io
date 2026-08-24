@@ -4,7 +4,6 @@
  * CASE001 짧은 테스트 씬에서 실제로 동작하는지 검증.
  */
 
-const BUILD_VERSION = 'build 2026-08-03-02';
 // 어떤 케이스를 플레이할지는 ?case=case002 같은 URL 파라미터로 결정됨(없으면 case001).
 // game.html의 인라인 로더 스크립트가 같은 파라미터로 해당 케이스의 scene-data.js를
 // 미리 동기적으로 로드해두므로, 여기서는 파라미터만 다시 읽어서 나머지 상태/저장 키를 맞춘다.
@@ -78,7 +77,6 @@ async function boot() {
   ui.setNoteToastHandler(() => renderInvestigationNotes()); // D: 토스트 클릭 시 바로 수사노트 열기
   sound = new SoundManager(CASE_BASE + 'assets/bgm/title-theme.mp3');
   puzzle = new PuzzleManager(ui, root);
-  ui.showVersion(BUILD_VERSION);
 
   state = new GameState(CASE_ID);
 

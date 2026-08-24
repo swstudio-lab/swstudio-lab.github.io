@@ -452,8 +452,6 @@ html, body {
   #title-sub { font-size: 15px; }
   .title-btn { min-width: 200px; padding: 10px 24px; font-size: 17px; }
   #share-wrap { margin-bottom: 28px; }
-  /* 버전 태그(개발용 라벨)가 하단의 공유 토스트/버튼과 겹치지 않게 구석으로 축소 */
-  #version-tag { font-size: 10px; bottom: 3px; right: 6px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

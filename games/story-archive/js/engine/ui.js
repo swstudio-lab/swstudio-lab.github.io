@@ -23,7 +23,6 @@ class UIManager {
       logPanel: root.querySelector('#log-panel'),
       logList: root.querySelector('#log-list'),
       dialogueBox: root.querySelector('#dialogue-box'),
-      versionTag: root.querySelector('#version-tag'),
       itemPopup: root.querySelector('#item-popup'),
       itemPopupTag: root.querySelector('#item-popup-tag'),
       itemPopupImg: root.querySelector('#item-popup-img'),
@@ -197,10 +196,6 @@ class UIManager {
     const isAdmin = speaker === '관리자';
     this.els.speakerName.classList.toggle('is-admin-speaker', isAdmin);
     this.els.dialogueBox.classList.toggle('is-admin', isAdmin);
-  }
-
-  showVersion(text) {
-    if (this.els.versionTag) this.els.versionTag.textContent = text;
   }
 
   // 대사 한 줄 출력 (타이핑 효과 포함). 완료 시 resolve.

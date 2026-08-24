@@ -667,6 +667,9 @@
   line-height: 1.7;
   white-space: pre-wrap;
   min-height: 3.4em;
+  /* 대사가 길어져 마지막 줄이 하단까지 채워지면 .advance-hint("▼ 클릭 또는 Space로 계속")와
+     같은 자리에 겹쳐 보이는 문제(특히 모바일/관리자 우측 정렬 대사) — 힌트 높이만큼 여백 확보 */
+  padding-bottom: 26px;
 }
 
 /* O: 강조 문구 색상 펄스 */
