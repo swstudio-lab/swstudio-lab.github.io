@@ -18,12 +18,35 @@
     width: 380px;
     background: #fdf6ec;
     text-align: center;
-    padding-bottom: 66px;
+    padding-bottom: 20px;
   }
-  .tab-panel.is-hidden { display: none !important; }
   .placeholder-panel {
     padding: 90px 20px; color: #aaa; font-size: 15px; line-height: 1.7;
   }
+  #hud {
+    position: sticky; top: 0; z-index: 50;
+    background: #fdf6ec;
+    border-bottom: 1px solid #eee2cf;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    padding-bottom: 4px;
+  }
+  .scene { position: relative; width: 380px; height: 260px; margin: 0 auto; overflow: hidden; cursor: pointer; opacity: 1; transition: opacity 0.15s ease; }
+  .scene.is-hidden { display: none !important; }
+  .scene.is-fading { opacity: 0; }
+  #scene-home { background: linear-gradient(#fdf6ec, #f3e3c9); }
+  #scene-town { background: linear-gradient(#eaf4e0, #cfe3b8); }
+  #scene-shop { height: auto; overflow: visible; cursor: default; }
+  #shop-walk-area {
+    position: relative; width: 380px; height: 140px; overflow: hidden;
+    margin: 0 auto; cursor: pointer;
+    background: linear-gradient(#fdece0, #f0c9a0);
+  }
+  .spot {
+    position: absolute; bottom: 14px; transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    font-size: 28px; pointer-events: none;
+  }
+  .spot-label { font-size: 10px; color: #777; background: rgba(255,255,255,0.75); padding: 1px 5px; border-radius: 6px; }
   #minigame-buttons { display: flex; flex-direction: column; gap: 14px; padding: 28px 24px; }
   .minigame-choice-btn {
     border: none; border-radius: 10px; padding: 18px 0; color: white; font-size: 15px;
@@ -47,23 +70,7 @@
     font-size: 12px; cursor: pointer; font-family: inherit; flex-shrink: 0;
   }
   .shop-message { min-height: 16px; font-size: 12px; color: #d4527a; text-align: center; margin: 4px 0 0; }
-  #tabbar {
-    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-    width: 380px; max-width: 100%; display: flex;
-    background: #fff9f0; border-top: 1px solid #eee2cf;
-    box-shadow: 0 -2px 8px rgba(0,0,0,0.06);
-    z-index: 50;
-  }
-  .tabbar-btn {
-    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
-    padding: 8px 0 10px; border: none; background: none; cursor: pointer;
-    font-family: inherit; color: #aaa;
-  }
-  .tabbar-icon { font-size: 20px; }
-  .tabbar-label { font-size: 10px; font-weight: bold; letter-spacing: 0.3px; }
-  .tabbar-btn.is-active { color: #d4527a; }
   #hearts { font-size: 22px; color: #d4527a; margin-bottom: 4px; }
-  #catImg { width: 200px; height: 200px; }
   #status { color: #666; font-size: 14px; margin: 6px 0 14px; min-height: 18px; }
   .stat-row { display: flex; align-items: center; padding: 0 20px; margin: 6px 0; }
   .stat-label { width: 56px; text-align: left; font-size: 13px; color: #444; }
@@ -113,22 +120,26 @@
     100% { transform: translate(var(--dx), -70px) scale(1.1); opacity: 0; }
   }
   #catStage {
-    position: relative;
-    width: 260px;
-    height: 240px;
-    margin: 0 auto;
-    background: radial-gradient(ellipse at center 85%, #f3e3c9 0%, transparent 65%);
+    position: absolute;
+    bottom: 20px;
+    left: 120px;
+    width: 110px;
+    height: 110px;
+    z-index: 2;
   }
+  #catStage.facing-left { transform: scaleX(-1); }
   #catStage::after {
     content: "";
     position: absolute;
-    bottom: 18px; left: 50%; transform: translateX(-50%);
-    width: 140px; height: 18px; border-radius: 50%;
-    background: #e9d8ba; opacity: 0.6;
+    bottom: -4px; left: 50%; transform: translateX(-50%);
+    width: 70px; height: 10px; border-radius: 50%;
+    background: rgba(0,0,0,0.15);
   }
   #catImg {
     position: relative;
     z-index: 1;
+    width: 100%;
+    height: 100%;
     animation: bob 2.6s ease-in-out infinite;
   }
   .float-text {
@@ -203,11 +214,8 @@
     <button id="btn-logout" class="link-btn" type="button">로그아웃</button>
   </div>
 
-  <div id="tab-home" class="tab-panel">
+  <div id="hud">
     <div id="hearts"></div>
-    <div id="catStage">
-      <img id="catImg" src="" alt="고양이">
-    </div>
     <div id="status">고양이가 당신을 기다리고 있어요</div>
 
     <div class="stat-row"><div class="stat-label">배부름</div><div class="bar-bg"><div class="bar-fill" id="bar-hunger" style="background:#e08a3c"></div></div></div>
@@ -223,35 +231,28 @@
     </div>
   </div>
 
-  <div id="tab-town" class="tab-panel is-hidden">
-    <div class="placeholder-panel">🏘️<br>마을 준비 중이에요</div>
-  </div>
-
-  <div id="tab-game" class="tab-panel is-hidden">
-    <div id="minigame-buttons">
-      <button class="minigame-choice-btn" id="btn-fish-game" style="background:#3c93d4;">🐟 생선 받아먹기</button>
-      <button class="minigame-choice-btn" id="btn-simon-game" style="background:#a68bd4;">🎵 순서 기억 게임</button>
+  <div id="scene-home" class="scene">
+    <div id="catStage">
+      <img id="catImg" src="" alt="고양이">
     </div>
   </div>
 
-  <div id="tab-shop" class="tab-panel is-hidden">
+  <div id="scene-town" class="scene is-hidden"></div>
+
+  <div id="scene-shop" class="scene is-hidden">
+    <div id="shop-walk-area"></div>
     <div id="shop-list"></div>
     <p id="shop-message" class="shop-message"></p>
   </div>
 
-  <div id="tabbar">
-    <button class="tabbar-btn is-active" data-tab="home" type="button">
-      <span class="tabbar-icon">🏠</span><span class="tabbar-label">HOME</span>
-    </button>
-    <button class="tabbar-btn" data-tab="town" type="button">
-      <span class="tabbar-icon">🏘️</span><span class="tabbar-label">TOWN</span>
-    </button>
-    <button class="tabbar-btn" data-tab="game" type="button">
-      <span class="tabbar-icon">🎮</span><span class="tabbar-label">GAME</span>
-    </button>
-    <button class="tabbar-btn" data-tab="shop" type="button">
-      <span class="tabbar-icon">🛍️</span><span class="tabbar-label">SHOP</span>
-    </button>
+  <div id="minigame-overlay" class="overlay is-hidden">
+    <div class="modal" style="background:#fdf6ec; color:#333;">
+      <div id="minigame-buttons">
+        <button class="minigame-choice-btn" id="btn-fish-game" style="background:#3c93d4;">🐟 생선 받아먹기</button>
+        <button class="minigame-choice-btn" id="btn-simon-game" style="background:#a68bd4;">🎵 순서 기억 게임</button>
+      </div>
+      <button id="btn-minigame-close" class="link-btn" type="button">닫기</button>
+    </div>
   </div>
 </div>
 
@@ -473,10 +474,12 @@ function applyMinigameReward(happinessGain, hungerGain) {
 
 document.getElementById('btn-fish-game').onclick = function() {
   if (gameOver) return;
+  closeMinigameOverlay();
   startFishGame();
 };
 document.getElementById('btn-simon-game').onclick = function() {
   if (gameOver) return;
+  closeMinigameOverlay();
   startSimonGame();
 };
 
@@ -654,33 +657,229 @@ function startSimonGame() {
   setTimeout(nextRound, 800);
 }
 
-// ---------------- 하단 탭 전환 ----------------
-const tabPanels = {
-  home: document.getElementById('tab-home'),
-  town: document.getElementById('tab-town'),
-  game: document.getElementById('tab-game'),
-  shop: document.getElementById('tab-shop'),
+// ---------------- 장소(scene) 이동: 걸어다니기 + 문/입구 전환 ----------------
+const sceneEls = {
+  home: document.getElementById('scene-home'),
+  town: document.getElementById('scene-town'),
+  shop: document.getElementById('scene-shop'),
 };
-const tabbarBtns = document.querySelectorAll('.tabbar-btn');
+const walkContainers = {
+  home: document.getElementById('scene-home'),
+  town: document.getElementById('scene-town'),
+  shop: document.getElementById('shop-walk-area'),
+};
+const minigameOverlay = document.getElementById('minigame-overlay');
+let shopLoaded = false;
 
-function switchTab(name) {
-  for (const key in tabPanels) {
-    tabPanels[key].classList.toggle('is-hidden', key !== name);
-  }
-  tabbarBtns.forEach((btn) => {
-    btn.classList.toggle('is-active', btn.dataset.tab === name);
-  });
+const SCENE_WIDTH = 380;
+const CHAR_WIDTH = 110;
+const MOVE_MIN_X = 10;
+const MOVE_MAX_X = SCENE_WIDTH - CHAR_WIDTH - 10;
+const MOVE_SPEED = 160; // px/sec
+const SPOT_TRIGGER_DIST = 45;
+
+const SPOTS = {
+  home: [
+    { id: 'spot-home-door', x: 300, emoji: '🚪', label: '마을로', toScene: 'town' },
+  ],
+  town: [
+    { id: 'spot-town-home', x: 30, emoji: '🏠', label: '집으로', toScene: 'home' },
+    { id: 'spot-town-shop', x: 300, emoji: '🏪', label: '상점', toScene: 'shop' },
+    { id: 'spot-town-game', x: 165, emoji: '🎮', label: '미니게임', action: 'minigame', trigger: 'click' },
+  ],
+  shop: [
+    { id: 'spot-shop-town', x: 30, emoji: '🚪', label: '마을로', toScene: 'town' },
+  ],
+};
+
+// 어느 장소에서 왔는지에 따라 도착 장소의 어디쯤에 등장할지.
+// 도착 장소에 있는 모든 스팟(SPOT_TRIGGER_DIST=45px)과 충분히 떨어뜨려서,
+// 등장하자마자 그 자리의 스팟이 다시 트리거되어 왔던 곳으로 즉시 튕겨나가는 것을 방지한다.
+const SPAWN_POINTS = {
+  home: { default: 120, town: 120 },
+  town: { default: 40, home: 40, shop: 175 },
+  shop: { default: 95, town: 95 },
+};
+
+function triggerSpot(spot) {
+  if (spot.toScene) switchScene(spot.toScene);
+  else if (spot.action === 'minigame') openMinigameOverlay();
 }
 
-let shopLoaded = false;
-tabbarBtns.forEach((btn) => {
-  btn.addEventListener('click', () => {
-    switchTab(btn.dataset.tab);
-    if (btn.dataset.tab === 'shop' && !shopLoaded) {
+function initSpots() {
+  for (const sceneName in SPOTS) {
+    const container = walkContainers[sceneName];
+    SPOTS[sceneName].forEach((spot) => {
+      const el = document.createElement('div');
+      el.className = 'spot';
+      el.id = spot.id;
+      el.style.left = spot.x + 'px';
+      el.innerHTML = `<div>${spot.emoji}</div><div class="spot-label">${spot.label}</div>`;
+      if (spot.trigger === 'click') {
+        el.style.pointerEvents = 'auto';
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (gameOver) return;
+          triggerSpot(spot);
+        });
+      }
+      container.appendChild(el);
+    });
+  }
+}
+initSpots();
+
+let currentScene = 'home';
+let posX = SPAWN_POINTS.home.default;
+let moveTargetX = null;
+const keysHeld = new Set();
+let lastFacing = 1;
+const spotConsumed = new Set();
+
+function clampX(x) {
+  return Math.max(MOVE_MIN_X, Math.min(MOVE_MAX_X, x));
+}
+
+function switchScene(toScene) {
+  if (toScene === currentScene || !sceneEls[toScene]) return;
+  const fromScene = currentScene;
+  const fromEl = sceneEls[fromScene];
+  const toEl = sceneEls[toScene];
+
+  fromEl.classList.add('is-fading');
+  setTimeout(() => {
+    fromEl.classList.add('is-hidden');
+    fromEl.classList.remove('is-fading');
+    toEl.classList.remove('is-hidden');
+    toEl.classList.add('is-fading');
+    walkContainers[toScene].appendChild(catStage);
+
+    const spawnMap = SPAWN_POINTS[toScene] || {};
+    posX = spawnMap[fromScene] != null ? spawnMap[fromScene] : spawnMap.default;
+    catStage.style.left = posX + 'px';
+    moveTargetX = null;
+    keysHeld.clear();
+    spotConsumed.clear();
+    currentScene = toScene;
+
+    requestAnimationFrame(() => toEl.classList.remove('is-fading'));
+
+    if (toScene === 'shop' && !shopLoaded) {
       shopLoaded = true;
       loadShopItems();
     }
+  }, 150);
+}
+
+function openMinigameOverlay() {
+  minigameOverlay.classList.remove('is-hidden');
+}
+function closeMinigameOverlay() {
+  minigameOverlay.classList.add('is-hidden');
+}
+document.getElementById('btn-minigame-close').addEventListener('click', closeMinigameOverlay);
+
+function checkSpotProximity() {
+  const spots = SPOTS[currentScene] || [];
+  const centerX = posX + CHAR_WIDTH / 2;
+  spots.forEach((spot) => {
+    if (spot.trigger === 'click') return; // 근접 자동 전환 대상이 아님 — 클릭으로만 열림
+    const dist = Math.abs(centerX - spot.x);
+    if (dist <= SPOT_TRIGGER_DIST) {
+      if (!spotConsumed.has(spot.id)) {
+        spotConsumed.add(spot.id);
+        triggerSpot(spot);
+      }
+    } else {
+      spotConsumed.delete(spot.id);
+    }
   });
+}
+
+let movementRafId = null;
+let lastTs = null;
+function tickMovement(ts) {
+  movementRafId = requestAnimationFrame(tickMovement);
+  if (lastTs == null) { lastTs = ts; return; }
+  const dt = Math.min((ts - lastTs) / 1000, 0.1);
+  lastTs = ts;
+  if (gameOver) return;
+
+  const left = keysHeld.has('ArrowLeft') || keysHeld.has('a') || keysHeld.has('A');
+  const right = keysHeld.has('ArrowRight') || keysHeld.has('d') || keysHeld.has('D');
+  let dir = 0;
+  if (left && !right) dir = -1;
+  else if (right && !left) dir = 1;
+
+  if (dir !== 0) {
+    moveTargetX = null;
+    posX = clampX(posX + dir * MOVE_SPEED * dt);
+    lastFacing = dir;
+  } else if (moveTargetX != null) {
+    const diff = moveTargetX - posX;
+    const step = MOVE_SPEED * dt;
+    if (Math.abs(diff) <= step) {
+      posX = moveTargetX;
+      moveTargetX = null;
+    } else {
+      posX += Math.sign(diff) * step;
+      lastFacing = Math.sign(diff);
+    }
+  }
+
+  catStage.style.left = posX + 'px';
+  catStage.classList.toggle('facing-left', lastFacing < 0);
+  checkSpotProximity();
+}
+
+function startMovementLoop() {
+  if (movementRafId != null) return;
+  lastTs = null;
+  movementRafId = requestAnimationFrame(tickMovement);
+}
+function stopMovementLoop() {
+  if (movementRafId != null) {
+    cancelAnimationFrame(movementRafId);
+    movementRafId = null;
+  }
+}
+
+function resetSceneState() {
+  for (const key in sceneEls) {
+    sceneEls[key].classList.toggle('is-hidden', key !== 'home');
+    sceneEls[key].classList.remove('is-fading');
+  }
+  currentScene = 'home';
+  walkContainers.home.appendChild(catStage);
+  posX = SPAWN_POINTS.home.default;
+  catStage.style.left = posX + 'px';
+  catStage.classList.remove('facing-left');
+  moveTargetX = null;
+  lastFacing = 1;
+  keysHeld.clear();
+  spotConsumed.clear();
+  shopLoaded = false;
+  closeMinigameOverlay();
+}
+
+Object.values(walkContainers).forEach((container) => {
+  container.addEventListener('click', (e) => {
+    if (gameOver) return;
+    const rect = container.getBoundingClientRect();
+    moveTargetX = clampX(e.clientX - rect.left - CHAR_WIDTH / 2);
+  });
+});
+
+window.addEventListener('keydown', (e) => {
+  if (document.getElementById('game').classList.contains('is-hidden')) return;
+  if (['ArrowLeft', 'ArrowRight', 'a', 'A', 'd', 'D'].includes(e.key)) {
+    keysHeld.add(e.key);
+    e.preventDefault();
+  }
+});
+window.addEventListener('keyup', (e) => {
+  keysHeld.delete(e.key);
 });
 
 // ---------------- SHOP 탭: 가구 목록 (구매 로직은 아직 없음, 카드만 표시) ----------------
@@ -806,6 +1005,8 @@ function startGame() {
   refreshUI();
   if (decayTimer) clearTimeout(decayTimer);
   decayLoop();
+  resetSceneState();
+  startMovementLoop();
 }
 
 function buildSaveData() {
@@ -918,6 +1119,7 @@ function bindForgotPassword() {
 
 document.getElementById('btn-logout').addEventListener('click', () => {
   if (decayTimer) clearTimeout(decayTimer);
+  stopMovementLoop();
   window.CatTownAuth.clearCurrentUser();
   gameData = null;
   gameWrap.classList.add('is-hidden');
