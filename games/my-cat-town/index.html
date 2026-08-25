@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>고양이 키우기</title>
+<link rel="stylesheet" href="css/auth.css">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Malgun Gothic", sans-serif;
+    background: #fdf6ec;
+    display: flex;
+    justify-content: center;
+    padding: 20px 0;
+  }
+  #game {
+    width: 380px;
+    background: #fdf6ec;
+    text-align: center;
+    padding-bottom: 66px;
+  }
+  .tab-panel.is-hidden { display: none !important; }
+  .placeholder-panel {
+    padding: 90px 20px; color: #aaa; font-size: 15px; line-height: 1.7;
+  }
+  #minigame-buttons { display: flex; flex-direction: column; gap: 14px; padding: 28px 24px; }
+  .minigame-choice-btn {
+    border: none; border-radius: 10px; padding: 18px 0; color: white; font-size: 15px;
+    cursor: pointer; font-family: inherit;
+  }
+  #shop-list { display: flex; flex-direction: column; gap: 12px; padding: 20px; text-align: left; }
+  .shop-card {
+    display: flex; align-items: center; gap: 12px; background: #fff9f0;
+    border: 1px solid #eee2cf; border-radius: 12px; padding: 12px;
+  }
+  .shop-icon {
+    width: 48px; height: 48px; border-radius: 10px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 24px;
+  }
+  .shop-info { flex: 1; min-width: 0; }
+  .shop-name { font-weight: bold; font-size: 14px; color: #333; }
+  .shop-price { font-size: 12px; color: #a67c3c; margin-top: 2px; }
+  .shop-effect { font-size: 11px; color: #888; margin-top: 2px; }
+  .shop-buy-btn {
+    border: none; border-radius: 8px; padding: 8px 14px; background: #d4527a; color: white;
+    font-size: 12px; cursor: pointer; font-family: inherit; flex-shrink: 0;
+  }
+  .shop-message { min-height: 16px; font-size: 12px; color: #d4527a; text-align: center; margin: 4px 0 0; }
+  #tabbar {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 380px; max-width: 100%; display: flex;
+    background: #fff9f0; border-top: 1px solid #eee2cf;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.06);
+    z-index: 50;
+  }
+  .tabbar-btn {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 8px 0 10px; border: none; background: none; cursor: pointer;
+    font-family: inherit; color: #aaa;
+  }
+  .tabbar-icon { font-size: 20px; }
+  .tabbar-label { font-size: 10px; font-weight: bold; letter-spacing: 0.3px; }
+  .tabbar-btn.is-active { color: #d4527a; }
+  #hearts { font-size: 22px; color: #d4527a; margin-bottom: 4px; }
+  #catImg { width: 200px; height: 200px; }
+  #status { color: #666; font-size: 14px; margin: 6px 0 14px; min-height: 18px; }
+  .stat-row { display: flex; align-items: center; padding: 0 20px; margin: 6px 0; }
+  .stat-label { width: 56px; text-align: left; font-size: 13px; color: #444; }
+  .bar-bg { flex: 1; height: 14px; background: #eee2cf; border-radius: 7px; overflow: hidden; margin-left: 8px; }
+  .bar-fill { height: 100%; border-radius: 7px; transition: width 0.3s; }
+  #buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 16px 24px 8px; }
+  .actbtn {
+    border: none; border-radius: 8px; padding: 10px 0; color: white; font-size: 14px;
+    cursor: pointer; font-family: inherit;
+  }
+  .actbtn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+  }
+  .modal {
+    background: #2b2b2b; color: white; border-radius: 12px; padding: 24px 32px; text-align: center;
+  }
+  .modal button {
+    margin-top: 16px; padding: 8px 20px; background: #d4527a; color: white;
+    border: none; border-radius: 8px; cursor: pointer; font-family: inherit;
+  }
+  #fishArea {
+    width: 340px; height: 380px; background: #eaf4fb; border-radius: 8px;
+    position: relative; overflow: hidden; margin: 10px auto;
+  }
+  .fish { position: absolute; font-size: 24px; cursor: pointer; user-select: none; }
+  .simon-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 220px; margin: 14px auto; }
+  .simon-btn { height: 80px; border-radius: 10px; border: none; cursor: pointer; }
+
+  @keyframes floatUp {
+    0% { transform: translateY(0); opacity: 1; }
+    100% { transform: translateY(-40px); opacity: 0; }
+  }
+  @keyframes bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+  @keyframes popIn {
+    0% { transform: scale(0.6); opacity: 0; }
+    60% { transform: scale(1.08); opacity: 1; }
+    100% { transform: scale(1); }
+  }
+  @keyframes heartFloat {
+    0% { transform: translate(0, 0) scale(0.6); opacity: 1; }
+    100% { transform: translate(var(--dx), -70px) scale(1.1); opacity: 0; }
+  }
+  #catStage {
+    position: relative;
+    width: 260px;
+    height: 240px;
+    margin: 0 auto;
+    background: radial-gradient(ellipse at center 85%, #f3e3c9 0%, transparent 65%);
+  }
+  #catStage::after {
+    content: "";
+    position: absolute;
+    bottom: 18px; left: 50%; transform: translateX(-50%);
+    width: 140px; height: 18px; border-radius: 50%;
+    background: #e9d8ba; opacity: 0.6;
+  }
+  #catImg {
+    position: relative;
+    z-index: 1;
+    animation: bob 2.6s ease-in-out infinite;
+  }
+  .float-text {
+    position: absolute;
+    font-weight: bold;
+    font-size: 15px;
+    pointer-events: none;
+    animation: floatUp 1s ease-out forwards;
+    z-index: 5;
+  }
+  .heart-particle {
+    position: absolute;
+    font-size: 16px;
+    pointer-events: none;
+    animation: heartFloat 1s ease-out forwards;
+    z-index: 5;
+  }
+</style>
+</head>
+<body>
+
+<!-- 로그인/회원가입 -->
+<div id="auth-panel">
+  <h2 id="auth-title">🐱 마이 캣 타운</h2>
+  <div class="auth-tabs">
+    <button id="tab-login" class="auth-tab is-active" type="button">로그인</button>
+    <button id="tab-signup" class="auth-tab" type="button">회원가입</button>
+  </div>
+
+  <form id="login-form" class="auth-form">
+    <input id="login-id" class="auth-input" placeholder="아이디" autocomplete="username">
+    <input id="login-pw" class="auth-input" type="password" placeholder="비밀번호" autocomplete="current-password">
+    <button type="submit" class="auth-btn">로그인</button>
+    <button type="button" id="btn-forgot-pw" class="link-btn">비밀번호를 잊으셨나요?</button>
+  </form>
+
+  <form id="signup-form" class="auth-form is-hidden">
+    <input id="signup-id" class="auth-input" placeholder="아이디 (영문/숫자/밑줄 3~12자)" autocomplete="username">
+    <input id="signup-pw" class="auth-input" type="password" placeholder="비밀번호 (4~12자)" autocomplete="new-password">
+    <button type="submit" class="auth-btn">회원가입</button>
+  </form>
+
+  <p id="auth-message" class="auth-message"></p>
+</div>
+
+<!-- 복구코드 안내 -->
+<div id="recovery-overlay" class="overlay is-hidden">
+  <div class="auth-overlay-box">
+    <p class="auth-overlay-title">복구 코드</p>
+    <p class="auth-overlay-sub">비밀번호를 잊었을 때만 필요해요.<br>지금 저장해두세요 — 다시 볼 수 없어요.</p>
+    <div id="recovery-code-display"></div>
+    <button id="btn-recovery-ack" class="auth-btn" type="button">확인, 저장했어요</button>
+  </div>
+</div>
+
+<!-- 비밀번호 찾기 -->
+<div id="forgot-overlay" class="overlay is-hidden">
+  <div class="auth-overlay-box">
+    <p class="auth-overlay-title">비밀번호 재설정</p>
+    <input id="forgot-id" class="auth-input" placeholder="아이디">
+    <input id="forgot-code" class="auth-input" placeholder="복구 코드 (예: A3F9-K21X)">
+    <input id="forgot-newpw" class="auth-input" type="password" placeholder="새 비밀번호 (4~12자)">
+    <p id="forgot-message" class="auth-message"></p>
+    <button id="btn-forgot-submit" class="auth-btn" type="button">재설정</button>
+    <button id="btn-forgot-cancel" class="link-btn" type="button">취소</button>
+  </div>
+</div>
+
+<div id="game" class="is-hidden">
+  <div id="logout-row">
+    <span id="logged-in-as"></span>
+    <button id="btn-logout" class="link-btn" type="button">로그아웃</button>
+  </div>
+
+  <div id="tab-home" class="tab-panel">
+    <div id="hearts"></div>
+    <div id="catStage">
+      <img id="catImg" src="" alt="고양이">
+    </div>
+    <div id="status">고양이가 당신을 기다리고 있어요</div>
+
+    <div class="stat-row"><div class="stat-label">배부름</div><div class="bar-bg"><div class="bar-fill" id="bar-hunger" style="background:#e08a3c"></div></div></div>
+    <div class="stat-row"><div class="stat-label">행복도</div><div class="bar-bg"><div class="bar-fill" id="bar-happiness" style="background:#d4527a"></div></div></div>
+    <div class="stat-row"><div class="stat-label">청결도</div><div class="bar-bg"><div class="bar-fill" id="bar-clean" style="background:#3c93d4"></div></div></div>
+    <div class="stat-row"><div class="stat-label">피로도</div><div class="bar-bg"><div class="bar-fill" id="bar-energy" style="background:#6a9e3c"></div></div></div>
+
+    <div id="buttons">
+      <button class="actbtn" id="btn-feed" style="background:#e08a3c">밥주기</button>
+      <button class="actbtn" id="btn-pet" style="background:#d4527a">쓰다듬기</button>
+      <button class="actbtn" id="btn-clean" style="background:#3c93d4">씻기기</button>
+      <button class="actbtn" id="btn-sleep" style="background:#6a9e3c">재우기</button>
+    </div>
+  </div>
+
+  <div id="tab-town" class="tab-panel is-hidden">
+    <div class="placeholder-panel">🏘️<br>마을 준비 중이에요</div>
+  </div>
+
+  <div id="tab-game" class="tab-panel is-hidden">
+    <div id="minigame-buttons">
+      <button class="minigame-choice-btn" id="btn-fish-game" style="background:#3c93d4;">🐟 생선 받아먹기</button>
+      <button class="minigame-choice-btn" id="btn-simon-game" style="background:#a68bd4;">🎵 순서 기억 게임</button>
+    </div>
+  </div>
+
+  <div id="tab-shop" class="tab-panel is-hidden">
+    <div id="shop-list"></div>
+    <p id="shop-message" class="shop-message"></p>
+  </div>
+
+  <div id="tabbar">
+    <button class="tabbar-btn is-active" data-tab="home" type="button">
+      <span class="tabbar-icon">🏠</span><span class="tabbar-label">HOME</span>
+    </button>
+    <button class="tabbar-btn" data-tab="town" type="button">
+      <span class="tabbar-icon">🏘️</span><span class="tabbar-label">TOWN</span>
+    </button>
+    <button class="tabbar-btn" data-tab="game" type="button">
+      <span class="tabbar-icon">🎮</span><span class="tabbar-label">GAME</span>
+    </button>
+    <button class="tabbar-btn" data-tab="shop" type="button">
+      <span class="tabbar-icon">🛍️</span><span class="tabbar-label">SHOP</span>
+    </button>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="../../assets/firebase-init.js"></script>
+<script src="js/firebase/cloud-sync.js"></script>
+<script src="js/firebase/saveLoad.js"></script>
+<script>
+const IMAGES = {
+  idle: "assets/images/cats/pet_idle.png",
+  happy: "assets/images/cats/pet_happy.png",
+  eating: "assets/images/cats/pet_eating.png",
+  sick: "assets/images/cats/pet_sick.png"
+};
+
+const MAX_STAT = 100;
+const DECAY_AMOUNT = 3;
+const DECAY_INTERVAL_MS = 4000;
+const NEGLECT_LIMIT = 3;
+const MAX_HEARTS = 5;
+const ACTION_COOLDOWN_MS = 3000;
+
+let stats = { hunger: 100, happiness: 100, clean: 100, energy: 100 };
+let hearts = MAX_HEARTS;
+let neglectTicks = 0;
+let gameOver = false;
+let moodResetTimer = null;
+let decayTimer = null;
+
+const catImg = document.getElementById('catImg');
+const heartsEl = document.getElementById('hearts');
+const statusEl = document.getElementById('status');
+
+function getBaseMood() {
+  return hearts <= 2 ? 'sick' : 'idle';
+}
+
+const catStage = document.getElementById('catStage');
+
+function showFloatText(text, color) {
+  const el = document.createElement('div');
+  el.className = 'float-text';
+  el.textContent = text;
+  el.style.color = color;
+  el.style.left = (60 + Math.random() * 100) + 'px';
+  el.style.top = '30px';
+  catStage.appendChild(el);
+  setTimeout(() => el.remove(), 1000);
+}
+
+function burstHearts(count, symbol) {
+  for (let i = 0; i < count; i++) {
+    setTimeout(() => {
+      const h = document.createElement('div');
+      h.className = 'heart-particle';
+      h.textContent = symbol;
+      h.style.left = (90 + Math.random() * 80) + 'px';
+      h.style.top = (60 + Math.random() * 40) + 'px';
+      h.style.setProperty('--dx', (Math.random() * 60 - 30) + 'px');
+      catStage.appendChild(h);
+      setTimeout(() => h.remove(), 1000);
+    }, i * 100);
+  }
+}
+
+function pickRandom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function setMood(mood, duration = 1800) {
+  catImg.src = IMAGES[mood];
+  if (moodResetTimer) clearTimeout(moodResetTimer);
+  moodResetTimer = setTimeout(() => {
+    moodResetTimer = null;
+    catImg.src = IMAGES[getBaseMood()];
+  }, duration);
+}
+
+function refreshUI() {
+  heartsEl.textContent = '♥'.repeat(hearts) + '♡'.repeat(MAX_HEARTS - hearts);
+  for (const key in stats) {
+    document.getElementById('bar-' + key).style.width = (stats[key] / MAX_STAT * 100) + '%';
+  }
+}
+
+function applyStat(key, amount) {
+  stats[key] = Math.max(0, Math.min(MAX_STAT, stats[key] + amount));
+  refreshUI();
+}
+
+function cooldown(btn) {
+  btn.disabled = true;
+  setTimeout(() => { btn.disabled = false; }, ACTION_COOLDOWN_MS);
+}
+
+const MESSAGES = {
+  feed: ["냠냠! 맛있게 먹었어요", "우걱우걱 잘 먹네요", "배가 든든해졌어요"],
+  pet: ["가르릉~ 기분이 좋아졌어요", "야옹! 더 쓰다듬어주세요", "꼬리를 살랑살랑 흔들어요"],
+  clean: ["깨끗해졌어요!", "반짝반짝 윤이 나요", "상쾌한 냄새가 나요"],
+  sleep: ["꾸벅꾸벅... 잠을 좀 잤어요", "낮잠 자니 개운해요", "기지개를 쭉 켜요"]
+};
+
+document.getElementById('btn-feed').onclick = function() {
+  if (gameOver) return;
+  applyStat('hunger', 25);
+  setMood('eating');
+  statusEl.textContent = pickRandom(MESSAGES.feed);
+  showFloatText('+25 배부름', '#e08a3c');
+  cooldown(this);
+  queueSave();
+};
+document.getElementById('btn-pet').onclick = function() {
+  if (gameOver) return;
+  applyStat('happiness', 20);
+  setMood('happy');
+  statusEl.textContent = pickRandom(MESSAGES.pet);
+  showFloatText('+20 행복도', '#d4527a');
+  burstHearts(3, '♥');
+  cooldown(this);
+  queueSave();
+};
+document.getElementById('btn-clean').onclick = function() {
+  if (gameOver) return;
+  applyStat('clean', 30);
+  statusEl.textContent = pickRandom(MESSAGES.clean);
+  showFloatText('+30 청결도', '#3c93d4');
+  burstHearts(2, '✨');
+  cooldown(this);
+  queueSave();
+};
+document.getElementById('btn-sleep').onclick = function() {
+  if (gameOver) return;
+  applyStat('energy', 35);
+  statusEl.textContent = pickRandom(MESSAGES.sleep);
+  showFloatText('+35 피로도', '#6a9e3c');
+  burstHearts(2, '💤');
+  cooldown(this);
+  queueSave();
+};
+
+function decayLoop() {
+  if (gameOver) return;
+  for (const key in stats) {
+    stats[key] = Math.max(0, stats[key] - DECAY_AMOUNT);
+  }
+
+  const anyZero = Object.values(stats).some(v => v === 0);
+  if (anyZero) {
+    neglectTicks++;
+    if (neglectTicks >= NEGLECT_LIMIT) {
+      hearts--;
+      neglectTicks = 0;
+      statusEl.textContent = '고양이가 힘들어해요...';
+      if (!moodResetTimer) {
+        catImg.src = IMAGES[getBaseMood()];
+      }
+      if (hearts <= 0) {
+        refreshUI();
+        triggerGameOver();
+        return;
+      }
+    }
+  } else {
+    neglectTicks = 0;
+    if (Object.values(stats).every(v => v >= 70) && hearts < MAX_HEARTS) {
+      if (Math.random() < 0.2) {
+        hearts++;
+        if (!moodResetTimer) {
+          catImg.src = IMAGES[getBaseMood()];
+        }
+      }
+    }
+  }
+  refreshUI();
+  decayTimer = setTimeout(decayLoop, DECAY_INTERVAL_MS);
+}
+
+function triggerGameOver() {
+  gameOver = true;
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.id = 'gameOverOverlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <div style="font-size:40px;">🐾</div>
+      <div style="font-weight:bold; margin:8px 0;">고양이가 떠나버렸어요...</div>
+      <div style="color:#ccc; font-size:13px;">게이지 관리를 소홀히 하면 안 돼요</div>
+      <button id="restartBtn">다시 시작하기</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.getElementById('restartBtn').onclick = restart;
+}
+
+function restart() {
+  document.getElementById('gameOverOverlay').remove();
+  stats = { hunger: 100, happiness: 100, clean: 100, energy: 100 };
+  hearts = MAX_HEARTS;
+  neglectTicks = 0;
+  gameOver = false;
+  catImg.src = IMAGES.idle;
+  refreshUI();
+  decayLoop();
+}
+
+function applyMinigameReward(happinessGain, hungerGain) {
+  if (happinessGain) {
+    applyStat('happiness', happinessGain);
+    showFloatText('+' + happinessGain + ' 행복도', '#d4527a');
+  }
+  if (hungerGain) {
+    applyStat('hunger', hungerGain);
+    showFloatText('+' + hungerGain + ' 배부름', '#e08a3c');
+  }
+  setMood('happy');
+  burstHearts(4, '★');
+}
+
+document.getElementById('btn-fish-game').onclick = function() {
+  if (gameOver) return;
+  startFishGame();
+};
+document.getElementById('btn-simon-game').onclick = function() {
+  if (gameOver) return;
+  startSimonGame();
+};
+
+// ---------------- 미니게임 1: 생선 받아먹기 ----------------
+function startFishGame() {
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.innerHTML = `
+    <div class="modal" style="background:#fdf6ec; color:#333;">
+      <div style="margin-bottom:6px;">떨어지는 생선을 클릭하세요! (20초)</div>
+      <div id="fishArea"></div>
+      <div id="fishScore" style="font-weight:bold; margin-top:6px;">점수: 0</div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const area = overlay.querySelector('#fishArea');
+  const scoreLabel = overlay.querySelector('#fishScore');
+
+  let score = 0;
+  let running = true;
+  const fishes = [];
+
+  function spawnFish() {
+    if (!running) return;
+    const fish = document.createElement('div');
+    fish.className = 'fish';
+    fish.textContent = '🐟';
+    fish.style.fontSize = '34px';
+    fish.style.padding = '14px';
+    fish.style.lineHeight = '1';
+    const x = Math.random() * 260;
+    fish.style.left = x + 'px';
+    fish.style.top = '0px';
+    area.appendChild(fish);
+    const entry = { el: fish, y: 0, caught: false };
+    fishes.push(entry);
+    fish.onclick = () => {
+      if (entry.caught) return;
+      entry.caught = true;
+      const idx = fishes.indexOf(entry);
+      if (idx >= 0) fishes.splice(idx, 1);
+      score++;
+      scoreLabel.textContent = '점수: ' + score;
+      spawnCatchEffect(fish.offsetLeft + 24, fish.offsetTop + 24, area);
+      fish.remove();
+    };
+    setTimeout(spawnFish, 850);
+  }
+
+  function spawnCatchEffect(x, y, container) {
+    const plus = document.createElement('div');
+    plus.textContent = '+1 🐾';
+    plus.style.cssText = `position:absolute; left:${x}px; top:${y}px; font-size:16px; font-weight:bold; color:#3c93d4; pointer-events:none; animation: floatUp 0.7s ease-out forwards;`;
+    container.appendChild(plus);
+    setTimeout(() => plus.remove(), 700);
+  }
+
+  function fallLoop() {
+    if (!running) return;
+    fishes.forEach(entry => {
+      entry.y += 2.2;
+      entry.el.style.top = entry.y + 'px';
+      if (entry.y > 360) {
+        entry.el.remove();
+        const idx = fishes.indexOf(entry);
+        if (idx >= 0) fishes.splice(idx, 1);
+      }
+    });
+    requestAnimationFrame(fallLoop);
+  }
+
+  spawnFish();
+  fallLoop();
+
+  setTimeout(() => {
+    running = false;
+    const happinessGain = Math.min(score, 15) * 2;
+    const hungerGain = Math.min(score, 15) * 1;
+    applyMinigameReward(happinessGain, hungerGain);
+    overlay.querySelector('.modal').innerHTML = `
+      <div style="font-weight:bold; margin-bottom:10px;">게임 종료!<br>${score}마리 잡았어요</div>
+      <div>행복도 +${happinessGain}  배부름 +${hungerGain}</div>
+      <button id="closeFish">닫기</button>
+    `;
+    overlay.querySelector('#closeFish').onclick = () => overlay.remove();
+  }, 20000);
+}
+
+// ---------------- 미니게임 2: 순서 기억 게임 ----------------
+function startSimonGame() {
+  const colors = [
+    { c: '#e08a3c' }, { c: '#3c93d4' }, { c: '#6a9e3c' }, { c: '#d4527a' }
+  ];
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.innerHTML = `
+    <div class="modal" style="background:#fdf6ec; color:#333;">
+      <div>색깔이 켜지는 순서를 기억해서<br>똑같이 눌러주세요</div>
+      <div id="simonStatus" style="font-weight:bold; margin:8px 0;">준비하세요...</div>
+      <div class="simon-grid">
+        <button class="simon-btn" data-idx="0" style="background:${colors[0].c}"></button>
+        <button class="simon-btn" data-idx="1" style="background:${colors[1].c}"></button>
+        <button class="simon-btn" data-idx="2" style="background:${colors[2].c}"></button>
+        <button class="simon-btn" data-idx="3" style="background:${colors[3].c}"></button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const statusLabel = overlay.querySelector('#simonStatus');
+  const buttons = overlay.querySelectorAll('.simon-btn');
+
+  let sequence = [];
+  let playerIndex = 0;
+  let round = 0;
+  let accepting = false;
+
+  function playSequence(step) {
+    if (step >= sequence.length) {
+      accepting = true;
+      statusLabel.textContent = '이제 따라 눌러보세요!';
+      return;
+    }
+    const idx = sequence[step];
+    const btn = buttons[idx];
+    const original = colors[idx].c;
+    btn.style.background = 'white';
+    setTimeout(() => {
+      btn.style.background = original;
+      setTimeout(() => playSequence(step + 1), 300);
+    }, 300);
+  }
+
+  function nextRound() {
+    round++;
+    sequence.push(Math.floor(Math.random() * 4));
+    playerIndex = 0;
+    accepting = false;
+    statusLabel.textContent = round + '단계 - 순서를 보세요';
+    playSequence(0);
+  }
+
+  function endGame(failed) {
+    accepting = false;
+    const cleared = failed ? round - 1 : round;
+    const happinessGain = cleared * 6;
+    overlay.querySelector('.modal').innerHTML = `
+      <div style="font-weight:bold; margin-bottom:10px;">${failed ? '실패했어요!' : '게임 종료'}<br>${cleared}단계까지 성공</div>
+      <div>행복도 +${happinessGain}</div>
+      <button id="closeSimon">닫기</button>
+    `;
+    overlay.querySelector('#closeSimon').onclick = () => {
+      applyMinigameReward(happinessGain, 0);
+      overlay.remove();
+    };
+  }
+
+  buttons.forEach(btn => {
+    btn.onclick = () => {
+      if (!accepting) return;
+      const idx = parseInt(btn.dataset.idx);
+      const expected = sequence[playerIndex];
+      if (idx === expected) {
+        playerIndex++;
+        if (playerIndex === sequence.length) {
+          accepting = false;
+          statusLabel.textContent = '정답! 다음 단계로';
+          setTimeout(nextRound, 700);
+        }
+      } else {
+        endGame(true);
+      }
+    };
+  });
+
+  setTimeout(nextRound, 800);
+}
+
+// ---------------- 하단 탭 전환 ----------------
+const tabPanels = {
+  home: document.getElementById('tab-home'),
+  town: document.getElementById('tab-town'),
+  game: document.getElementById('tab-game'),
+  shop: document.getElementById('tab-shop'),
+};
+const tabbarBtns = document.querySelectorAll('.tabbar-btn');
+
+function switchTab(name) {
+  for (const key in tabPanels) {
+    tabPanels[key].classList.toggle('is-hidden', key !== name);
+  }
+  tabbarBtns.forEach((btn) => {
+    btn.classList.toggle('is-active', btn.dataset.tab === name);
+  });
+}
+
+let shopLoaded = false;
+tabbarBtns.forEach((btn) => {
+  btn.addEventListener('click', () => {
+    switchTab(btn.dataset.tab);
+    if (btn.dataset.tab === 'shop' && !shopLoaded) {
+      shopLoaded = true;
+      loadShopItems();
+    }
+  });
+});
+
+// ---------------- SHOP 탭: 가구 목록 (구매 로직은 아직 없음, 카드만 표시) ----------------
+const FURNITURE_DATA_URL = 'js/data/furniture.json';
+const FURNITURE_ICONS = {
+  furniture_bed_01: { emoji: '🛏️', bg: '#f4c9a0' },
+  furniture_cattower_01: { emoji: '🐾', bg: '#c9a0f4' },
+};
+const DEFAULT_FURNITURE_ICON = { emoji: '📦', bg: '#ddd' };
+const MATERIAL_LABELS = { wood: '나무', stone: '돌', catnip: '캣닢', hairball: '헤어볼' };
+const STAT_LABELS = { hunger: '배부름', happiness: '행복도', clean: '청결도', stamina: '피로도', health: '건강도' };
+
+function formatCost(cost) {
+  const parts = [];
+  if (cost.gold) parts.push('골드 ' + cost.gold);
+  for (const key in cost) {
+    if (key === 'gold') continue;
+    parts.push((MATERIAL_LABELS[key] || key) + ' ' + cost[key] + '개');
+  }
+  return parts.join(' · ');
+}
+
+function formatEffect(effect) {
+  if (!effect) return '';
+  const label = STAT_LABELS[effect.stat] || effect.stat;
+  const pct = Math.round((effect.decayReduction || 0) * 100);
+  return `효과: ${label} 감소 -${pct}%`;
+}
+
+let shopMessageTimer = null;
+function showShopMessage(text) {
+  const el = document.getElementById('shop-message');
+  el.textContent = text;
+  if (shopMessageTimer) clearTimeout(shopMessageTimer);
+  shopMessageTimer = setTimeout(() => { el.textContent = ''; }, 1500);
+}
+
+async function loadShopItems() {
+  const listEl = document.getElementById('shop-list');
+  try {
+    const res = await fetch(FURNITURE_DATA_URL);
+    const items = await res.json();
+    listEl.innerHTML = '';
+    for (const [id, item] of Object.entries(items)) {
+      const icon = FURNITURE_ICONS[id] || DEFAULT_FURNITURE_ICON;
+      const card = document.createElement('div');
+      card.className = 'shop-card';
+      card.innerHTML = `
+        <div class="shop-icon" style="background:${icon.bg}">${icon.emoji}</div>
+        <div class="shop-info">
+          <div class="shop-name">${item.name}</div>
+          <div class="shop-price">${formatCost(item.cost)}</div>
+          <div class="shop-effect">${formatEffect(item.passiveEffect)}</div>
+        </div>
+        <button class="shop-buy-btn" data-id="${id}">구매</button>
+      `;
+      listEl.appendChild(card);
+    }
+    listEl.querySelectorAll('.shop-buy-btn').forEach((btn) => {
+      btn.addEventListener('click', () => showShopMessage('준비 중입니다'));
+    });
+  } catch (e) {
+    listEl.innerHTML = '<div class="placeholder-panel">가구 목록을 불러오지 못했어요</div>';
+  }
+}
+
+// ---------------- 로그인/저장 연동 ----------------
+const authPanel = document.getElementById('auth-panel');
+const gameWrap = document.getElementById('game');
+const tabLoginBtn = document.getElementById('tab-login');
+const tabSignupBtn = document.getElementById('tab-signup');
+const loginForm = document.getElementById('login-form');
+const signupForm = document.getElementById('signup-form');
+const authMessageEl = document.getElementById('auth-message');
+const recoveryOverlay = document.getElementById('recovery-overlay');
+const forgotOverlay = document.getElementById('forgot-overlay');
+const loggedInAsEl = document.getElementById('logged-in-as');
+
+let gameData = null;
+let saveDebounceTimer = null;
+
+function setAuthMessage(text, isOk = false) {
+  authMessageEl.textContent = text || '';
+  authMessageEl.classList.toggle('is-ok', isOk);
+}
+
+function bindAuthTabs() {
+  tabLoginBtn.addEventListener('click', () => {
+    tabLoginBtn.classList.add('is-active');
+    tabSignupBtn.classList.remove('is-active');
+    loginForm.classList.remove('is-hidden');
+    signupForm.classList.add('is-hidden');
+    setAuthMessage('');
+  });
+  tabSignupBtn.addEventListener('click', () => {
+    tabSignupBtn.classList.add('is-active');
+    tabLoginBtn.classList.remove('is-active');
+    signupForm.classList.remove('is-hidden');
+    loginForm.classList.add('is-hidden');
+    setAuthMessage('');
+  });
+}
+
+// 불러온 세이브 데이터(js/data/game_data_structure.json 형태)를 현재 게임 상태(stats, hearts)에 반영.
+// stamina <-> energy만 이름이 다르고, 나머지(currency/room/inventory/town 등)는 그대로 보존해뒀다가
+// 저장할 때 다시 그대로 실어보낸다.
+function applyLoadedData(data) {
+  gameData = data;
+  stats.hunger = gameData.cat.stats.hunger;
+  stats.happiness = gameData.cat.stats.happiness;
+  stats.clean = gameData.cat.stats.clean;
+  stats.energy = gameData.cat.stats.stamina;
+  hearts = gameData.cat.hearts;
+  neglectTicks = 0;
+  gameOver = false;
+}
+
+function startGame() {
+  authPanel.classList.add('is-hidden');
+  gameWrap.classList.remove('is-hidden');
+  loggedInAsEl.textContent = window.CatTownAuth.getCurrentUser() + '님';
+  catImg.src = IMAGES[getBaseMood()];
+  refreshUI();
+  if (decayTimer) clearTimeout(decayTimer);
+  decayLoop();
+}
+
+function buildSaveData() {
+  gameData.cat.stats.hunger = stats.hunger;
+  gameData.cat.stats.happiness = stats.happiness;
+  gameData.cat.stats.clean = stats.clean;
+  gameData.cat.stats.stamina = stats.energy;
+  gameData.cat.hearts = hearts;
+  gameData.cat.maxHearts = MAX_HEARTS;
+  return gameData;
+}
+
+// 액션(밥주기/쓰다듬기/씻기기/재우기)마다 바로 저장하면 Firestore 요청이 너무 잦아지므로
+// 3초 디바운스 — 그 안에 여러 액션이 더 들어오면 타이머만 다시 미룬다.
+function queueSave() {
+  if (!window.CatTownAuth.getCurrentUser() || !gameData) return;
+  if (saveDebounceTimer) clearTimeout(saveDebounceTimer);
+  saveDebounceTimer = setTimeout(() => {
+    saveDebounceTimer = null;
+    window.SaveLoad.saveGameData(buildSaveData());
+  }, 3000);
+}
+
+window.addEventListener('beforeunload', () => {
+  if (!window.CatTownAuth.getCurrentUser() || !gameData) return;
+  if (saveDebounceTimer) {
+    clearTimeout(saveDebounceTimer);
+    saveDebounceTimer = null;
+  }
+  window.SaveLoad.saveGameData(buildSaveData());
+});
+
+async function loginAndStart(id) {
+  window.CatTownAuth.setCurrentUser(id);
+  setAuthMessage('불러오는 중...', true);
+  const res = await window.SaveLoad.loadGameData();
+  if (!res.ok) {
+    setAuthMessage('데이터를 불러오지 못했어요.');
+    return;
+  }
+  applyLoadedData(res.data);
+  startGame();
+}
+
+function bindLoginForm() {
+  loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('login-id').value.trim();
+    const pw = document.getElementById('login-pw').value;
+    if (!id || !pw) { setAuthMessage('아이디와 비밀번호를 모두 입력해주세요.'); return; }
+    setAuthMessage('확인 중...');
+    const res = await window.CatTownAuth.logIn(id, pw);
+    if (!res.ok) { setAuthMessage(res.reason); return; }
+    await loginAndStart(id);
+  });
+}
+
+function bindSignupForm() {
+  signupForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('signup-id').value.trim();
+    const pw = document.getElementById('signup-pw').value;
+    const idErr = window.CatTownAuth.validateId(id);
+    if (idErr) { setAuthMessage(idErr); return; }
+    const pwErr = window.CatTownAuth.validatePassword(pw);
+    if (pwErr) { setAuthMessage(pwErr); return; }
+
+    setAuthMessage('가입 처리 중...');
+    const res = await window.CatTownAuth.signUp(id, pw);
+    if (!res.ok) { setAuthMessage(res.reason); return; }
+    showRecoveryCode(res.recoveryCode, () => loginAndStart(id));
+  });
+}
+
+function showRecoveryCode(code, onAck) {
+  document.getElementById('recovery-code-display').textContent = code;
+  recoveryOverlay.classList.remove('is-hidden');
+  const ackBtn = document.getElementById('btn-recovery-ack');
+  const handler = () => {
+    recoveryOverlay.classList.add('is-hidden');
+    ackBtn.removeEventListener('click', handler);
+    onAck();
+  };
+  ackBtn.addEventListener('click', handler);
+}
+
+function bindForgotPassword() {
+  document.getElementById('btn-forgot-pw').addEventListener('click', () => {
+    document.getElementById('forgot-id').value = '';
+    document.getElementById('forgot-code').value = '';
+    document.getElementById('forgot-newpw').value = '';
+    document.getElementById('forgot-message').textContent = '';
+    forgotOverlay.classList.remove('is-hidden');
+  });
+  document.getElementById('btn-forgot-cancel').addEventListener('click', () => {
+    forgotOverlay.classList.add('is-hidden');
+  });
+  document.getElementById('btn-forgot-submit').addEventListener('click', async () => {
+    const id = document.getElementById('forgot-id').value.trim();
+    const code = document.getElementById('forgot-code').value.trim();
+    const newPw = document.getElementById('forgot-newpw').value;
+    const msgEl = document.getElementById('forgot-message');
+    msgEl.textContent = '처리 중...';
+    const res = await window.CatTownAuth.resetPassword(id, code, newPw);
+    if (!res.ok) { msgEl.textContent = res.reason; return; }
+    msgEl.textContent = '비밀번호가 변경됐어요. 로그인해주세요.';
+    setTimeout(() => { forgotOverlay.classList.add('is-hidden'); }, 1200);
+  });
+}
+
+document.getElementById('btn-logout').addEventListener('click', () => {
+  if (decayTimer) clearTimeout(decayTimer);
+  window.CatTownAuth.clearCurrentUser();
+  gameData = null;
+  gameWrap.classList.add('is-hidden');
+  authPanel.classList.remove('is-hidden');
+  document.getElementById('login-id').value = '';
+  document.getElementById('login-pw').value = '';
+  setAuthMessage('');
+});
+
+// ---------------- 시작 ----------------
+bindAuthTabs();
+bindLoginForm();
+bindSignupForm();
+bindForgotPassword();
+
+// 로그인 세션이 남아있으면 비밀번호 재입력 없이 자동으로 이어서 시작, 없으면 로그인 화면 그대로 대기.
+(async function initAuth() {
+  const remembered = window.CatTownAuth.getCurrentUser();
+  if (!remembered) return;
+  setAuthMessage('불러오는 중...', true);
+  const res = await window.SaveLoad.loadGameData();
+  if (res.ok) {
+    applyLoadedData(res.data);
+    startGame();
+  } else {
+    window.CatTownAuth.clearCurrentUser();
+    setAuthMessage('');
+  }
+})();
+</script>
+</body>
+</html>

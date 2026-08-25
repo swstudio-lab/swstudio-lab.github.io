@@ -1,0 +1,14 @@
+{
+  "furniture_bed_01": {
+    "name": "포근한 방석",
+    "cost": { "gold": 50, "wood": 3 },
+    "passiveEffect": { "stat": "happiness", "decayReduction": 0.2 },
+    "gridSize": { "w": 1, "h": 1 }
+  },
+  "furniture_cattower_01": {
+    "name": "캣타워",
+    "cost": { "gold": 150, "wood": 8, "stone": 2 },
+    "passiveEffect": { "stat": "happiness", "decayReduction": 0.35 },
+    "gridSize": { "w": 2, "h": 2 }
+  }
+}

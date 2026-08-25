@@ -1,0 +1,117 @@
+{
+  "_설명": "마이 캣 타운 - 저장 데이터 구조 (Save Data Schema). Firebase 로그인 사용자의 uid를 문서 id로 사용해 Firestore 경로 users/{uid}/gameSaves/catTown 에 이 구조 그대로 저장/불러오기.",
+
+  "meta": {
+    "_설명": "세이브 파일 자체에 대한 정보. uid는 저장 시 Firebase Auth의 currentUser.uid로 채움 (문서 안에도 중복 저장해두면 나중에 관리자 조회 등에 편함)",
+    "uid": "firebase_user_uid_here",
+    "saveVersion": 1,
+    "lastSavedAt": "2026-08-25T10:00:00.000Z",
+    "playerName": "냥집사"
+  },
+
+  "currency": {
+    "_설명": "모든 재화. 마을 생산/미니게임 보상은 여기 값을 더하는 방식으로 동작",
+    "gold": 120,
+    "materials": {
+      "wood": 5,
+      "stone": 2,
+      "catnip": 3,
+      "hairball": 0
+    }
+  },
+
+  "cat": {
+    "_설명": "고양이 1마리 기준 상태. 나중에 고양이가 여러 마리(이웃 포함)가 되면 cats: [ {...}, {...} ] 배열로 확장",
+    "id": "cat_001",
+    "name": "나비",
+    "stats": {
+      "_설명": "0~100 범위. 기존 4종 + 확장 예정 건강도(health)",
+      "hunger": 100,
+      "happiness": 100,
+      "clean": 100,
+      "stamina": 100,
+      "health": 100
+    },
+    "hearts": 5,
+    "maxHearts": 5,
+    "statusEffect": {
+      "_설명": "null 이면 정상. 'sick'(병듦) 또는 'runaway_risk'(가출 위기) 등 상태이상 표시",
+      "type": null,
+      "startedAt": null
+    },
+    "lastInteractionAt": {
+      "feed": null,
+      "pet": null,
+      "clean": null,
+      "sleep": null,
+      "play": null,
+      "groom": null,
+      "medicine": null
+    }
+  },
+
+  "room": {
+    "_설명": "고양이 방 그리드. gridSize는 배치 가능한 칸 수, placedFurniture는 실제 배치된 가구 목록",
+    "gridSize": { "cols": 4, "rows": 3 },
+    "background": "bg_room_01",
+    "placedFurniture": [
+      {
+        "furnitureId": "furniture_bed_01",
+        "gridX": 1,
+        "gridY": 2
+      }
+    ]
+  },
+
+  "inventory": {
+    "_설명": "아직 방에 배치하지 않았거나 사용 안 한 아이템들. key는 아이템 id, value는 보유 개수",
+    "furniture": {
+      "furniture_bed_01": 1,
+      "furniture_cattower_01": 0
+    },
+    "items": {
+      "item_toy_feather": 2,
+      "item_brush_01": 1,
+      "item_medicine_01": 0
+    }
+  },
+
+  "town": {
+    "_설명": "마을 발전 상태. buildings는 건물별 레벨과 마지막 수거 시각",
+    "townLevel": 1,
+    "buildings": {
+      "fishing_spot": {
+        "level": 1,
+        "lastCollectedAt": "2026-08-25T09:00:00.000Z",
+        "collectIntervalMinutes": 30,
+        "yield": { "materials": { "wood": 0 }, "gold": 0, "special": { "fish": 3 } }
+      },
+      "snack_factory": {
+        "level": 0,
+        "lastCollectedAt": null,
+        "collectIntervalMinutes": 60,
+        "yield": { "materials": {}, "gold": 0, "special": { "premium_food": 0 } }
+      },
+      "workshop": {
+        "level": 0,
+        "lastCollectedAt": null,
+        "collectIntervalMinutes": 45,
+        "yield": { "materials": { "wood": 2, "stone": 1 }, "gold": 0 }
+      }
+    },
+    "neighborCats": [
+      "_설명: townLevel이 오르면 여기에 이웃 고양이 id가 추가됨. 예: 'neighbor_cat_003'"
+    ]
+  },
+
+  "minigameStats": {
+    "_설명": "미니게임 최고 기록 및 오늘 플레이 횟수 (하루 제한 두고 싶을 때 대비)",
+    "fishCatch": { "highScore": 0, "playsToday": 0, "lastPlayedAt": null },
+    "simonSays": { "highScore": 0, "playsToday": 0, "lastPlayedAt": null }
+  },
+
+  "settings": {
+    "soundOn": true,
+    "lastActiveTab": "home"
+  }
+}
