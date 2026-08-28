@@ -33,13 +33,28 @@
   .scene { position: relative; width: 380px; height: 260px; margin: 0 auto; overflow: hidden; cursor: pointer; opacity: 1; transition: opacity 0.15s ease; }
   .scene.is-hidden { display: none !important; }
   .scene.is-fading { opacity: 0; }
-  #scene-home { background: linear-gradient(#fdf6ec, #f3e3c9); }
-  #scene-town { background: linear-gradient(#eaf4e0, #cfe3b8); }
-  #scene-shop { height: auto; overflow: visible; cursor: default; }
-  #shop-walk-area {
-    position: relative; width: 380px; height: 140px; overflow: hidden;
+  #scene-home { background: url('assets/images/backgrounds/bg_room_01.png') center bottom / cover no-repeat; }
+  #scene-town { height: auto; overflow: visible; cursor: default; }
+  #town-display {
+    width: 380px; height: 253px; margin: 0 auto;
+    background: url('assets/images/backgrounds/bg_village_01.png') center / cover no-repeat;
+    pointer-events: none;
+  }
+  #town-walk-area {
+    position: relative; width: 380px; height: 100px; overflow: hidden;
     margin: 0 auto; cursor: pointer;
-    background: linear-gradient(#fdece0, #f0c9a0);
+    background: linear-gradient(#fdece5, #e4c2a0);
+  }
+  #scene-shop { height: auto; overflow: visible; cursor: default; }
+  #shop-display {
+    width: 380px; height: 253px; margin: 0 auto;
+    background: url('assets/images/backgrounds/bg_shop_01.png') center / cover no-repeat;
+    pointer-events: none;
+  }
+  #shop-walk-area {
+    position: relative; width: 380px; height: 100px; overflow: hidden;
+    margin: 0 auto; cursor: pointer;
+    background: linear-gradient(#d29f73, #b37c53);
   }
   .spot {
     position: absolute; bottom: 14px; transform: translateX(-50%);
@@ -121,12 +136,15 @@
   }
   #catStage {
     position: absolute;
-    bottom: 20px;
+    bottom: 58px;
     left: 120px;
     width: 110px;
     height: 110px;
     z-index: 2;
   }
+  /* 배경마다 바닥선 높이와 어울리는 캐릭터 크기가 달라서 장소별로 따로 지정 */
+  #town-walk-area #catStage { bottom: 8px; width: 80px; height: 80px; }
+  #shop-walk-area #catStage { bottom: 8px; width: 90px; height: 90px; }
   #catStage.facing-left { transform: scaleX(-1); }
   #catStage::after {
     content: "";
@@ -134,13 +152,18 @@
     bottom: -4px; left: 50%; transform: translateX(-50%);
     width: 70px; height: 10px; border-radius: 50%;
     background: rgba(0,0,0,0.15);
+    filter: blur(1.5px);
   }
+  #town-walk-area #catStage::after { width: 55px; height: 8px; }
+  #shop-walk-area #catStage::after { width: 60px; height: 9px; }
   #catImg {
     position: relative;
     z-index: 1;
     width: 100%;
     height: 100%;
+    opacity: 1;
     animation: bob 2.6s ease-in-out infinite;
+    filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 5px #fff);
   }
   .float-text {
     position: absolute;
@@ -237,9 +260,13 @@
     </div>
   </div>
 
-  <div id="scene-town" class="scene is-hidden"></div>
+  <div id="scene-town" class="scene is-hidden">
+    <div id="town-display"></div>
+    <div id="town-walk-area"></div>
+  </div>
 
   <div id="scene-shop" class="scene is-hidden">
+    <div id="shop-display"></div>
     <div id="shop-walk-area"></div>
     <div id="shop-list"></div>
     <p id="shop-message" class="shop-message"></p>
@@ -665,7 +692,7 @@ const sceneEls = {
 };
 const walkContainers = {
   home: document.getElementById('scene-home'),
-  town: document.getElementById('scene-town'),
+  town: document.getElementById('town-walk-area'),
   shop: document.getElementById('shop-walk-area'),
 };
 const minigameOverlay = document.getElementById('minigame-overlay');
@@ -684,8 +711,8 @@ const SPOTS = {
   ],
   town: [
     { id: 'spot-town-home', x: 30, emoji: '🏠', label: '집으로', toScene: 'home' },
-    { id: 'spot-town-shop', x: 300, emoji: '🏪', label: '상점', toScene: 'shop' },
-    { id: 'spot-town-game', x: 165, emoji: '🎮', label: '미니게임', action: 'minigame', trigger: 'click' },
+    { id: 'spot-town-shop', x: 291, emoji: '🏪', label: '상점', toScene: 'shop' },
+    { id: 'spot-town-game', x: 150, emoji: '🎮', label: '미니게임', action: 'minigame', trigger: 'click' },
   ],
   shop: [
     { id: 'spot-shop-town', x: 30, emoji: '🚪', label: '마을로', toScene: 'town' },
