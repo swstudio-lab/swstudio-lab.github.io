@@ -90,6 +90,10 @@ class GameState {
       const has = localStorage.getItem(`${STORAGE_PREFIX}case001:auto`) !== null;
       return has === condition.hasCase001Save;
     }
+    if (condition.hasCase002Save !== undefined) {
+      const has = localStorage.getItem(`${STORAGE_PREFIX}case002:auto`) !== null;
+      return has === condition.hasCase002Save;
+    }
     return true;
   }
 

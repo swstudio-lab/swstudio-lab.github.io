@@ -8,6 +8,10 @@
  *   종료(success:false)한다 — 무한 재시도 없이, 실패해도 진행은 막지 않되 정보를 덜
  *   얻은 채 넘어가게 하기 위함(002 설계).
  * 'qte': 제한시간 안에 반응 클릭 (성공/실패 모두 resolve, 실패해도 진행은 계속됨)
+ * 'elimination': 소거법 추리 (003) — 후보 여러 개 중 조건(attributes)을 전부 만족하는 하나만
+ *   골라내는 퍼즐. 오답을 고르면 그 후보는 그 자리에서 소거(그레이아웃, 재시도 불가)되고
+ *   오답 횟수가 올라간다. maxWrongAttempts(기본 3)에 도달하면 정답을 못 찾은 채로 그 판을
+ *   그대로 종료(success:false) — contradiction과 동일하게 무한 재시도 없이 진행은 막지 않음.
  */
 
 class PuzzleManager {
@@ -46,6 +50,12 @@ class PuzzleManager {
       contradictionGrid: root.querySelector('#contradiction-grid'),
       contradictionFeedback: root.querySelector('#contradiction-feedback'),
       contradictionHintBtn: root.querySelector('#contradiction-hint-btn'),
+
+      eliminationOverlay: root.querySelector('#elimination-overlay'),
+      eliminationPrompt: root.querySelector('#elimination-prompt'),
+      eliminationGrid: root.querySelector('#elimination-grid'),
+      eliminationFeedback: root.querySelector('#elimination-feedback'),
+      eliminationHintBtn: root.querySelector('#elimination-hint-btn'),
     };
   }
 
@@ -61,6 +71,9 @@ class PuzzleManager {
     }
     if (puzzleDef.type === 'contradiction') {
       return this.runContradictionPuzzle(puzzleDef);
+    }
+    if (puzzleDef.type === 'elimination') {
+      return this.runEliminationPuzzle(puzzleDef);
     }
     if (puzzleDef.type === 'qte') {
       return this.runQTE(puzzleDef);
@@ -443,6 +456,96 @@ class PuzzleManager {
         card.addEventListener('click', () => onEntryClick(entry.id));
         this.els.contradictionGrid.appendChild(card);
         cardEls[entry.id] = card;
+      });
+    });
+  }
+
+  // candidates: [{ id, label, attributes: [] }], answerId: 정답 id,
+  // maxWrongAttempts?: 오답 허용 횟수(기본 3), hint?: string — contradiction과 같은 정책으로
+  // hint가 있으면 힌트 버튼이 바로 노출됨(잠금 해제 단계 없음). 오답을 고르면 그 후보 카드는
+  // 그 자리에서 소거(그레이아웃, 재클릭 불가)되고 오답 횟수가 올라간다 — "다시 같은 후보를
+  // 무한정 눌러볼 수 없다"는 것 자체가 이 타입의 "무한 재시도 아님" 요구사항을 만족시킨다.
+  runEliminationPuzzle(def) {
+    return new Promise((resolve) => {
+      const { prompt, candidates, answerId, maxWrongAttempts = 3, hint } = def;
+      let wrongCount = 0;
+      let settled = false;
+      let hintShown = false;
+      const cardEls = {};
+
+      this.els.eliminationPrompt.textContent = prompt || '';
+      this.els.eliminationFeedback.textContent = '';
+      this.els.eliminationFeedback.classList.remove('is-ok');
+      this.els.eliminationGrid.innerHTML = '';
+      this.els.eliminationOverlay.classList.add('is-visible');
+
+      const onHint = () => {
+        if (!hint) return;
+        hintShown = !hintShown;
+        this.els.eliminationFeedback.classList.remove('is-ok');
+        this.els.eliminationFeedback.textContent = hintShown ? hint : '';
+      };
+      if (this.els.eliminationHintBtn) {
+        this.els.eliminationHintBtn.classList.toggle('is-hidden', !hint);
+        this.els.eliminationHintBtn.addEventListener('click', onHint);
+      }
+
+      const cleanup = () => {
+        this.els.eliminationOverlay.classList.remove('is-visible');
+        if (this.els.eliminationHintBtn) this.els.eliminationHintBtn.removeEventListener('click', onHint);
+      };
+
+      const onCardClick = (id) => {
+        if (settled) return;
+        const card = cardEls[id];
+        if (card.classList.contains('is-eliminated')) return;
+
+        if (id === answerId) {
+          settled = true;
+          card.classList.add('is-connected');
+          this.els.eliminationFeedback.classList.add('is-ok');
+          this.els.eliminationFeedback.textContent = '조건에 전부 들어맞는다 — 이거다.';
+          Object.values(cardEls).forEach((el) => { el.style.pointerEvents = 'none'; });
+          setTimeout(() => {
+            cleanup();
+            resolve({ success: true });
+          }, 700);
+        } else {
+          wrongCount++;
+          card.classList.add('is-eliminated');
+          this.els.eliminationFeedback.classList.remove('is-ok');
+          if (wrongCount >= maxWrongAttempts) {
+            settled = true;
+            this.els.eliminationFeedback.textContent = '...시간이 없다. 일단 넘어가자.';
+            Object.values(cardEls).forEach((el) => { el.style.pointerEvents = 'none'; });
+            setTimeout(() => {
+              cleanup();
+              resolve({ success: false });
+            }, 700);
+          } else {
+            this.els.eliminationFeedback.textContent = `조건 중 하나가 어긋난다. 소거. (${wrongCount}/${maxWrongAttempts})`;
+          }
+        }
+      };
+
+      this.shuffleArray(candidates).forEach((cand) => {
+        const card = document.createElement('div');
+        card.className = 'elimination-card';
+        const label = document.createElement('p');
+        label.className = 'elimination-card-label';
+        label.textContent = cand.label;
+        card.appendChild(label);
+        const attrList = document.createElement('ul');
+        attrList.className = 'elimination-card-attrs';
+        (cand.attributes || []).forEach((attr) => {
+          const li = document.createElement('li');
+          li.textContent = attr;
+          attrList.appendChild(li);
+        });
+        card.appendChild(attrList);
+        card.addEventListener('click', () => onCardClick(cand.id));
+        this.els.eliminationGrid.appendChild(card);
+        cardEls[cand.id] = card;
       });
     });
   }

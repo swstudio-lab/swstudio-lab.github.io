@@ -31,6 +31,7 @@ class UIManager {
 
       shadowFlashLayer: root.querySelector('#shadow-flash-layer'),
       blackoutLayer: root.querySelector('#blackout-layer'),
+      faceOverlapLayer: root.querySelector('#face-overlap-layer'),
 
       hotspotLayer: root.querySelector('#hotspot-layer'),
       closeupOverlay: root.querySelector('#closeup-overlay'),
@@ -416,6 +417,26 @@ class UIManager {
     if (!el) return;
     el.style.opacity = '1';
     setTimeout(() => { el.style.opacity = '0'; }, duration);
+  }
+
+  // 003 5장 클라이맥스 — 관리자의 얼굴 자리에 4장을 겹쳐 놓고, CSS 쪽에서 서로 위상이 어긋난
+  // 채로 계속 밝아졌다 사라지게 함(bgFlicker와 같은 원리, 4겹이라 레이어당 별도 keyframe 필요).
+  // 씬이 바뀔 때까지 계속 유지되는 연출이라(flashShadow 등 1회성 이펙트와 다름) clearFacesOverlap()을
+  // enterScene()에서 캐릭터 클리어와 함께 호출해 다음 씬으로 안 새어나가게 한다.
+  showFacesOverlap(srcs) {
+    const layer = this.els.faceOverlapLayer;
+    if (!layer) return;
+    srcs.forEach((src, i) => {
+      const el = layer.children[i];
+      if (el) el.style.backgroundImage = `url("${src}")`;
+    });
+    layer.classList.add('is-visible');
+  }
+
+  clearFacesOverlap() {
+    const layer = this.els.faceOverlapLayer;
+    if (!layer) return;
+    layer.classList.remove('is-visible');
   }
 }
 

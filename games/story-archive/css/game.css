@@ -59,6 +59,70 @@
 .char-sprite--left { left: 6vw; }
 .char-sprite--right { right: 6vw; transform: scaleX(-1); }
 
+/* ---------- 003 5장 클라이맥스: 여러 얼굴 겹침 (facesOverlap) ----------
+   char-sprite와 같은 크기/기준선을 쓰되 화면 중앙에 두고, 4장을 겹쳐 쌓아
+   각각 다른 주기·시작 지연으로 0~0.6 사이를 오르내리게 해서 "누구 얼굴인지
+   계속 바뀌는" 느낌을 준다. bgFlicker처럼 불규칙한 퍼센트 지점을 써서
+   4개가 동시에 밝아지는 순간이 생기지 않게 위상을 어긋냄. */
+#face-overlap-layer {
+  position: absolute;
+  bottom: 220px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 34vw;
+  max-width: 420px;
+  aspect-ratio: 683 / 1024;
+  z-index: 7;
+  pointer-events: none;
+  display: none;
+}
+#face-overlap-layer.is-visible { display: block; }
+
+.face-overlap-face {
+  position: absolute;
+  inset: 0;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: bottom;
+  opacity: 0;
+  filter: drop-shadow(0 12px 24px rgba(0,0,0,0.55));
+}
+#face-overlap-layer.is-visible .face-overlap-face--1 { animation: faceOverlapFlicker1 3.2s ease-in-out infinite; }
+#face-overlap-layer.is-visible .face-overlap-face--2 { animation: faceOverlapFlicker2 3.7s ease-in-out infinite; animation-delay: 0.6s; }
+#face-overlap-layer.is-visible .face-overlap-face--3 { animation: faceOverlapFlicker3 4.1s ease-in-out infinite; animation-delay: 1.4s; }
+#face-overlap-layer.is-visible .face-overlap-face--4 { animation: faceOverlapFlicker4 3.5s ease-in-out infinite; animation-delay: 2.1s; }
+
+@keyframes faceOverlapFlicker1 {
+  0%, 100% { opacity: 0; }
+  20% { opacity: 0.5; }
+  38% { opacity: 0.1; }
+  55% { opacity: 0.6; }
+  70% { opacity: 0; }
+}
+@keyframes faceOverlapFlicker2 {
+  0%, 100% { opacity: 0.1; }
+  15% { opacity: 0.55; }
+  40% { opacity: 0; }
+  65% { opacity: 0.4; }
+  85% { opacity: 0; }
+}
+@keyframes faceOverlapFlicker3 {
+  0%, 100% { opacity: 0; }
+  25% { opacity: 0.35; }
+  50% { opacity: 0.6; }
+  72% { opacity: 0.05; }
+  90% { opacity: 0.3; }
+}
+@keyframes faceOverlapFlicker4 {
+  0%, 100% { opacity: 0.2; }
+  30% { opacity: 0; }
+  58% { opacity: 0.5; }
+  80% { opacity: 0.15; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .face-overlap-face { animation: none !important; opacity: 0.3 !important; }
+}
+
 /* ---------- P&C 탐색 핫스팟 ---------- */
 #hotspot-layer {
   position: absolute;
@@ -850,6 +914,33 @@
   color: var(--ink);
 }
 
+/* itemCollage: [{ case, image, label }] — 진엔딩 등에서 여러 케이스의 핵심 아이템을
+   한 화면에 나란히 모아 보여주는 연출 (003 ending_true_003) */
+.ending-item-collage {
+  margin-top: 22px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: center;
+}
+.ending-collage-card {
+  width: 108px;
+}
+.ending-collage-img {
+  width: 108px;
+  height: 108px;
+  background-size: cover;
+  background-position: center;
+  border: 1px solid var(--panel-border);
+  border-radius: 2px;
+}
+.ending-collage-label {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ink-dim);
+}
+
 .ending-teaser {
   margin-top: 24px;
   padding-top: 18px;
@@ -1369,6 +1460,104 @@
   justify-content: center;
 }
 #contradiction-hint-btn.is-hidden { display: none; }
+
+/* ---------- 퍼즐: 소거법 추리 (003) ---------- */
+#elimination-overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10,11,13,0.9);
+  z-index: 55;
+  overflow-y: auto;
+  padding: 24px 0;
+  box-sizing: border-box;
+}
+#elimination-overlay.is-visible { display: flex; }
+
+.elimination-box {
+  border: 1px solid var(--panel-border);
+  border-left: 3px solid var(--accent-amber);
+  background: var(--panel);
+  padding: 28px 34px;
+  text-align: center;
+  max-width: 620px;
+  max-height: 88vh;
+  overflow-y: auto;
+}
+
+.elimination-tag {
+  font-family: var(--font-display);
+  color: var(--accent-amber);
+  letter-spacing: 2px;
+  font-size: 16px;
+  margin: 0 0 10px;
+}
+
+.elimination-prompt {
+  font-size: 14px;
+  color: var(--ink);
+  line-height: 1.7;
+  margin: 0 0 16px;
+}
+
+.elimination-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.elimination-card {
+  border: 1px solid var(--panel-border);
+  background: rgba(10,11,13,0.6);
+  padding: 12px 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, opacity 0.2s ease;
+}
+.elimination-card:hover { border-color: var(--accent-amber); }
+.elimination-card.is-connected { border-color: var(--accent-amber); box-shadow: 0 0 0 1px var(--accent-amber) inset; opacity: 0.7; cursor: default; }
+/* 오답으로 소거된 후보 — 다시 눌러도 반응 없음(소거법의 핵심: 무한 재시도 없이 하나씩 제외) */
+.elimination-card.is-eliminated {
+  border-color: var(--panel-border);
+  opacity: 0.35;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+
+.elimination-card-label {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0 0 6px;
+}
+
+.elimination-card-attrs {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--ink-dim);
+  line-height: 1.6;
+}
+
+.elimination-feedback {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--accent-blood);
+  min-height: 18px;
+  margin: 0;
+}
+.elimination-feedback.is-ok { color: var(--accent-amber); }
+
+.elimination-actions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: center;
+}
+#elimination-hint-btn.is-hidden { display: none; }
 
 /* ---------- 퍼즐: 순서 배열 ---------- */
 #sequence-overlay {

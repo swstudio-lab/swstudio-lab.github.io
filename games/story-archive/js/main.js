@@ -458,6 +458,7 @@ function enterScene(sceneId, resuming = false) {
 
   ui.setBackground(CASE_BASE + scene.background);
   ui.clearCharacters();
+  ui.clearFacesOverlap();
   ui.hideSystemMessage();
   sound.playBgm(scene.bgm ? CASE_BASE + scene.bgm : null);
   // 3-2: 장소 이동 시 발소리 — 최초 진입(프롤로그)이나 세이브 이어하기 시에는 재생하지 않음
@@ -663,6 +664,9 @@ async function playLines(scene, index) {
   if (line.fx === 'flash') ui.flashScreen();
   if (line.fx === 'shake') ui.shakeScreen();
   if (line.fx === 'bloodbleed') ui.bloodBleed();
+  if (line.fx === 'facesOverlap') {
+    ui.showFacesOverlap([1, 2, 3, 4].map((n) => CASE_BASE + `assets/characters/overlap-${n}.png`));
+  }
   if (line.fx === 'shadowflash') {
     const now = Date.now();
     if (now - lastShadowFlashTime >= SHADOW_FLASH_COOLDOWN_MS) {
@@ -951,6 +955,33 @@ function renderEnding(scene) {
   document.getElementById('ending-screen').classList.add('is-visible');
   document.getElementById('ending-title').textContent = scene.title || '엔딩';
   document.getElementById('ending-body').textContent = (scene.lines || []).map((l) => resolveText(l.text)).join('\n\n');
+
+  // itemCollage: [{ case, image, label }] — 진엔딩 등에서 다른 케이스의 아이템까지 한 화면에
+  // 모아 보여주는 연출. 각 항목의 case가 곧 그 이미지가 실제로 들어있는 케이스 폴더이므로,
+  // 지금 플레이 중인 CASE_BASE가 아니라 항목별 case로 경로를 새로 조립해야 한다.
+  const collageEl = document.getElementById('ending-item-collage');
+  if (collageEl) {
+    collageEl.innerHTML = '';
+    const hasCollage = Array.isArray(scene.itemCollage) && scene.itemCollage.length > 0;
+    collageEl.classList.toggle('is-hidden', !hasCollage);
+    if (hasCollage) {
+      scene.itemCollage.forEach((entry) => {
+        const card = document.createElement('div');
+        card.className = 'ending-collage-card';
+        const img = document.createElement('div');
+        img.className = 'ending-collage-img';
+        img.style.backgroundImage = `url("cases/${entry.case}/${entry.image}")`;
+        card.appendChild(img);
+        if (entry.label) {
+          const label = document.createElement('p');
+          label.className = 'ending-collage-label';
+          label.textContent = entry.label;
+          card.appendChild(label);
+        }
+        collageEl.appendChild(card);
+      });
+    }
+  }
 
   // 시리즈 로드맵은 엔딩을 볼 때마다 접힌 상태로 초기화 (매번 처음부터 발견하는 재미를 위해)
   document.getElementById('roadmap-panel').classList.remove('is-visible');

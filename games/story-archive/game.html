@@ -24,6 +24,14 @@
   <div id="char-left" class="char-sprite char-sprite--left"></div>
   <div id="char-right" class="char-sprite char-sprite--right"></div>
 
+  <!-- 003 5장 클라이맥스: 여러 얼굴이 겹쳐서 계속 바뀌는 연출 (facesOverlap) -->
+  <div id="face-overlap-layer">
+    <div class="face-overlap-face face-overlap-face--1"></div>
+    <div class="face-overlap-face face-overlap-face--2"></div>
+    <div class="face-overlap-face face-overlap-face--3"></div>
+    <div class="face-overlap-face face-overlap-face--4"></div>
+  </div>
+
   <!-- Point & Click 탐색 핫스팟 -->
   <div id="hotspot-layer"></div>
 
@@ -115,6 +123,7 @@
       <p class="ending-tag">[FILE CLOSED]</p>
       <h2 id="ending-title"></h2>
       <p id="ending-body"></p>
+      <div id="ending-item-collage" class="ending-item-collage is-hidden"></div>
       <p id="ending-teaser" class="ending-teaser"></p>
 
       <div class="ending-roadmap">
@@ -134,10 +143,10 @@
               <span class="roadmap-case-title">기음 (거짓된 복음)</span>
               <span class="roadmap-case-status">[LOCKED]</span>
             </div>
-            <div class="roadmap-item is-locked" data-case="case003">
+            <div class="roadmap-item is-open" data-case="case003">
               <span class="roadmap-case-id">CASE-003</span>
-              <span class="roadmap-case-title">???</span>
-              <span class="roadmap-case-status">[LOCKED]</span>
+              <span class="roadmap-case-title">편입 (열세 번째 기록)</span>
+              <span class="roadmap-case-status">[OPEN]</span>
             </div>
           </div>
           <p id="roadmap-flavor" class="roadmap-flavor"></p>
@@ -296,6 +305,19 @@
       <p id="contradiction-feedback" class="contradiction-feedback"></p>
       <div class="contradiction-actions">
         <button id="contradiction-hint-btn" class="ctrl-btn" type="button">힌트</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 퍼즐: 소거법 추리 (003) — 후보 여러 개 중 조건(attributes)을 전부 만족하는 하나만 남기고 나머지를 소거 -->
+  <div id="elimination-overlay">
+    <div class="elimination-box">
+      <p class="elimination-tag">[ELIMINATION]</p>
+      <p id="elimination-prompt" class="elimination-prompt"></p>
+      <div id="elimination-grid" class="elimination-grid"></div>
+      <p id="elimination-feedback" class="elimination-feedback"></p>
+      <div class="elimination-actions">
+        <button id="elimination-hint-btn" class="ctrl-btn" type="button">힌트</button>
       </div>
     </div>
   </div>
