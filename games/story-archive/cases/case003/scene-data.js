@@ -31,7 +31,7 @@ window.CASE_DATA = {
     // (star-image-mismatch-dialogue-fix.md #1) 이미지로 나온 별 모양 도장이 001/002의
     // 손 흠집과 다르게 나와서, "정확히 일치"가 아니라 "본사 정식 도장 vs 현장 손 흠집"으로 순화.
     "stamped_file": {
-      "baseNote": "표지 구석에 낯익은 표식이 찍혀있다. 001/002에서 계속 보던 그 별 모양 흠집이랑은 조금 다른데 — 이건 손으로 급하게 그은 게 아니라, 정식으로 찍힌 도장이다."
+      "baseNote": "표지 구석에 낯익은 표식이 찍혀있다. 손으로 급하게 그은 흠집이 아니라, 정식으로 찍힌 도장이다."
     },
     "system_manual": {
       "baseNote": "도장 규정 안내문. 편입 처리 시 찍는 공식 인장의 용도가 적혀있다. 그런데 도식은, 실제 파일에 찍힌 것과 모양이 다르다."
@@ -46,7 +46,7 @@ window.CASE_DATA = {
       "baseNote": "진짜 시작점 판별 기준. 별 모양 표식 최초 발견 지점 / 공식 이전 기록 없음(비공식) / 병원과 물리적으로 연결됨 — 셋 다 맞는 곳이 진짜 시작점이다."
     },
     "r01_original_photo": {
-      "baseNote": "빛바랜 사진 속 얼굴은, 지금까지 봐온 조사관의 얼굴과 다르다. 완전히 다른 사람. 001에서 봤던, 얼굴만 뜯겨 나간 그 찢어진 사진이 원래 담고 있었을 얼굴이 이것이었을지도 모른다."
+      "baseNote": "빛바랜 사진 한 장. 얼굴이 지금까지 봐온 조사관들과 완전히 다르다 — 원래 얼굴이 따로 있었다는 증거일지도 모른다."
     }
   },
 
@@ -195,7 +195,8 @@ window.CASE_DATA = {
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...감사 대상 부서치고, 정리는 잘 되어있네." },
         { "speaker": "내레이션", "text": "가까운 캐비닛을 열어본다. 오래된 파일 표지마다, 구석에 작은 표식이 찍혀있다." },
         // (star-image-mismatch-dialogue-fix.md #2)
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...이 모양, 낯익다. 근데 001/002에서 본 건 누가 손으로 새긴 흠집이었는데, 이건 제대로 된 도장이다. 정식 규격이 따로 있었나 보다." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...이 모양, 낯익다. 001/002 파일에서 본 건 손으로 새긴 흠집이었는데, 이건 제대로 된 도장이다. 정식 규격이 따로 있었나 보다.", "condition": { "hasCase001Save": true } },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...이 모양, 어디선가 본 것 같기도 한데. 기분 탓이겠지.", "condition": { "hasCase001Save": false } },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...근데 왜 파일마다 도장처럼 찍혀있지? 낙서가 아니라 규정이었나." }
       ],
       "next": "hq_records_search"
@@ -227,7 +228,8 @@ window.CASE_DATA = {
           "itemImage": "assets/items/r03-file.png",
           "itemLabel": "R-03 개인 파일"
         },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...002 사건 기록에 있던 그 이름이다." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...002 사건 기록에 있던 그 이름이다.", "condition": { "hasCase001Save": true } },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...R-03. 낯선 이름이다. 이 사람도 여기서 사라진 건가.", "condition": { "hasCase001Save": false } },
         {
           "speaker": "내레이션",
           "text": "그 파일 옆에, 얇은 로그 한 장이 클립으로 끼워져 있다.",
@@ -262,7 +264,7 @@ window.CASE_DATA = {
             ],
             "connectMessages": {
               // (star-image-mismatch-dialogue-fix.md #4)
-              "stamped|manual": "규정에 적힌 공식 인장과, 실제 파일에 찍힌 표식이 서로 다르다. 용도는 같다 — \"편입 처리 완료\" — 그런데 현장에서는 규정과 다른 방식으로 찍혀왔다. 001/002에서 본 손으로 새긴 흠집도, 003 본사의 정식 도장도, 결국 같은 걸 뜻하는 서로 다른 표현이었다.",
+              "stamped|manual": "규정에 적힌 공식 인장과, 실제 파일에 찍힌 표식이 서로 다르다. 용도는 같다 — \"편입 처리 완료\" — 그런데 현장에서는 규정과 다른 방식으로 찍혀왔다.",
               "r03file|leaklog": "R-03의 파일 옆에 붙은 로그 — \"편입 개체 R-03, 신호 교란 감지 시 잔상 노출: 3회. 위치: 산속 중계탑.\" 002에서 스쳐 지나가던 그 형체가, 정확히 세 번 등장했던 그 그림자가, R-03이었다는 확증이다."
             },
             "hint": "(혼잣말) ...표식은 규정이랑, 이름은 기록이랑 짝지어보자.",
@@ -270,6 +272,7 @@ window.CASE_DATA = {
           }
         },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...별 모양은 낙서도, 경고도 아니었다. 그냥 도장이었다. \"처리 완료\"라는." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...001/002 파일에서 봤던 그 손으로 새긴 흠집도, 결국 같은 뜻이었다. 그냥 표현 방식이 달랐을 뿐.", "condition": { "hasCase001Save": true } },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...그리고 R-03. 세 번이나 새어 나왔었구나. 그 사람, 정말 거기 있었다." }
       ],
       "next": "hq_records_manager_silence"
@@ -377,7 +380,8 @@ window.CASE_DATA = {
           }
         },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...병원. #01. 그리고 상태가 \"종료\"가 아니라 \"종료·봉인\"이다." },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...그리고 지금 진행 중인 게 #13. 002에서 봤던 그 산속 중계탑, R-03 사건. 그게 열세 번째였다." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...그리고 지금 진행 중인 게 #13. 002 파일에서 읽었던 그 산속 중계탑, R-03 사건. 그게 열세 번째였다.", "condition": { "hasCase001Save": true } },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...그리고 지금 진행 중인 게 #13. 지금 이 감사 자체가, 열세 번째 사례라는 뜻이다.", "condition": { "hasCase001Save": false } },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...근데 병원이 #01이면서 왜 \"봉인\"까지 따로 붙었을까. 다른 시설들이랑 다르게 취급된 거다." }
       ],
       "next": "hq_office_end"
@@ -500,7 +504,8 @@ window.CASE_DATA = {
           "itemLabel": "R-01의 원본 사진"
         },
         { "speaker": "내레이션", "text": "얼굴이, 지금까지 봐온 그 얼굴과 다르다. 완전히 다른 사람이다." },
-        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...그럼 001에서 봤던 그 찢어진 사진. 얼굴만 뜯겨 나가 있던 그거." },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...그럼 001 파일에 있던 그 찢어진 사진. 얼굴만 뜯겨 나가 있었다던 그거.", "condition": { "hasCase001Save": true } },
+        { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...누군가 일부러 얼굴을 지운 사례가, 이번이 처음이 아닐 수도 있겠다.", "condition": { "hasCase001Save": false } },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...누군가 지우려던 게 아니라, 원래 얼굴이 있었다는 증거 자체를 없애려던 거였다." },
         { "character": "{gender}-neutral", "speaker": "조사관(나)", "text": "(혼잣말) ...우리가 계속 봐온 그 얼굴은, 진짜가 아니라 시스템이 덮어씌운 거였어." }
       ],
