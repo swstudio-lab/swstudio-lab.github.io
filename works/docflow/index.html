@@ -148,6 +148,23 @@
   .corner-status.ok{color:var(--teal);}
   .corner-status.warn{color:#f0a293;}
   .corner-flash{font-size:11.5px;color:var(--gold);min-height:16px;margin-top:6px;transition:opacity .3s ease;}
+  /* 인앱 브라우저 안내 */
+  .inapp-banner{display:none;background:rgba(224,169,74,0.1);border:1px solid var(--gold-dim);border-radius:12px;
+    padding:12px 14px;margin-bottom:22px;font-size:12.5px;line-height:1.65;color:var(--ink);position:relative;}
+  .inapp-banner.show{display:block;}
+  .inapp-banner.strong{border-color:var(--danger);background:rgba(217,112,95,0.12);}
+  .inapp-banner b{color:var(--gold);}
+  .inapp-banner .inapp-sub{font-size:11.5px;color:var(--muted);margin-top:4px;}
+  .inapp-banner .inapp-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+  .inapp-banner .inapp-close{position:absolute;top:6px;right:8px;background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:4px 8px;}
+  .btn-open-external{background:var(--gold);color:#0b0b0e;font-weight:700;border:none;border-radius:10px;padding:9px 14px;
+    font-size:12.5px;cursor:pointer;font-family:inherit;text-decoration:none;display:inline-block;}
+  /* 인앱 저장용 시트 */
+  .save-sheet-img{display:block;max-width:100%;max-height:62vh;margin:0 auto 12px;border-radius:8px;background:#fff;
+    -webkit-touch-callout:default;user-select:auto;}
+  .save-sheet-hint{font-size:13px;color:var(--ink);line-height:1.7;margin-bottom:12px;text-align:center;}
+  .save-sheet-hint b{color:var(--gold);}
+  .notice-modal.wide{max-width:560px;max-height:92vh;overflow:auto;}
   .check-soon{margin-left:auto;font-size:10px;color:var(--muted);border:1px solid var(--line);border-radius:12px;padding:2px 8px;flex-shrink:0;}
 
   /* 저장형식 */
@@ -206,10 +223,20 @@
   </div>
 </div>
 
+<div class="notice-overlay" id="saveSheet">
+  <div class="notice-modal wide">
+    <div class="notice-title" id="saveSheetTitle">이미지 저장</div>
+    <div id="saveSheetBody"></div>
+    <div class="inapp-actions" id="saveSheetActions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;"></div>
+    <button class="btn-ghost" id="saveSheetClose" style="width:100%;margin-top:12px;">닫기</button>
+  </div>
+</div>
+
 <div class="wrap">
+  <div class="inapp-banner" id="inappBanner" role="status"></div>
   <div class="top">
     <div class="top-title">📄 DocFlow</div>
-    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-07-14</div>
+    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-07-15</div>
     <div class="top-sub">문서 이미지를 업로드하고 필요한 처리만 체크하면 한 번에 정리해드려요.</div>
     <div class="badge-local">🔒 이 페이지에서 하는 모든 처리는 브라우저 안에서만 이뤄져요 — 서버로 업로드되지 않아요</div>
   </div>
@@ -394,6 +421,113 @@
 /* ---------------------------------------------------------
    데이터 정의
 --------------------------------------------------------- */
+/* ---------------------------------------------------------
+   인앱 브라우저(카카오톡·네이버·인스타그램 등) 대응
+   - 이런 앱 안의 웹 화면(웹뷰)은 파일 다운로드(blob/dataURL)를 지원하지 않는 경우가 많아서
+     "다운로드 알림은 뜨는데 파일이 없는" 상황이 생김 → 감지해서 외부 브라우저로 열도록 안내
+   - 인앱에서 저장을 누르면 다운로드를 시도하지 않고, 결과 이미지를 크게 띄워 "길게 눌러 저장"으로 안내
+--------------------------------------------------------- */
+const INAPP = (function detectInAppBrowser(){
+  const ua = navigator.userAgent || '';
+  const android = /Android/i.test(ua), ios = /iPhone|iPad|iPod/i.test(ua);
+  const apps = [
+    [/KAKAOTALK/i, '카카오톡'], [/NAVER\(inapp|NAVER\//i, '네이버'], [/Instagram/i, '인스타그램'],
+    [/FBAN|FBAV|FB_IAB|FBIOS/i, '페이스북'], [/\bLine\//i, '라인'], [/DaumApps/i, '다음'],
+    [/BAND\//i, '밴드'], [/everytimeApp/i, '에브리타임'],
+  ];
+  let name = null;
+  for(const [re, n] of apps){ if(re.test(ua)){ name = n; break; } }
+  // 앱 이름은 모르지만 웹뷰인 경우 — 안드로이드 웹뷰는 "; wv)" 표시, iOS 앱 내부 화면은 "Safari" 표시가 없음
+  const genericAndroidWv = android && /; wv\)/.test(ua);
+  const genericIosWv = ios && /AppleWebKit/i.test(ua) && !/Safari/i.test(ua) && !/CriOS|FxiOS|EdgiOS/i.test(ua);
+  const inApp = !!name || genericAndroidWv || genericIosWv;
+  return { inApp, name: name || '앱', android, ios, kakao: name === '카카오톡' };
+})();
+
+// 외부(기본) 브라우저로 여는 주소 — 카카오톡은 전용 주소(안드로이드·iOS 모두), 그 밖의 안드로이드 앱은 크롬 인텐트.
+// iOS 일반 앱은 외부로 여는 공식 방법이 없어서 null (안내 문구만)
+function externalOpenUrl(){
+  const url = location.href.split('#')[0];
+  if(INAPP.kakao) return 'kakaotalk://web/openExternal?url=' + encodeURIComponent(url);
+  if(INAPP.android){
+    const noScheme = url.replace(/^https?:\/\//, '');
+    return `intent://${noScheme}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(url)};end`;
+  }
+  return null;
+}
+function externalOpenLabel(){
+  if(INAPP.kakao) return INAPP.ios ? 'Safari로 열기' : '다른 브라우저로 열기';
+  return 'Chrome으로 열기';
+}
+function externalMenuHint(){
+  if(INAPP.ios) return '화면의 <b>⋯</b> 또는 공유 버튼 → <b>Safari로 열기</b>';
+  return '오른쪽 위 <b>⋮</b> → <b>다른 브라우저로 열기</b>';
+}
+
+function renderInAppBanner(strong){
+  const el = document.getElementById('inappBanner');
+  if(!INAPP.inApp) return;
+  const href = externalOpenUrl();
+  el.innerHTML = `
+    <button class="inapp-close" id="inappClose" aria-label="닫기">×</button>
+    ${strong ? '⚠️ <b>PDF는 이 화면에서 저장할 수 없어요.</b>' : `📱 지금 <b>${INAPP.name} 안의 브라우저</b>로 열려 있어서 <b>저장이 안 될 수 있어요.</b>`}<br>
+    ${externalMenuHint()} 로 열어주세요.
+    <div class="inapp-sub">다른 브라우저로 옮기면 사진을 다시 올려야 해요. 이미지 결과는 이 화면에서도 "길게 눌러 저장"으로 받을 수 있어요.</div>
+    ${href ? `<div class="inapp-actions"><a class="btn-open-external" href="${href}">${externalOpenLabel()}</a></div>` : ''}`;
+  el.classList.add('show');
+  el.classList.toggle('strong', !!strong);
+  document.getElementById('inappClose').onclick = ()=> el.classList.remove('show');
+}
+renderInAppBanner(false);
+
+function closeSaveSheet(){ document.getElementById('saveSheet').classList.remove('show'); }
+document.getElementById('saveSheetClose').addEventListener('click', closeSaveSheet);
+document.getElementById('saveSheet').addEventListener('click', e=>{ if(e.target.id === 'saveSheet') closeSaveSheet(); });
+
+// 인앱용 저장 시트: 이미지를 크게 보여주고 길게 눌러 저장하도록 안내
+function showImageSaveSheet(canvas, mime, quality){
+  const dataUrl = canvas.toDataURL(mime, quality);
+  const href = externalOpenUrl();
+  document.getElementById('saveSheetTitle').textContent = '이미지 저장';
+  document.getElementById('saveSheetBody').innerHTML = `
+    <div class="save-sheet-hint">아래 이미지를 <b>길게 눌러</b> <b>"이미지 저장"</b>을 선택하세요.</div>
+    <img class="save-sheet-img" src="${dataUrl}" alt="처리 결과">
+    <div class="gen-hint" style="text-align:center;">저장 메뉴가 안 나오면 ${externalMenuHint()} 로 연 뒤 다운로드해주세요.</div>`;
+  document.getElementById('saveSheetActions').innerHTML = href ? `<a class="btn-open-external" href="${href}">${externalOpenLabel()}</a>` : '';
+  document.getElementById('saveSheet').classList.add('show');
+}
+
+// 인앱에서 PDF: 이 화면에선 저장 불가 → 외부 브라우저를 강하게 권하고, 대신 이미지로 받는 길도 제공
+function showPdfBlockedSheet(onImage){
+  const href = externalOpenUrl();
+  document.getElementById('saveSheetTitle').textContent = '⚠️ PDF는 이 화면에서 저장할 수 없어요';
+  document.getElementById('saveSheetBody').innerHTML = `
+    <div class="save-sheet-hint" style="text-align:left;">
+      ${INAPP.name} 안의 브라우저는 PDF 파일 저장을 지원하지 않아요.<br>
+      ${externalMenuHint()} 로 연 뒤 다시 처리해서 PDF로 받아주세요.<br>
+      <span class="gen-hint">다른 브라우저로 옮기면 사진을 다시 올려야 해요.</span>
+    </div>`;
+  document.getElementById('saveSheetActions').innerHTML =
+    (href ? `<a class="btn-open-external" href="${href}">${externalOpenLabel()}</a>` : '') +
+    `<button class="btn-ghost" id="saveAsImageBtn">대신 이미지(JPG)로 저장</button>`;
+  document.getElementById('saveAsImageBtn').onclick = onImage;
+  document.getElementById('saveSheet').classList.add('show');
+  renderInAppBanner(true);
+}
+
+// 공용 저장 — 일반 브라우저는 파일 다운로드, 인앱 브라우저는 저장 시트
+function saveCanvasFile(canvas, filename, mime, quality){
+  if(INAPP.inApp){ showImageSaveSheet(canvas, mime, quality); return; }
+  canvas.toBlob(blob=>{
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    // 바로 해제하면 일부 브라우저(특히 모바일)에서 다운로드가 시작되기 전에 주소가 사라져 실패함 → 넉넉히 뒤에 해제
+    setTimeout(()=> URL.revokeObjectURL(url), 60000);
+  }, mime, quality);
+}
+
 /* ---------------------------------------------------------
    첫 방문 안내 모달 — 한 번 확인하면 다시 안 뜨게 로컬스토리지에 기억
 --------------------------------------------------------- */
@@ -3566,6 +3700,10 @@ document.getElementById('processBtn').addEventListener('click', async ()=>{
 --------------------------------------------------------- */
 document.getElementById('downloadBtn').addEventListener('click', ()=>{
   if(!resultCanvas) return;
+  if(selectedFormat === 'pdf' && INAPP.inApp){
+    showPdfBlockedSheet(()=> showImageSaveSheet(resultCanvas, 'image/jpeg', 0.92));
+    return;
+  }
   if(selectedFormat === 'pdf'){
     const { jsPDF } = window.jspdf;
     const imgData = resultCanvas.toDataURL('image/jpeg', 0.92);
@@ -3580,13 +3718,7 @@ document.getElementById('downloadBtn').addEventListener('click', ()=>{
   }
   const mimeMap = { png:'image/png', jpg:'image/jpeg', webp:'image/webp' };
   const extMap = { png:'png', jpg:'jpg', webp:'webp' };
-  resultCanvas.toBlob(blob=>{
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `DocFlow_결과.${extMap[selectedFormat]}`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, mimeMap[selectedFormat], selectedFormat==='jpg' ? 0.92 : undefined);
+  saveCanvasFile(resultCanvas, `DocFlow_결과.${extMap[selectedFormat]}`, mimeMap[selectedFormat], selectedFormat==='jpg' ? 0.92 : undefined);
 });
 
 /* ---------------------------------------------------------
@@ -3645,13 +3777,7 @@ function downloadCroppedCanvas(canvas, filename, pad = 12){
   const out=document.createElement('canvas');
   out.width=cw; out.height=ch;
   out.getContext('2d').drawImage(canvas, minX,minY,cw,ch, 0,0,cw,ch);
-  out.toBlob(blob=>{
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, 'image/png');
+  saveCanvasFile(out, filename, 'image/png');
 }
 
 function roundRectPath(ctx, x, y, w, h, r){
