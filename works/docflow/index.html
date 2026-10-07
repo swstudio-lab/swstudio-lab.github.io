@@ -236,7 +236,7 @@
   <div class="inapp-banner" id="inappBanner" role="status"></div>
   <div class="top">
     <div class="top-title">📄 DocFlow</div>
-    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-07-15</div>
+    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-07-16</div>
     <div class="top-sub">문서 이미지를 업로드하고 필요한 처리만 체크하면 한 번에 정리해드려요.</div>
     <div class="badge-local">🔒 이 페이지에서 하는 모든 처리는 브라우저 안에서만 이뤄져요 — 서버로 업로드되지 않아요</div>
   </div>
@@ -461,7 +461,7 @@ function externalOpenLabel(){
 }
 function externalMenuHint(){
   if(INAPP.ios) return '화면의 <b>⋯</b> 또는 공유 버튼 → <b>Safari로 열기</b>';
-  return '오른쪽 위 <b>⋮</b> → <b>다른 브라우저로 열기</b>';
+  return '오른쪽 <b>⋮</b> → <b>다른 브라우저로 열기</b>';
 }
 
 function renderInAppBanner(strong){
@@ -472,7 +472,7 @@ function renderInAppBanner(strong){
     <button class="inapp-close" id="inappClose" aria-label="닫기">×</button>
     ${strong ? '⚠️ <b>PDF는 이 화면에서 저장할 수 없어요.</b>' : `📱 지금 <b>${INAPP.name} 안의 브라우저</b>로 열려 있어서 <b>저장이 안 될 수 있어요.</b>`}<br>
     ${externalMenuHint()} 로 열어주세요.
-    <div class="inapp-sub">다른 브라우저로 옮기면 사진을 다시 올려야 해요. 이미지 결과는 이 화면에서도 "길게 눌러 저장"으로 받을 수 있어요.</div>
+    <div class="inapp-sub">다른 브라우저로 열면 사진을 다시 올려야 해요. 이미지 결과(JPG)는 이 화면에서도 "길게 눌러 저장"으로 받을 수 있어요.</div>
     ${href ? `<div class="inapp-actions"><a class="btn-open-external" href="${href}">${externalOpenLabel()}</a></div>` : ''}`;
   el.classList.add('show');
   el.classList.toggle('strong', !!strong);
@@ -505,7 +505,7 @@ function showPdfBlockedSheet(onImage){
     <div class="save-sheet-hint" style="text-align:left;">
       ${INAPP.name} 안의 브라우저는 PDF 파일 저장을 지원하지 않아요.<br>
       ${externalMenuHint()} 로 연 뒤 다시 처리해서 PDF로 받아주세요.<br>
-      <span class="gen-hint">다른 브라우저로 옮기면 사진을 다시 올려야 해요.</span>
+      <span class="gen-hint">다른 브라우저로 열면 사진을 다시 올려야 해요.</span>
     </div>`;
   document.getElementById('saveSheetActions').innerHTML =
     (href ? `<a class="btn-open-external" href="${href}">${externalOpenLabel()}</a>` : '') +
