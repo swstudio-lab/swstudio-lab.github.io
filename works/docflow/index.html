@@ -124,6 +124,11 @@
   .box.on::after{content:'✓';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;color:#0b0b0e;font-weight:700;}
   .check-name{font-size:13px;font-weight:600;}
   .check-desc{font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.5;}
+  .check-row.has-sub{border-bottom:none;padding-bottom:6px;}
+  .sub-option-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:0 0 12px 30px;border-bottom:1px solid var(--line);}
+  .sub-option-row:last-child{border-bottom:none;}
+  .sub-option-label{width:100%;font-size:11px;color:var(--muted);margin-bottom:2px;}
+  .sub-option-btn{padding:6px 12px;font-size:11.5px;}
   .check-soon{margin-left:auto;font-size:10px;color:var(--muted);border:1px solid var(--line);border-radius:12px;padding:2px 8px;flex-shrink:0;}
 
   /* 저장형식 */
@@ -185,7 +190,7 @@
 <div class="wrap">
   <div class="top">
     <div class="top-title">📄 DocFlow</div>
-    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-07-29-06</div>
+    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-07-05</div>
     <div class="top-sub">문서 이미지를 업로드하고 필요한 처리만 체크하면 한 번에 정리해드려요.</div>
     <div class="badge-local">🔒 이 페이지에서 하는 모든 처리는 브라우저 안에서만 이뤄져요 — 서버로 업로드되지 않아요</div>
   </div>
@@ -371,7 +376,7 @@ const SECTIONS = [
     {id:'deskew', name:'기울기 자동 보정', desc:'기울어진 문서를 똑바로 맞춰요. (배경이 있는 사진이면 "문서 자동 크롭"도 같이 체크해주세요)', ready:true},
     {id:'trimMargin', name:'여백 자동 제거', desc:'문서 바깥의 불필요한 여백을 잘라내요.', ready:true},
     {id:'denoise', name:'노이즈 제거', desc:'스캔할 때 생기는 잡티·얼룩을 부드럽게 줄여요.', ready:true},
-    {id:'autoCrop', name:'문서 자동 크롭', desc:'사진 속 종이 영역만 찾아서 잘라내요.', ready:true},
+    {id:'autoCrop', name:'문서 자동 크롭 · 원근 보정', desc:'사진 속 종이의 테두리를 찾아서, 비스듬히 찍혔으면 반듯한 직사각형으로 펴고 배경을 잘라내요. 글자 방향을 보고 똑바로 세워줘요. (모서리를 확실하게 못 찾으면 펴지 않아요)', ready:true},
   ]},
   { title:'문서 정리', items:[
     {id:'removeLines', name:'표 선 제거', desc:'표의 테두리 선을 지워요. (배경이 어두운 사진이면 "문서 자동 크롭"을 먼저 체크해주세요 — 어두운 배경도 선으로 오인될 수 있어요)', ready:true},
@@ -414,6 +419,7 @@ let selectedPreset = null;
 let originalImage = null;
 let resultCanvas = null;
 let signatureSelection = null; // 원본 이미지 좌표계 기준 {x,y,w,h} — 서명 추출 시 사용
+let outsideMode = 'fill'; // 원근 보정 후 사진 밖이었던 빈 칸 처리: 'fill'(종이색으로 채우기) | 'crop'(빈 부분 잘라내기)
 
 // 공개 배포본은 true로 — 도장/서명 "추출" 결과물에 워터마크를 남겨서 실사용 위조를 막음
 // (개인용 사본은 이 값만 false로 바꿔서 씀)
@@ -503,11 +509,30 @@ function renderSections(){
         };
       }
       list.appendChild(row);
+      if(item.id === 'autoCrop' && on){
+        row.classList.add('has-sub');
+        list.appendChild(renderOutsideModeRow());
+      }
     });
     group.appendChild(list);
     wrap.appendChild(group);
   });
   updateSignatureSelectUI();
+}
+
+// "문서 자동 크롭" 하위 옵션 — 종이 모서리가 사진 밖으로 나갔던 부분(펴진 뒤 빈 칸)을 어떻게 할지
+function renderOutsideModeRow(){
+  const wrap = document.createElement('div');
+  wrap.className = 'sub-option-row';
+  wrap.innerHTML = '<div class="sub-option-label">종이 모서리가 사진 밖으로 나갔던 부분</div>';
+  [['fill','종이색으로 채우기'], ['crop','빈 부분 잘라내기']].forEach(([id, name])=>{
+    const b = document.createElement('button');
+    b.className = 'format-btn sub-option-btn' + (outsideMode===id ? ' selected' : '');
+    b.textContent = name;
+    b.onclick = e=>{ e.stopPropagation(); outsideMode = id; renderSections(); };
+    wrap.appendChild(b);
+  });
+  return wrap;
 }
 
 function renderFormats(){
@@ -746,17 +771,38 @@ function otsuThreshold(hist, total){
   return threshold;
 }
 
-// 책상 위 등 배경과 함께 찍힌 문서 사진에서, "가장 크게 뭉친 밝은 영역(=종이)"만 찾아 그 부분만 잘라냄
-function autoCropDocument(canvas){
+// 분석용 축소 — 브라우저의 drawImage 축소는 브라우저·그래픽 가속 여부에 따라 결과 픽셀이 미세하게 달라서,
+// 같은 사진인데도 사용자 브라우저와 테스트 환경의 검출 결과(모서리·방향·줄 펴기)가 달라졌음.
+// 원본 픽셀을 출력 칸별로 직접 평균(면적 평균)해서 어느 브라우저에서든 똑같은 결과가 나오게 함.
+// 결과: { data(RGBA), w, h, scale }
+function downscaleForAnalysis(canvas, maxDim){
   const { width: W, height: H } = canvas;
-  const maxDim = 320;
   const scale = Math.min(1, maxDim/Math.max(W,H));
-  const sw = Math.max(1, Math.round(W*scale)), sh = Math.max(1, Math.round(H*scale));
-  const small = document.createElement('canvas');
-  small.width = sw; small.height = sh;
-  const sctx = small.getContext('2d');
-  sctx.drawImage(canvas, 0,0,sw,sh);
-  const sd = sctx.getImageData(0,0,sw,sh).data;
+  const w = Math.max(1, Math.round(W*scale)), h = Math.max(1, Math.round(H*scale));
+  const src = canvas.getContext('2d').getImageData(0,0,W,H).data;
+  if(w === W && h === H) return { data: src, w, h, scale };
+  const acc = new Float32Array(w*h*3), cnt = new Float32Array(w*h);
+  const colIdx = new Int32Array(W);
+  for(let x=0;x<W;x++) colIdx[x] = Math.min(w-1, Math.floor((x+0.5)*w/W));
+  for(let y=0;y<H;y++){
+    const orow = Math.min(h-1, Math.floor((y+0.5)*h/H))*w, irow = y*W*4;
+    for(let x=0;x<W;x++){
+      const q = orow+colIdx[x], i = irow+x*4;
+      acc[q*3]+=src[i]; acc[q*3+1]+=src[i+1]; acc[q*3+2]+=src[i+2]; cnt[q]++;
+    }
+  }
+  const out = new Uint8ClampedArray(w*h*4);
+  for(let q=0;q<w*h;q++){
+    const k = 1/(cnt[q]||1);
+    out[q*4]=acc[q*3]*k; out[q*4+1]=acc[q*3+1]*k; out[q*4+2]=acc[q*3+2]*k; out[q*4+3]=255;
+  }
+  return { data: out, w, h, scale };
+}
+
+// 축소본에서 Otsu로 밝은 영역(종이 후보)을 나누고, 그중 "가장 크게 뭉친 밝은 덩어리"를 찾음
+// — 박스 크롭과 원근 보정용 모서리 검출이 같이 씀
+function findLargestBrightBlob(canvas, maxDim){
+  const { data: sd, w: sw, h: sh } = downscaleForAnalysis(canvas, maxDim);
 
   const gray = new Uint8ClampedArray(sw*sh);
   const hist = new Array(256).fill(0);
@@ -791,6 +837,13 @@ function autoCropDocument(canvas){
     }
     if(size>bestSize){ bestSize=size; best={minX,minY,maxX,maxY}; bestLabel=curLabel; }
   }
+  return { sw, sh, label, best, bestSize, bestLabel };
+}
+
+// 박스 크롭 — 종이 덩어리를 감싸는 네모로 잘라냄. 원근 보정용 네 모서리를 확실하게 못 찾았을 때의 대체 경로
+function boxCropDocument(canvas){
+  const { width: W, height: H } = canvas;
+  const { sw, sh, label, best, bestSize, bestLabel } = findLargestBrightBlob(canvas, 320);
 
   const totalPixels = sw*sh;
   if(!best || bestSize < totalPixels*0.12){
@@ -817,13 +870,32 @@ function autoCropDocument(canvas){
 
   // 문서가 기울어진 채로 찍힌 사진이면, 축에 맞춰(axis-aligned) 자른 사각형의 모서리에 배경이 삼각형으로 남음.
   // 이 배경 자투리를 안 지우면 다음 단계인 기울기 보정이 이걸 문서 내용으로 착각해서 각도 판단을 그르치므로 흰색으로 지움.
+  // 단, 종이 안쪽의 글자도 어두워서 "종이 덩어리 밖"으로 잡히므로, 크롭 테두리에서 바깥쪽으로 이어진 영역만 배경으로 봄
+  // (예전엔 덩어리 밖이면 다 지워서 글자가 빽빽한 문서는 글자까지 하얗게 지워지는 문제가 있었음)
+  const bg = new Uint8Array(sw*sh);
+  const bgStack = [];
+  const pushBg = (x,y)=>{
+    const p = y*sw+x;
+    if(bg[p] || label[p]===bestLabel) return;
+    bg[p] = 1; bgStack.push(p);
+  };
+  for(let x=fMinX; x<=fMaxX; x++){ pushBg(x,fMinY); pushBg(x,fMaxY); }
+  for(let y=fMinY; y<=fMaxY; y++){ pushBg(fMinX,y); pushBg(fMaxX,y); }
+  while(bgStack.length){
+    const p = bgStack.pop();
+    const x = p % sw, y = (p / sw) | 0;
+    if(x>fMinX) pushBg(x-1,y);
+    if(x<fMaxX) pushBg(x+1,y);
+    if(y>fMinY) pushBg(x,y-1);
+    if(y<fMaxY) pushBg(x,y+1);
+  }
   const outData = octx.getImageData(0,0,newW,newH);
   const od = outData.data;
   for(let oy=0; oy<newH; oy++){
     const sy = Math.min(sh-1, Math.max(0, Math.floor((oMinY+oy)/ry)));
     for(let ox=0; ox<newW; ox++){
       const sx = Math.min(sw-1, Math.max(0, Math.floor((oMinX+ox)/rx)));
-      if(label[sy*sw+sx] !== bestLabel){
+      if(bg[sy*sw+sx]){
         const idx = (oy*newW+ox)*4;
         od[idx]=255; od[idx+1]=255; od[idx+2]=255;
       }
@@ -834,26 +906,1646 @@ function autoCropDocument(canvas){
   return { canvas: out, warning: null };
 }
 
-// 텍스트 줄(가로선) 프로파일이 가장 또렷하게 맞아떨어지는 각도를 찾아서 그만큼 회전시켜 반듯하게 만듦
-// (제대로 정렬되면 글자들이 특정 가로줄에 몰려서 행별 픽셀 수 편차가 커짐 → 그 편차가 최대가 되는 각도를 찾는 방식)
-function deskewDocument(canvas){
-  const { width: W, height: H } = canvas;
-  const maxDim = 420;
-  const scale = Math.min(1, maxDim/Math.max(W,H));
-  const sw = Math.max(1, Math.round(W*scale)), sh = Math.max(1, Math.round(H*scale));
-  const small = document.createElement('canvas');
-  small.width=sw; small.height=sh;
-  const sctx = small.getContext('2d');
-  sctx.drawImage(canvas,0,0,sw,sh);
-  const sd = sctx.getImageData(0,0,sw,sh).data;
-
-  const bin = new Uint8Array(sw*sh);
-  let darkTotal = 0;
-  for(let i=0,p=0; i<sd.length; i+=4,p++){
-    const g = 0.299*sd[i]+0.587*sd[i+1]+0.114*sd[i+2];
-    if(g < 180){ bin[p]=1; darkTotal++; }
+/* ---------------------------------------------------------
+   원근 보정 — 비스듬히 찍힌 문서의 네 모서리를 찾아서 반듯한 직사각형으로 폄
+   (OpenCV 없이: 볼록 껍질 → 사각형 근사 → 4점 호모그래피 → 역매핑 + 양선형 보간)
+--------------------------------------------------------- */
+function polygonArea(pts){
+  let a=0;
+  for(let i=0;i<pts.length;i++){
+    const p=pts[i], q=pts[(i+1)%pts.length];
+    a += p.x*q.y - q.x*p.y;
   }
-  if(darkTotal < sw*sh*0.01) return canvas; // 어두운 내용(글자 등)이 거의 없으면 판단 불가 — 그대로 둠
+  return Math.abs(a)/2;
+}
+
+// Andrew's monotone chain — 점들을 감싸는 볼록 껍질
+function convexHull(points){
+  const pts = points.slice().sort((a,b)=> a.x-b.x || a.y-b.y);
+  if(pts.length < 3) return pts;
+  const cross = (o,a,b)=> (a.x-o.x)*(b.y-o.y) - (a.y-o.y)*(b.x-o.x);
+  const lower=[], upper=[];
+  for(const p of pts){
+    while(lower.length>=2 && cross(lower[lower.length-2], lower[lower.length-1], p) <= 0) lower.pop();
+    lower.push(p);
+  }
+  for(let i=pts.length-1;i>=0;i--){
+    const p=pts[i];
+    while(upper.length>=2 && cross(upper[upper.length-2], upper[upper.length-1], p) <= 0) upper.pop();
+    upper.push(p);
+  }
+  upper.pop(); lower.pop();
+  return lower.concat(upper);
+}
+
+// 볼록 껍질 꼭짓점 중에서 넓이가 가장 큰 사각형을 이루는 4점을 고름
+// (점을 하나씩 빼는 방식은 이웃과 바짝 붙은 진짜 모서리를 먼저 빼버리는 경우가 있어서, 최대 넓이를 직접 탐색함)
+function largestQuadInHull(hull){
+  const tri = (a,b,c)=> Math.abs((b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x))/2;
+  const p = hull.slice();
+  // 탐색이 O(n³)이라 점이 많으면, 거의 일직선 위에 있는(삼각형이 가장 작은) 점부터 빼서 150개로 줄임
+  while(p.length > 150){
+    let minA=Infinity, minI=-1;
+    for(let i=0;i<p.length;i++){
+      const a = tri(p[(i-1+p.length)%p.length], p[i], p[(i+1)%p.length]);
+      if(a < minA){ minA=a; minI=i; }
+    }
+    p.splice(minI,1);
+  }
+  const n = p.length;
+  let bestA=-1, best=null;
+  // 대각선 (i,k)를 고정하면 양쪽 삼각형의 꼭짓점 j, l은 서로 독립적으로 고를 수 있음
+  for(let i=0;i<n;i++){
+    for(let k=i+2;k<n;k++){
+      let aj=-1, bj=-1, al=-1, bl=-1;
+      for(let j=i+1;j<k;j++){ const a=tri(p[i],p[j],p[k]); if(a>aj){ aj=a; bj=j; } }
+      for(let l=k+1;l<i+n;l++){ const a=tri(p[k],p[l%n],p[i]); if(a>al){ al=a; bl=l%n; } }
+      if(bj<0 || bl<0) continue;
+      if(aj+al > bestA){ bestA=aj+al; best=[p[i],p[bj],p[k],p[bl]]; }
+    }
+  }
+  return best || p.slice(0,4);
+}
+
+// 네 점을 화면 기준 시계방향 [좌상, 우상, 우하, 좌하] 순서로 정렬
+function orderCorners(pts){
+  const cx = pts.reduce((s,p)=>s+p.x,0)/pts.length;
+  const cy = pts.reduce((s,p)=>s+p.y,0)/pts.length;
+  const sorted = pts.slice().sort((a,b)=> Math.atan2(a.y-cy,a.x-cx) - Math.atan2(b.y-cy,b.x-cx));
+  let start=0;
+  for(let i=1;i<sorted.length;i++) if(sorted[i].x+sorted[i].y < sorted[start].x+sorted[start].y) start=i;
+  return sorted.slice(start).concat(sorted.slice(0,start));
+}
+
+// [2순위] 밝은 덩어리 방식 모서리 검출 — 종이가 배경보다 확실히 밝을 때 잘 맞음. 결과 status:
+//  ok        — 네 모서리를 확실하게 찾음 (corners: 원본 좌표 [좌상,우상,우하,좌하])
+//  rect      — 이미 반듯한 직사각형(스캔본 등) → 펼 필요 없음, 박스 크롭으로 충분
+//  fullFrame — 문서가 사진을 꽉 채움 → 크롭 불필요
+//  uncertain — 사각형 비슷한 건 찾았지만 확신이 없음 (corners는 참고용으로 같이 돌려줌)
+//  notFound  — 종이로 볼 만한 덩어리 자체가 없음
+// 반듯한 스캔본이 억지로 펴져서 찌그러지는 일이 없도록, 아래 검사를 전부 통과해야만 ok를 줌
+function detectCornersByBlob(canvas){
+  const { width: W, height: H } = canvas;
+  const { sw, sh, label, best, bestSize, bestLabel } = findLargestBrightBlob(canvas, 480);
+  if(!best || bestSize < sw*sh*0.12) return { status:'notFound', corners:null };
+  if(best.minX<=1 && best.minY<=1 && best.maxX>=sw-2 && best.maxY>=sh-2) return { status:'fullFrame', corners:null };
+
+  // 덩어리의 테두리 픽셀만 모아서(픽셀의 네 꼭짓점 좌표로) 볼록 껍질을 만듦
+  // — 종이 안쪽 글자는 어두워서 덩어리에 구멍을 내지만, 볼록 껍질은 바깥 윤곽만 보므로 영향 없음
+  const inBlob = p => label[p]===bestLabel;
+  const pts = [];
+  for(let y=best.minY; y<=best.maxY; y++){
+    for(let x=best.minX; x<=best.maxX; x++){
+      const p = y*sw+x;
+      if(!inBlob(p)) continue;
+      const edge = x===0 || y===0 || x===sw-1 || y===sh-1 || !inBlob(p-1) || !inBlob(p+1) || !inBlob(p-sw) || !inBlob(p+sw);
+      if(!edge) continue;
+      pts.push({x,y},{x:x+1,y},{x,y:y+1},{x:x+1,y:y+1});
+    }
+  }
+  const hull = convexHull(pts);
+  if(hull.length < 4) return { status:'notFound', corners:null };
+  const quad = orderCorners(largestQuadInHull(hull));
+  // 축소본 기준 1~2px 오차로 펴진 결과 가장자리에 책상이 실선처럼 남지 않게, 모서리를 중심 쪽으로 1.5px 당겨서 원본 좌표로 변환
+  const toOriginal = q => {
+    const qx = q.reduce((s,p)=>s+p.x,0)/4, qy = q.reduce((s,p)=>s+p.y,0)/4;
+    return q.map(p=>{
+      const dx=qx-p.x, dy=qy-p.y, l=Math.hypot(dx,dy)||1;
+      return { x: (p.x+dx/l*1.5)*W/sw, y: (p.y+dy/l*1.5)*H/sh };
+    });
+  };
+  const uncertain = reason => ({ status:'uncertain', reason, corners: toOriginal(quad) });
+
+  // 검사 1) 사각형이 윤곽을 거의 다 덮어야 함 (둥글거나 찢어진 모양이면 탈락)
+  if(polygonArea(quad) < polygonArea(hull)*0.95) return uncertain('not-quad');
+
+  // 검사 2) 각 변이 너무 짧지 않고, 각 꼭짓점 각도가 45°~135° 범위 (심하게 찌그러진 사각형 탈락)
+  const minSide = Math.min(sw,sh)*0.08;
+  for(let i=0;i<4;i++){
+    const a=quad[(i+3)%4], b=quad[i], c=quad[(i+1)%4];
+    const v1x=a.x-b.x, v1y=a.y-b.y, v2x=c.x-b.x, v2y=c.y-b.y;
+    const l1=Math.hypot(v1x,v1y), l2=Math.hypot(v2x,v2y);
+    if(l2 < minSide) return uncertain('short-side');
+    const deg = Math.acos(Math.max(-1,Math.min(1,(v1x*v2x+v1y*v2y)/(l1*l2))))*180/Math.PI;
+    if(deg < 45 || deg > 135) return uncertain('angle');
+  }
+
+  // 검사 3) 각 변을 따라가며 "안쪽은 종이, 바깥쪽은 배경(또는 사진 밖)"인지 확인 — 진짜 종이 경계인지 검증
+  // (사진 모서리에 걸쳐 잘린 문서는 껍질이 오각형이 되는데, 이걸 억지로 사각형으로 만든 변은 여기서 걸러짐)
+  const cx = quad.reduce((s,p)=>s+p.x,0)/4, cy = quad.reduce((s,p)=>s+p.y,0)/4;
+  const sampleAt = (x,y)=>{
+    const xi=Math.floor(x), yi=Math.floor(y);
+    if(xi<0||yi<0||xi>=sw||yi>=sh) return null;
+    return inBlob(yi*sw+xi);
+  };
+  const N=24, off=3;
+  for(let i=0;i<4;i++){
+    const a=quad[i], b=quad[(i+1)%4];
+    const len=Math.hypot(b.x-a.x,b.y-a.y);
+    let nx=-(b.y-a.y)/len, ny=(b.x-a.x)/len;
+    if(nx*(cx-(a.x+b.x)/2) + ny*(cy-(a.y+b.y)/2) < 0){ nx=-nx; ny=-ny; } // 안쪽을 향하게
+    let inOk=0, outOk=0;
+    for(let k=0;k<N;k++){
+      const t = 0.1 + 0.8*k/(N-1);
+      const px=a.x+(b.x-a.x)*t, py=a.y+(b.y-a.y)*t;
+      if(sampleAt(px+nx*off, py+ny*off) === true) inOk++;
+      if(sampleAt(px-nx*off, py-ny*off) !== true) outOk++;
+    }
+    if(inOk < N*0.85 || outOk < N*0.85) return uncertain('edge-'+i+':'+inOk+'/'+outOk);
+  }
+
+  // 이미 축에 맞춰 반듯한 직사각형이면 펼 필요 없음 (리샘플링으로 글자가 미세하게 뭉개지는 것도 피함)
+  const xs=quad.map(p=>p.x), ys=quad.map(p=>p.y);
+  const bx0=Math.min(...xs), bx1=Math.max(...xs), by0=Math.min(...ys), by1=Math.max(...ys);
+  const box=[{x:bx0,y:by0},{x:bx1,y:by0},{x:bx1,y:by1},{x:bx0,y:by1}];
+  const tol=Math.max(2, Math.max(sw,sh)*0.01);
+  if(quad.every((p,i)=> Math.hypot(p.x-box[i].x, p.y-box[i].y) <= tol)) return { status:'rect', corners: toOriginal(quad) };
+
+  return { status:'ok', corners: toOriginal(quad) };
+}
+
+/* ---------------------------------------------------------
+   [1순위] 직선 방식 모서리 검출 — 종이의 "테두리 선"을 찾음
+   컬러 엣지 → Hough 직선 → 대략 평행한 직선 2쌍으로 만든 사각형 중 가장 종이 테두리다운 것을 고름.
+   흰 종이 + 밝은 책상처럼 밝기 차이가 작아도 색(채널) 차이로 잡고, 모서리가 사진 밖으로 나가도 직선 교점으로 계산함
+--------------------------------------------------------- */
+// 5탭 가우시안([1,4,6,4,1]/16)을 가로·세로로 — 글자 같은 잔무늬 엣지를 줄여서 긴 테두리가 잘 남게 함
+function blur5(src, w, h){
+  const tmp = new Float32Array(w*h), out = new Float32Array(w*h);
+  for(let y=0;y<h;y++){
+    const r=y*w;
+    for(let x=0;x<w;x++){
+      const xm2=Math.max(0,x-2), xm1=Math.max(0,x-1), xp1=Math.min(w-1,x+1), xp2=Math.min(w-1,x+2);
+      tmp[r+x] = (src[r+xm2] + 4*src[r+xm1] + 6*src[r+x] + 4*src[r+xp1] + src[r+xp2])/16;
+    }
+  }
+  for(let y=0;y<h;y++){
+    const ym2=Math.max(0,y-2)*w, ym1=Math.max(0,y-1)*w, r=y*w, yp1=Math.min(h-1,y+1)*w, yp2=Math.min(h-1,y+2)*w;
+    for(let x=0;x<w;x++){
+      out[r+x] = (tmp[ym2+x] + 4*tmp[ym1+x] + 6*tmp[r+x] + 4*tmp[yp1+x] + tmp[yp2+x])/16;
+    }
+  }
+  return out;
+}
+
+// 최대/최소 필터(가로·세로 분리) — 모폴로지 닫힘(최대→최소)에 씀
+function minMaxFilter(src, w, h, r, useMax){
+  const tmp = new Float32Array(w*h), out = new Float32Array(w*h);
+  const sgn = useMax ? 1 : -1; // 최소 필터는 부호를 뒤집어 최대 필터로 계산
+  for(let y=0;y<h;y++){
+    const row=y*w;
+    for(let x=0;x<w;x++){
+      const k1=Math.min(w-1,x+r);
+      let v = -Infinity;
+      for(let k=Math.max(0,x-r); k<=k1; k++){ const t=sgn*src[row+k]; if(t>v) v=t; }
+      tmp[row+x] = v;
+    }
+  }
+  for(let y=0;y<h;y++){
+    const k0=Math.max(0,y-r), k1=Math.min(h-1,y+r);
+    for(let x=0;x<w;x++){
+      let v = -Infinity;
+      for(let k=k0; k<=k1; k++){ const t=tmp[k*w+x]; if(t>v) v=t; }
+      out[y*w+x] = sgn*v;
+    }
+  }
+  return out;
+}
+
+// 축소본에서 R/G/B/채도 채널별 기울기(Sobel)를 구해 픽셀마다 가장 큰 채널을 씀 → 밝기는 비슷해도 색이 다른 경계(흰 종이/베이지 책상)를 잡음
+// 그다음 기울기 방향으로 가장 센 픽셀만 남겨(비최대 억제) 1px 두께 엣지로 만듦
+function computeColorEdges(canvas, maxDim){
+  const { width: W, height: H } = canvas;
+  const { data: d, w: sw, h: sh } = downscaleForAnalysis(canvas, maxDim);
+  const n = sw*sh;
+  const chans = [0,1,2].map(c=>{
+    const a = new Float32Array(n);
+    for(let p=0;p<n;p++) a[p] = d[p*4+c];
+    // 모폴로지 닫힘으로 밝은 종이 위의 얇고 어두운 것(글자·표 선)을 지움 — 글자 줄이 긴 직선으로 잡혀서
+    // 종이 테두리 후보 자리를 차지하는 걸 막음. 종이/책상처럼 넓은 영역의 경계 위치는 닫힘을 해도 그대로 유지됨
+    const closed = minMaxFilter(minMaxFilter(a,sw,sh,3,true),sw,sh,3,false);
+    return blur5(blur5(closed,sw,sh),sw,sh);
+  });
+  // 4번째 채널: 채도(max-min) — 흰 종이(무채색)와 나뭇결 책상(노르스름)처럼 밝기는 비슷해도 "색이 있는지"로 구분.
+  // 얇은 것은 채도가 높든(빨간 글씨·형광펜 줄) 낮든(살짝 누런 종이 위 검은 글씨) 모두 지워야 넓은 색 영역의 경계만 남음
+  //  → 닫힘(최대→최소: 낮은 것 제거) 후 열림(최소→최대: 높은 것 제거)
+  {
+    const a = new Float32Array(n);
+    for(let p=0;p<n;p++){ const r=d[p*4], g=d[p*4+1], b=d[p*4+2]; a[p] = (Math.max(r,g,b)-Math.min(r,g,b))*2; }
+    const closed = minMaxFilter(minMaxFilter(a,sw,sh,3,true),sw,sh,3,false);
+    const opened = minMaxFilter(minMaxFilter(closed,sw,sh,3,false),sw,sh,3,true);
+    chans.push(blur5(blur5(opened,sw,sh),sw,sh));
+  }
+  const gx = new Float32Array(n), gy = new Float32Array(n), mag = new Float32Array(n);
+  for(let y=1;y<sh-1;y++){
+    for(let x=1;x<sw-1;x++){
+      const p = y*sw+x;
+      let best=-1, bx=0, by=0;
+      for(let c=0;c<chans.length;c++){
+        const a = chans[c];
+        const sx = (a[p-sw+1]+2*a[p+1]+a[p+sw+1]) - (a[p-sw-1]+2*a[p-1]+a[p+sw-1]);
+        const sy = (a[p+sw-1]+2*a[p+sw]+a[p+sw+1]) - (a[p-sw-1]+2*a[p-sw]+a[p-sw+1]);
+        const m = sx*sx+sy*sy;
+        if(m>best){ best=m; bx=sx; by=sy; }
+      }
+      gx[p]=bx/8; gy[p]=by/8; mag[p]=Math.sqrt(best)/8;
+    }
+  }
+  const T = 2; // 픽셀당 밝기 변화량 기준 — 낮게 잡아도 Hough가 긴 직선만 골라내므로 약한 테두리까지 살림
+  const edge = new Uint8Array(n);
+  for(let y=1;y<sh-1;y++){
+    for(let x=1;x<sw-1;x++){
+      const p = y*sw+x, m = mag[p];
+      if(m < T) continue;
+      const ax=Math.abs(gx[p]), ay=Math.abs(gy[p]);
+      let q1, q2;
+      if(ay <= ax*0.4142){ q1=p-1; q2=p+1; }
+      else if(ax <= ay*0.4142){ q1=p-sw; q2=p+sw; }
+      else if(gx[p]*gy[p] > 0){ q1=p-sw-1; q2=p+sw+1; }
+      else { q1=p-sw+1; q2=p+sw-1; }
+      if(m >= mag[q1] && m > mag[q2]) edge[p]=1;
+    }
+  }
+  return { sw, sh, W, H, chans, gx, gy, edge };
+}
+
+// 직선은 법선각 theta(라디안, 0~π)와 원점 거리 rho로 표현: x·cosθ + y·sinθ = ρ
+function lineIntersect(a, b){
+  const ca=Math.cos(a.theta), sa=Math.sin(a.theta), cb=Math.cos(b.theta), sb=Math.sin(b.theta);
+  const det = ca*sb - sa*cb;
+  if(Math.abs(det) < 1e-6) return null;
+  return { x: (a.rho*sb - sa*b.rho)/det, y: (ca*b.rho - a.rho*cb)/det };
+}
+function lineAngleDiff(a, b){ // 두 직선 사이 각도 (0~90°)
+  const t = Math.abs(a.theta-b.theta)*180/Math.PI % 180;
+  return Math.min(t, 180-t);
+}
+
+// 직선이 사진(0~w, 0~h) 안을 지나는 구간의 양 끝점
+function clipLineToRect(l, w, h){
+  const c=Math.cos(l.theta), s=Math.sin(l.theta), pts=[];
+  if(Math.abs(s) > 1e-9){ for(const x of [0,w]){ const y=(l.rho-x*c)/s; if(y>=0 && y<=h) pts.push({x,y}); } }
+  if(Math.abs(c) > 1e-9){ for(const y of [0,h]){ const x=(l.rho-y*s)/c; if(x>=0 && x<=w) pts.push({x,y}); } }
+  if(pts.length < 2) return null;
+  let best=null, bd=-1;
+  for(let i=0;i<pts.length;i++) for(let j=i+1;j<pts.length;j++){
+    const d=Math.hypot(pts[i].x-pts[j].x, pts[i].y-pts[j].y);
+    if(d>bd){ bd=d; best=[pts[i],pts[j]]; }
+  }
+  return best;
+}
+
+// 엣지 픽셀마다 "자기 기울기 방향 ±3°"에만 투표하는 Hough 변환 (전 방향 투표보다 빠르고 잡음 투표가 적음)
+function houghLines(E, maxLines){
+  const { sw, sh, gx, gy, edge } = E;
+  const nT = 180, rMax = Math.ceil(Math.hypot(sw,sh)), nR = 2*rMax+1;
+  const acc = new Int32Array(nT*nR);
+  const cosT = new Float64Array(nT), sinT = new Float64Array(nT);
+  for(let t=0;t<nT;t++){ cosT[t]=Math.cos(t*Math.PI/180); sinT[t]=Math.sin(t*Math.PI/180); }
+  for(let p=0;p<sw*sh;p++){
+    if(!edge[p]) continue;
+    const x = p % sw, y = (p / sw) | 0;
+    const t0 = Math.round(Math.atan2(gy[p], gx[p])*180/Math.PI);
+    for(let dt=-3; dt<=3; dt++){
+      const t = ((t0+dt)%180+180)%180;
+      acc[t*nR + Math.round(x*cosT[t] + y*sinT[t]) + rMax]++;
+    }
+  }
+  // 실제 각도가 1° 눈금 사이에 있으면 한 직선의 투표가 이웃 칸들로 흩어지므로, "직선이 충분히 긴가"는 이웃 칸(각도 ±1°, 거리 ±2px)을
+  // 합친 값으로 판단함. 단 직선의 위치는 원래 투표값의 극대점으로 잡음 — 합친 값으로 잡으면 근처 다른 엣지의 투표까지 섞여 각도가 밀림
+  const sum = new Int32Array(nT*nR);
+  for(let t=0;t<nT;t++){
+    for(let r=2;r<nR-2;r++){
+      let s=0;
+      for(let dt=-1;dt<=1;dt++){
+        const tt=t+dt;
+        if(tt<0||tt>=nT) continue;
+        const base=tt*nR+r;
+        s += acc[base-2]+acc[base-1]+acc[base]+acc[base+1]+acc[base+2];
+      }
+      sum[t*nR+r]=s;
+    }
+  }
+  // 모서리가 사진 밖으로 나가 변의 일부만 보이는 경우도 잡도록 기준을 낮게 둠 (짧은 직선이 늘어나는 건 사각형 평가에서 걸러짐)
+  const minVotes = Math.round(Math.min(sw,sh)*0.08)*2;
+  const cands = [];
+  for(let t=0;t<nT;t++){
+    for(let r=0;r<nR;r++){
+      const v = sum[t*nR+r], raw = acc[t*nR+r];
+      if(v < minVotes || raw === 0) continue;
+      let isMax = true;
+      for(let dt=-2; dt<=2 && isMax; dt++){
+        const tt = t+dt;
+        if(tt<0 || tt>=nT) continue;
+        for(let dr=-3; dr<=3; dr++){
+          const rr = r+dr;
+          if(rr<0 || rr>=nR || (dt===0&&dr===0)) continue;
+          const vv = acc[tt*nR+rr];
+          if(vv > raw || (vv === raw && (dt<0 || (dt===0 && dr<0)))){ isMax=false; break; }
+        }
+      }
+      if(isMax) cands.push({ theta: t*Math.PI/180, rho: r-rMax, votes: v });
+    }
+  }
+  cands.sort((a,b)=>b.votes-a.votes);
+  // 거의 같은 직선은 하나만 남김 — 사진 안에 보이는 구간의 "양 끝점" 모두에서 8px 이내여야 같은 직선으로 봄
+  // (한 점에서만 비교하면, 그 근처에서 우연히 교차하는 다른 직선을 같은 것으로 착각해 진짜 테두리를 버리는 경우가 있었음)
+  const lines=[];
+  const distTo = (l,p)=> Math.abs(p.x*Math.cos(l.theta) + p.y*Math.sin(l.theta) - l.rho);
+  for(const c of cands){
+    const ends = clipLineToRect(c, sw, sh);
+    if(!ends) continue;
+    const dup = lines.some(l=> lineAngleDiff(l,c) < 4 && distTo(l,ends[0]) < 8 && distTo(l,ends[1]) < 8);
+    if(dup) continue;
+    lines.push(c);
+    if(lines.length >= maxLines) break;
+  }
+  return lines;
+}
+
+// 사각형의 한 변(a→b)이 "진짜 종이 테두리"인지 평가
+//  support: 변을 따라 방향이 맞는 엣지 픽셀이 실제로 이어져 있는 비율
+//  step:    변 안쪽/바깥쪽 4px 지점의 색이 확실히 다른 비율 — 종이 테두리는 한쪽이 종이, 한쪽이 책상이라 다르지만
+//           표 테두리 같은 "선"은 양쪽이 다 흰 종이라 같음 → 표 테두리를 종이 테두리로 착각하는 걸 막음
+//  visFrac: 변 중에서 사진 안에 보이는 비율 (모서리가 사진 밖으로 나간 만큼 줄어듦)
+//  chroma: 변 안쪽의 평균 색조(밝기를 뺀 r/g 비율) — 네 변이 모두 같은 종이 위에 있는지 비교하는 데 씀
+//  stride: 샘플 간격(px) — 후보 수천 개를 고를 땐 2px 간격으로 빠르게, 최종 확인은 1px
+//  tol: 엣지가 변에서 벗어나도 되는 거리(px) — Hough의 거친 직선으로 후보를 고를 땐 넉넉히, 최종 확인은 빡빡하게
+function evalQuadSide(E, a, b, center, tol = 2, stride = 1){
+  const { sw, sh, chans, gx, gy, edge } = E;
+  const len = Math.hypot(b.x-a.x, b.y-a.y);
+  let nx = -(b.y-a.y)/len, ny = (b.x-a.x)/len;
+  if(nx*(center.x-(a.x+b.x)/2) + ny*(center.y-(a.y+b.y)/2) < 0){ nx=-nx; ny=-ny; }
+  const steps = Math.max(2, Math.floor(len/stride));
+  let total=0, vis=0, sup=0, stepN=0, stepOk=0, crSum=0, cgSum=0, cN=0;
+  const inImg = (x,y)=> x>=1 && y>=1 && x<sw-1 && y<sh-1;
+  for(let k=0;k<=steps;k++){
+    const t = 0.03 + 0.94*k/steps; // 모서리 바로 근처는 다른 변의 엣지가 섞여서 제외
+    const px = a.x+(b.x-a.x)*t, py = a.y+(b.y-a.y)*t;
+    total++;
+    if(!inImg(px,py)) continue;
+    vis++;
+    for(let o=-tol;o<=tol;o++){
+      const qx=Math.round(px+nx*o), qy=Math.round(py+ny*o);
+      if(!inImg(qx,qy)) continue;
+      const q = qy*sw+qx;
+      if(!edge[q]) continue;
+      const g = Math.hypot(gx[q],gy[q]);
+      if(Math.abs(gx[q]*nx + gy[q]*ny) > 0.9*g){ sup++; break; }
+    }
+    const ix=Math.round(px+nx*4), iy=Math.round(py+ny*4), ox=Math.round(px-nx*4), oy=Math.round(py-ny*4);
+    if(inImg(ix,iy) && inImg(ox,oy)){
+      stepN++;
+      const pi=iy*sw+ix, po=oy*sw+ox;
+      let diff=0;
+      for(let c=0;c<chans.length;c++) diff = Math.max(diff, Math.abs(chans[c][pi]-chans[c][po])); // R·G·B·채도
+      if(diff >= 10) stepOk++;
+      const r=chans[0][pi], g=chans[1][pi], b=chans[2][pi], sum=r+g+b+1;
+      crSum += r/sum; cgSum += g/sum; cN++;
+    }
+  }
+  return { visFrac: vis/total, support: vis ? sup/vis : 0, step: stepN ? stepOk/stepN : 0,
+           chroma: cN ? { r: crSum/cN, g: cgSum/cN } : null };
+}
+
+// 직선이 "종이 안의 색 띠(표 칸 등)의 경계"인지 검사 — 띠 비율(0~1)을 line.band에 저장
+// 경계 양쪽 중 밝은 쪽을 종이로 보고, 어두운 쪽으로 더 나아갔을 때 다시 같은 종이색(색조+밝기)이 나오면 띠로 판단.
+// 진짜 종이 테두리는 바깥이 계속 책상이거나 사진 밖이라 다시 종이가 나오지 않음
+function measureLineBand(E, line){
+  const { sw, sh, chans } = E;
+  const ends = clipLineToRect(line, sw, sh);
+  if(!ends){ line.band = 0; return; }
+  const nx=Math.cos(line.theta), ny=Math.sin(line.theta);
+  const at = (x,y)=>{
+    const xi=Math.round(x), yi=Math.round(y);
+    if(xi<0||yi<0||xi>=sw||yi>=sh) return null;
+    const p=yi*sw+xi, r=chans[0][p], g=chans[1][p], b=chans[2][p], sum=r+g+b+1;
+    return { lum: sum/3, cr: r/sum, cg: g/sum };
+  };
+  const maxD = Math.round(Math.min(sw,sh)*0.12);
+  const len = Math.hypot(ends[1].x-ends[0].x, ends[1].y-ends[0].y);
+  let stepN=0, bandN=0;
+  for(let k=0;k<len;k+=2){
+    const t=k/len, px=ends[0].x+(ends[1].x-ends[0].x)*t, py=ends[0].y+(ends[1].y-ends[0].y)*t;
+    const a=at(px+nx*4,py+ny*4), b=at(px-nx*4,py-ny*4);
+    if(!a || !b) continue;
+    if(Math.max(Math.abs(a.lum-b.lum), Math.abs(a.cr-b.cr)*600, Math.abs(a.cg-b.cg)*600) < 10) continue; // 계단 아님
+    stepN++;
+    const paper = a.lum >= b.lum ? a : b, sgn = a.lum >= b.lum ? -1 : 1; // 어두운 쪽 방향
+    for(let dd=8; dd<=maxD; dd+=4){
+      const q = at(px+sgn*nx*dd, py+sgn*ny*dd);
+      if(!q) break;
+      // 다시 종이로 보려면: 종이색과 가깝고(색조+밝기), 바로 바깥 색(dark)보다 종이색에 확실히 더 가까워야 함
+      // (밝은 책상은 그 자체로 종이색과 꽤 비슷해서, 앞의 조건만으로는 책상을 종이로 착각함)
+      const dark = paper === a ? b : a;
+      const dist = (u,v)=> Math.abs(u.lum-v.lum) + 600*(Math.abs(u.cr-v.cr)+Math.abs(u.cg-v.cg));
+      const isPaper = z => z && Math.abs(z.cr-paper.cr)+Math.abs(z.cg-paper.cg) < 0.03 && Math.abs(z.lum-paper.lum) < paper.lum*0.12
+                            && dist(z,paper) < 0.5*dist(z,dark);
+      // 다시 나온 종이색이 8px 이상 이어져야 띠로 봄 — 여러 장 겹친 종이 가장자리의 좁은 틈은 띠가 아님
+      if(isPaper(q) && isPaper(at(px+sgn*nx*(dd+8), py+sgn*ny*(dd+8)))){ bandN++; break; }
+    }
+  }
+  line.band = stepN ? bandN/stepN : 0;
+}
+
+// 사각형 네 변의 품질(0~1) — 엣지 지지 × 계단(양쪽 색 차이) × 종이색 일치 × (1 - 띠 비율)
+// 종이색 일치: 네 변 안쪽 색조의 중앙값(=종이색)과 다른 변은 감점. 노란 표 칸 경계처럼 "안쪽이 종이가 아닌" 변을 걸러냄.
+// 밝기 대신 색조로 비교하므로, 한쪽에 그림자가 져서 어두워진 종이도 같은 종이로 봄
+function scoreQuadSides(E, q, tol, sideLines, stride = 1){
+  const center = { x:(q[0].x+q[1].x+q[2].x+q[3].x)/4, y:(q[0].y+q[1].y+q[2].y+q[3].y)/4 };
+  const sides = [0,1,2,3].map(k=> evalQuadSide(E, q[k], q[(k+1)%4], center, tol, stride));
+  const cs = sides.map(s=>s.chroma).filter(Boolean);
+  const med = arr => { const a=arr.slice().sort((x,y)=>x-y); return (a[(a.length-1)>>1] + a[a.length>>1])/2; };
+  const paper = cs.length ? { r: med(cs.map(c=>c.r)), g: med(cs.map(c=>c.g)) } : null;
+  const qual = sides.map(s=>{
+    let v = s.support*s.step;
+    if(paper && s.chroma && Math.abs(s.chroma.r-paper.r) + Math.abs(s.chroma.g-paper.g) > 0.05) v *= 0.2;
+    return v;
+  }).map((v,k)=> sideLines && sideLines[k] && sideLines[k].band != null ? v*(1-sideLines[k].band) : v);
+  return { sides, qual };
+}
+
+// 고른 변 근처의 엣지 픽셀들로 직선을 다시 맞춤(최소제곱) — Hough의 1° / 1px 눈금보다 정밀하게
+function refineLine(E, a, b, line){
+  const { sw, sh, gx, gy, edge } = E;
+  const len = Math.hypot(b.x-a.x, b.y-a.y);
+  const nx = Math.cos(line.theta), ny = Math.sin(line.theta);
+  const seen = new Set(), pts = [];
+  for(let k=0;k<=len;k++){
+    const t = 0.03 + 0.94*k/Math.max(1,len);
+    const px = a.x+(b.x-a.x)*t, py = a.y+(b.y-a.y)*t;
+    for(let o=-3;o<=3;o++){
+      const qx=Math.round(px+nx*o), qy=Math.round(py+ny*o);
+      if(qx<1||qy<1||qx>=sw-1||qy>=sh-1) continue;
+      const q = qy*sw+qx;
+      if(!edge[q] || seen.has(q)) continue;
+      const g = Math.hypot(gx[q],gy[q]);
+      if(Math.abs(gx[q]*nx + gy[q]*ny) <= 0.9*g) continue;
+      seen.add(q); pts.push(qx, qy);
+    }
+  }
+  const m = pts.length/2;
+  if(m < 30) return line;
+  let mx=0, my=0;
+  for(let i=0;i<pts.length;i+=2){ mx+=pts[i]; my+=pts[i+1]; }
+  mx/=m; my/=m;
+  let sxx=0, sxy=0, syy=0;
+  for(let i=0;i<pts.length;i+=2){ const dx=pts[i]-mx, dy=pts[i+1]-my; sxx+=dx*dx; sxy+=dx*dy; syy+=dy*dy; }
+  // 공분산의 작은 고유벡터 = 직선의 법선
+  const ang = 0.5*Math.atan2(2*sxy, sxx-syy); // 큰 고유벡터(직선 방향)
+  let theta = ang + Math.PI/2;
+  let rho = mx*Math.cos(theta) + my*Math.sin(theta);
+  if(theta >= Math.PI){ theta -= Math.PI; rho = -rho; }
+  if(theta < 0){ theta += Math.PI; rho = -rho; }
+  if(lineAngleDiff({theta}, line) > 3) return line; // 엉뚱한 픽셀에 끌려갔으면 원래 직선 유지
+  return { theta, rho };
+}
+
+// 한 변이 통째로 사진 밖에 있는 경우(종이가 사진 한쪽을 넘어감) — 보이는 세 변으로 사각형을 완성
+//  보이는 세 변: 마주보는 두 변 a1·a2 + 그 둘을 잇는 변 b. 네 번째 변 R은
+//   · 기울기: b와 평행
+//   · 위치: 사진에 보이는 종이가 잘리지 않게, a1·a2 사이 띠에서 b로부터 가장 먼 사진 끝점을 지나도록
+//  사진 밖으로 나간 부분은 펴진 뒤 빈 칸 처리(채우기/잘라내기)가 맡음
+//  결과: { quad(축소본 좌표), qual:[a1,a2,b 품질] } 또는 null
+function detectThreeSides(E, lines, pairs){
+  const { sw, sh } = E;
+  const sdist = (l,p)=> p.x*Math.cos(l.theta) + p.y*Math.sin(l.theta) - l.rho;
+  const dirOf = l=> ({ x: -Math.sin(l.theta), y: Math.cos(l.theta) });
+  const inImg = p=> p.x>=0 && p.y>=0 && p.x<=sw && p.y<=sh;
+  const nearImg = (p,m)=> p.x > -sw*m && p.y > -sh*m && p.x < sw*(1+m) && p.y < sh*(1+m);
+  const minLen = Math.min(sw,sh)*0.35;
+
+  // 직선 l 위의 점 c에서 방향 nb(열린 쪽) 으로 갈 때 사진을 빠져나가는 점, 그리고 사진 안에 보이는 길이
+  const exitToward = (l, c, nb)=>{
+    const ends = clipLineToRect(l, sw, sh); if(!ends) return null;
+    let d = dirOf(l); if(d.x*nb.x + d.y*nb.y < 0) d = { x:-d.x, y:-d.y };
+    const t0 = (ends[0].x-c.x)*d.x + (ends[0].y-c.y)*d.y, t1 = (ends[1].x-c.x)*d.x + (ends[1].y-c.y)*d.y;
+    const tExit = Math.max(t0,t1), tEnter = Math.min(t0,t1);
+    if(tExit <= 0) return null;
+    const visible = tExit - Math.max(0, tEnter);
+    return { e: { x:c.x+d.x*tExit, y:c.y+d.y*tExit }, visible };
+  };
+
+  const build = (a1, a2, b, sgn)=>{
+    const c1 = lineIntersect(a1,b), c2 = lineIntersect(a2,b);
+    if(!c1 || !c2 || !nearImg(c1,0.15) || !nearImg(c2,0.15)) return null;
+    const nb = { x: Math.cos(b.theta)*sgn, y: Math.sin(b.theta)*sgn };
+    const x1 = exitToward(a1, c1, nb), x2 = exitToward(a2, c2, nb);
+    if(!x1 || !x2 || x1.visible < minLen || x2.visible < minLen) return null;
+    return { c1, c2, e1:x1.e, e2:x2.e, nb };
+  };
+
+  let best = null;
+  for(const [a1,a2] of pairs){
+    for(const b of lines){
+      if(b===a1 || b===a2) continue;
+      if(lineAngleDiff(a1,b) < 50 || lineAngleDiff(a2,b) < 50) continue;
+      for(const sgn of [1,-1]){
+        const g = build(a1, a2, b, sgn);
+        if(!g) continue;
+        const poly = [g.c1, g.e1, g.e2, g.c2]; // 변: a1, (사진 끝), a2, b
+        const area = polygonArea(poly);
+        if(area < sw*sh*0.3) continue;
+        const { qual } = scoreQuadSides(E, poly, 3, [a1, null, a2, b], 2);
+        const q3 = [qual[0], qual[2], qual[3]];
+        const score = (q3[0]+q3[1]+q3[2])/3 + 0.25*area/(sw*sh);
+        if(!best || score > best.score) best = { score, a1, a2, b, sgn, g };
+      }
+    }
+  }
+  if(!best) return null;
+
+  // 세 변을 엣지 픽셀로 다시 맞추고, 최종 품질도 다시 맞춘 선 기준으로
+  const { g } = best;
+  const a1 = refineLine(E, g.c1, g.e1, best.a1), a2 = refineLine(E, g.c2, g.e2, best.a2), b = refineLine(E, g.c2, g.c1, best.b);
+  [a1,a2,b].forEach((l,k)=>{ if(l.band == null) l.band = [best.a1,best.a2,best.b][k].band; });
+  const g2 = build(a1, a2, b, best.sgn) || g;
+  const { qual } = scoreQuadSides(E, [g2.c1, g2.e1, g2.e2, g2.c2], 2, [a1, null, a2, b]);
+
+  // R이 지날 점: a1·a2 사이 띠 안 + 열린 쪽에 있는 사진 끝점 중 b에서 가장 먼 것
+  const sideOf = (l,p)=> Math.sign(sdist(l,p));
+  const inStrip = p=> sideOf(a1,p) !== -sideOf(a1,g2.c2) && sideOf(a2,p) !== -sideOf(a2,g2.c1);
+  const open = p=> (p.x-g2.c1.x)*g2.nb.x + (p.y-g2.c1.y)*g2.nb.y;
+  let P = null, Pd = -Infinity;
+  for(const q of [g2.e1, g2.e2, {x:0,y:0},{x:sw,y:0},{x:sw,y:sh},{x:0,y:sh}]){
+    if(q !== g2.e1 && q !== g2.e2 && !inStrip(q)) continue;
+    const dd = Math.abs(sdist(b,q));
+    if(open(q) > 0 && dd > Pd){ Pd = dd; P = q; }
+  }
+  if(!P) return null;
+  // R의 기울기는 마주보는 변 b와 평행하게 둠. (표 선 무리의 소실점으로 원근까지 맞추려 했으나, 평행이 아닌 선이 섞이면
+  // 계산이 불안정해서 같은 사진도 돌려 넣은 방향에 따라 R이 크게 틀어졌음. R은 사진 밖이라 영향은 가장자리에 한정됨)
+  const u = dirOf(b);
+  const nx = -u.y, ny = u.x; // R의 법선
+  let theta = Math.atan2(ny, nx), rho = P.x*nx + P.y*ny;
+  if(theta < 0){ theta += Math.PI; rho = -rho; }
+  if(theta >= Math.PI){ theta -= Math.PI; rho = -rho; }
+  const R = { theta, rho };
+  const t1 = lineIntersect(a1,R), t2 = lineIntersect(a2,R);
+  if(!t1 || !t2 || !nearImg(t1,0.3) || !nearImg(t2,0.3)) return null;
+  const quad = [g2.c1, t1, t2, g2.c2];
+  // 볼록 + 꼭짓점 각도 확인
+  let sgnc=0;
+  for(let k=0;k<4;k++){
+    const p0=quad[k], p1=quad[(k+1)%4], p2=quad[(k+2)%4];
+    const cr = Math.sign((p1.x-p0.x)*(p2.y-p1.y) - (p1.y-p0.y)*(p2.x-p1.x));
+    if(!cr || (sgnc && cr!==sgnc)) return null;
+    sgnc = cr;
+    const v1x=p0.x-p1.x, v1y=p0.y-p1.y, v2x=p2.x-p1.x, v2y=p2.y-p1.y;
+    const deg = Math.acos((v1x*v2x+v1y*v2y)/(Math.hypot(v1x,v1y)*Math.hypot(v2x,v2y)))*180/Math.PI;
+    if(!(deg >= 40 && deg <= 140)) return null;
+  }
+  return { quad, qual: [qual[0], qual[2], qual[3]] };
+}
+
+// 여러 장이 겹친 문서 묶음 — 아래 장들의 가장자리가 층층이 어긋나 바깥쪽에 곧은 선으로 보이고,
+// 맨 위 장(실제 내용이 있는 장)의 테두리는 그 바로 안쪽에 있음. 고른 변마다 바로 안쪽에
+//  · 거의 평행하고(4° 이내) · 안쪽 거리가 짧고(사진 짧은 변의 10% 이내) · 엣지가 이어져 있고(지지율 40% 이상)
+//  · 종이 안의 색 띠(표 칸 등) 경계가 아니고(band<0.3) · 두 선 사이 띠가 종이색(=아래 장)인
+// 선이 있으면 그중 가장 안쪽 선으로 옮김. 맨 위 장 테두리는 종이-종이 경계라 "양쪽 색 차이" 대신 엣지 지지율로 평가함
+// 결과: { lines, flags(옮긴 변), support(옮긴 변의 지지율) }
+function preferInnermostSheet(E, lines, sideLines, quad){
+  const { sw, sh, chans } = E;
+  const center = { x:(quad[0].x+quad[1].x+quad[2].x+quad[3].x)/4, y:(quad[0].y+quad[1].y+quad[2].y+quad[3].y)/4 };
+  const colorAt = (x,y)=>{
+    const xi=Math.round(x), yi=Math.round(y);
+    if(xi<0||yi<0||xi>=sw||yi>=sh) return null;
+    const q=yi*sw+xi, r=chans[0][q], g=chans[1][q], b=chans[2][q], sum=r+g+b+1;
+    return { lum: sum/3, cr: r/sum, cg: g/sum };
+  };
+  // 종이색: 사각형 안쪽(중심 쪽으로 40%~70% 들어간 곳) 표본의 중앙값
+  const samples = [];
+  for(let k=0;k<4;k++){
+    for(let t=0.1;t<0.95;t+=0.1){
+      const a=quad[k], b=quad[(k+1)%4];
+      const ex=a.x+(b.x-a.x)*t, ey=a.y+(b.y-a.y)*t;
+      for(const f of [0.4,0.55,0.7]){ const c=colorAt(ex+(center.x-ex)*f, ey+(center.y-ey)*f); if(c) samples.push(c); }
+    }
+  }
+  if(samples.length < 10) return { lines: sideLines, flags:[false,false,false,false], support:[0,0,0,0] };
+  const med = arr=>{ const v=arr.slice().sort((x,y)=>x-y); return v[v.length>>1]; };
+  const paper = { lum: med(samples.map(c=>c.lum)), cr: med(samples.map(c=>c.cr)), cg: med(samples.map(c=>c.cg)) };
+  const isPaperish = c=> c && Math.abs(c.cr-paper.cr)+Math.abs(c.cg-paper.cg) < 0.035 && c.lum >= paper.lum*0.7;
+
+  const maxIn = Math.min(sw,sh)*0.1;
+  const out = sideLines.slice(), flags=[false,false,false,false], support=[0,0,0,0];
+  for(let k=0;k<4;k++){
+    const L = sideLines[k], prev = sideLines[(k+3)%4], next = sideLines[(k+1)%4];
+    const a=quad[k], b=quad[(k+1)%4], mid={ x:(a.x+b.x)/2, y:(a.y+b.y)/2 };
+    let nx=Math.cos(L.theta), ny=Math.sin(L.theta);
+    if((center.x-mid.x)*nx + (center.y-mid.y)*ny < 0){ nx=-nx; ny=-ny; } // 안쪽 방향
+    let best=null, bestT=0, bestSup=0;
+    for(const c of lines){
+      if(c===L || lineAngleDiff(c,L) > 4 || (c.band||0) > 0.3) continue;
+      // 변 가운데에서 안쪽으로 c까지의 거리
+      const cc=Math.cos(c.theta), cs=Math.sin(c.theta), den = nx*cc + ny*cs;
+      if(Math.abs(den) < 1e-6) continue;
+      const t = (c.rho - (mid.x*cc + mid.y*cs)) / den;
+      if(!(t > 2 && t <= maxIn) || t <= bestT) continue;
+      const a2 = lineIntersect(c, prev), b2 = lineIntersect(c, next);
+      if(!a2 || !b2) continue;
+      const ev = evalQuadSide(E, a2, b2, center, 2);
+      if(ev.visFrac < 0.25 || ev.support < 0.4) continue;
+      // 두 선 사이 띠(가운데)가 종이색인지 — 아래 장 종이여야 겹친 묶음으로 봄
+      let ok=0, tot=0;
+      for(let u=0.15; u<=0.85; u+=0.05){
+        const px=a.x+(b.x-a.x)*u, py=a.y+(b.y-a.y)*u;
+        const c0 = colorAt(px+nx*t/2, py+ny*t/2);
+        if(!c0) continue;
+        tot++; if(isPaperish(c0)) ok++;
+      }
+      if(tot < 5 || ok < tot*0.7) continue;
+      best=c; bestT=t; bestSup=ev.support;
+    }
+    if(best){ out[k]=best; flags[k]=true; support[k]=bestSup; }
+  }
+  return { lines: out, flags, support };
+}
+
+// 결과 status: ok(확실) / uncertain(후보는 있지만 확신 없음, corners는 참고용) / notFound
+function detectCornersByLines(canvas){
+  const E = computeColorEdges(canvas, 640);
+  const { sw, sh, W, H } = E;
+  const lines = houghLines(E, 32);
+  if(lines.length < 4) return { status:'notFound', corners:null, reason:'lines<4' };
+  lines.forEach(l=> measureLineBand(E, l));
+
+  // 대략 평행하고(40° 이내) 충분히 떨어진 직선 쌍
+  const cx=sw/2, cy=sh/2, minGap=Math.min(sw,sh)*0.2;
+  const pairs = [];
+  for(let i=0;i<lines.length;i++){
+    for(let j=i+1;j<lines.length;j++){
+      const a=lines[i], b=lines[j];
+      if(lineAngleDiff(a,b) > 40) continue; // 원근이 강하면 마주보는 변도 꽤 벌어짐
+      const da = cx*Math.cos(a.theta)+cy*Math.sin(a.theta)-a.rho;
+      const fx = cx-da*Math.cos(a.theta), fy = cy-da*Math.sin(a.theta);
+      if(Math.abs(fx*Math.cos(b.theta)+fy*Math.sin(b.theta)-b.rho) < minGap) continue;
+      pairs.push([a,b]);
+    }
+  }
+
+  const margin = 0.15; // 모서리가 사진 밖으로 이만큼(사진 크기 대비)까지 나가도 인정
+  const inBounds = p => p.x > -sw*margin && p.y > -sh*margin && p.x < sw*(1+margin) && p.y < sh*(1+margin);
+  // 축소본 → 원본 좌표 (픽셀 중심 보정) + 경계의 흐릿한 띠가 남지 않게 중심 쪽으로 1px 당김
+  const toOriginal = quad=>{
+    const qx = quad.reduce((s,p)=>s+p.x,0)/4, qy = quad.reduce((s,p)=>s+p.y,0)/4;
+    return orderCorners(quad.map(p=>{
+      const dx=qx-p.x, dy=qy-p.y, l=Math.hypot(dx,dy)||1;
+      return { x:(p.x+dx/l+0.5)*W/sw, y:(p.y+dy/l+0.5)*H/sh };
+    }));
+  };
+  // 네 변을 다 못 찾았을 때: 보이는 세 변이 모두 확실하면 네 번째 변을 보완해서 성공으로 처리
+  const tryThreeSides = fallback=>{
+    const t = detectThreeSides(E, lines, pairs);
+    if(t && Math.min(...t.qual) >= 0.5 && (t.qual[0]+t.qual[1]+t.qual[2])/3 >= 0.65){
+      return { status:'ok', corners: toOriginal(t.quad), reason:'three-sides', sides: t.qual.map(v=>+v.toFixed(2)) };
+    }
+    return fallback;
+  };
+
+  let best = null;
+  for(let i=0;i<pairs.length;i++){
+    for(let j=i+1;j<pairs.length;j++){
+      const [a1,a2]=pairs[i], [b1,b2]=pairs[j];
+      if(a1===b1||a1===b2||a2===b1||a2===b2) continue;
+      if(lineAngleDiff(a1,b1) < 50) continue;
+      // 변 순서: a1 → b2 → a2 → b1
+      const q = [lineIntersect(a1,b1), lineIntersect(a1,b2), lineIntersect(a2,b2), lineIntersect(a2,b1)];
+      if(q.some(p=>!p || !inBounds(p))) continue;
+      const area = polygonArea(q);
+      if(area < sw*sh*0.15) continue;
+      let convexSign=0, ok=true;
+      for(let k=0;k<4 && ok;k++){
+        const p0=q[k], p1=q[(k+1)%4], p2=q[(k+2)%4];
+        const cr = (p1.x-p0.x)*(p2.y-p1.y) - (p1.y-p0.y)*(p2.x-p1.x);
+        const s = Math.sign(cr);
+        if(!s || (convexSign && s!==convexSign)) ok=false;
+        convexSign = s;
+        const v1x=p0.x-p1.x, v1y=p0.y-p1.y, v2x=p2.x-p1.x, v2y=p2.y-p1.y;
+        const deg = Math.acos((v1x*v2x+v1y*v2y)/(Math.hypot(v1x,v1y)*Math.hypot(v2x,v2y)))*180/Math.PI;
+        if(!(deg >= 40 && deg <= 140)) ok=false;
+      }
+      if(!ok) continue;
+      const { sides, qual } = scoreQuadSides(E, q, 3, [a1,b2,a2,b1], 2);
+      if(sides.some(s=> s.visFrac < 0.25)) continue; // 모서리가 사진 밖으로 나가서 변의 일부만 보여도 인정
+      const score = qual.reduce((s,v)=>s+v,0)/4 + 0.25*area/(sw*sh);
+      if(!best || score > best.score) best = { score, quad:q, sideLines:[a1,b2,a2,b1] };
+    }
+  }
+  if(!best) return tryThreeSides({ status:'notFound', corners:null, reason:'no-quad' });
+
+  // 고른 네 변을 엣지 픽셀로 다시 맞추고 교점 재계산
+  const q0 = best.quad;
+  let L = best.sideLines.map((ln,k)=> refineLine(E, q0[k], q0[(k+1)%4], ln));
+  let quad = [lineIntersect(L[0],L[3]), lineIntersect(L[0],L[1]), lineIntersect(L[2],L[1]), lineIntersect(L[2],L[3])];
+  if(quad.some(p=>!p || !inBounds(p))) quad = q0;
+  L.forEach((l,k)=>{ if(l.band == null) l.band = best.sideLines[k].band; });
+
+  // 확신도는 다시 맞춘 최종 사각형 기준으로 판단
+  const qual = scoreQuadSides(E, quad, 2, L).qual;
+  const sure = Math.min(...qual) >= 0.3 && qual.reduce((s,v)=>s+v,0)/4 >= 0.5;
+
+  // 겹친 종이 묶음이면 각 변을 맨 위 장 테두리(가장 안쪽)로 옮김.
+  // 바깥 사각형이 그 자체로 확실할 때만 — 약한 사각형에 적용하면 엉뚱한 안쪽 선(표 경계 등)으로 옮겨 놓고 합격시켜 버림.
+  // 확신도는 옮기기 전 바깥 사각형 기준(위의 qual)을 그대로 씀
+  let stackFlags = [false,false,false,false];
+  const st = sure ? preferInnermostSheet(E, lines, L, quad) : { flags: stackFlags };
+  if(st.flags.some(Boolean)){
+    const q1 = [lineIntersect(st.lines[0],st.lines[3]), lineIntersect(st.lines[0],st.lines[1]), lineIntersect(st.lines[2],st.lines[1]), lineIntersect(st.lines[2],st.lines[3])];
+    if(!q1.some(p=>!p || !inBounds(p))){
+      const L2 = st.lines.map((ln,k)=> st.flags[k] ? refineLine(E, q1[k], q1[(k+1)%4], ln) : ln);
+      L2.forEach((l,k)=>{ if(l.band == null) l.band = st.lines[k].band || 0; });
+      const q2 = [lineIntersect(L2[0],L2[3]), lineIntersect(L2[0],L2[1]), lineIntersect(L2[2],L2[1]), lineIntersect(L2[2],L2[3])];
+      if(!q2.some(p=>!p || !inBounds(p))){ L = L2; quad = q2; stackFlags = st.flags; }
+    }
+  }
+
+  const corners = toOriginal(quad);
+  const minQ = Math.min(...qual), meanQ = qual.reduce((s,v)=>s+v,0)/4;
+  const info = { score:+best.score.toFixed(3), sides: qual.map(v=>+v.toFixed(2)), stacked: stackFlags.some(Boolean) ? stackFlags : undefined };
+  if(minQ < 0.3 || meanQ < 0.5) return tryThreeSides({ status:'uncertain', corners, reason:'weak-sides', ...info });
+  return { status:'ok', corners, ...info };
+}
+
+// 문서 네 모서리 검출 — 직선 방식(1순위) → 밝은 덩어리 방식(2순위)
+// 결과: { status, corners, method:'lines'|'blob', reason, guess }
+//  corners: 원본 좌표 [좌상,우상,우하,좌하] (사진 밖 좌표 가능)
+//  guess:   확실하지 않을 때도 가장 그럴듯한 후보 모서리 → 모서리 수동 조정의 시작점으로 씀 (후보가 아예 없으면 null)
+function detectDocumentCorners(canvas){
+  const byLines = detectCornersByLines(canvas);
+  if(byLines.status === 'ok') return { ...byLines, method:'lines', guess: byLines.corners };
+  const byBlob = detectCornersByBlob(canvas);
+  const blobSure = byBlob.status === 'ok' || byBlob.status === 'rect';
+  const guess = (blobSure && byBlob.corners) || byLines.corners || byBlob.corners || null;
+  if(byBlob.status !== 'uncertain' && byBlob.status !== 'notFound') return { ...byBlob, method:'blob', linesReason: byLines.reason, guess };
+  if(byLines.corners) return { ...byLines, method:'lines', guess };
+  return { ...byBlob, method:'blob', linesReason: byLines.reason, guess };
+}
+
+// src 4점 → dst 4점으로 보내는 투영 변환(호모그래피) 행렬 [a,b,c,d,e,f,g,h] (i=1)
+// x' = (a·x + b·y + c) / (g·x + h·y + 1),  y' = (d·x + e·y + f) / (g·x + h·y + 1)
+function computeHomography(src, dst){
+  const A=[];
+  for(let i=0;i<4;i++){
+    const {x,y}=src[i], {x:u,y:v}=dst[i];
+    A.push([x,y,1,0,0,0,-x*u,-y*u,u]);
+    A.push([0,0,0,x,y,1,-x*v,-y*v,v]);
+  }
+  // 가우스 소거 (부분 피벗팅)
+  for(let col=0;col<8;col++){
+    let piv=col;
+    for(let r=col+1;r<8;r++) if(Math.abs(A[r][col]) > Math.abs(A[piv][col])) piv=r;
+    if(Math.abs(A[piv][col]) < 1e-12) return null;
+    [A[col],A[piv]]=[A[piv],A[col]];
+    for(let r=0;r<8;r++){
+      if(r===col) continue;
+      const f=A[r][col]/A[col][col];
+      for(let k=col;k<9;k++) A[r][k]-=f*A[col][k];
+    }
+  }
+  return A.map((row,i)=> row[8]/row[i]);
+}
+
+// 사진 속 사각형의 "실제" 가로/세로 비율 추정 (Zhang & He, 화이트보드 스캔 논문의 방식)
+// 사진 중심이 광축이라고 가정하고 네 모서리로부터 초점거리를 역산해서 원근으로 찌그러진 비율을 되돌림.
+// 계산이 불가능하면 null → 호출하는 쪽에서 변 길이 기준으로 대체
+function estimateAspectRatio(corners, imgW, imgH){
+  const [tl,tr,br,bl] = corners;
+  const u0=imgW/2, v0=imgH/2;
+  const m = p => [p.x-u0, p.y-v0, 1];
+  const m1=m(tl), m2=m(tr), m3=m(bl), m4=m(br);
+  const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+  const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+  const c14 = cross(m1,m4);
+  const k2 = dot(c14,m3) / dot(cross(m2,m4),m3);
+  const k3 = dot(c14,m2) / dot(cross(m3,m4),m2);
+  const n2 = m2.map((v,i)=>k2*v - m1[i]);
+  const n3 = m3.map((v,i)=>k3*v - m1[i]);
+  if(!isFinite(k2) || !isFinite(k3)) return null;
+  // 초점거리 역산은 한 쌍의 변이 거의 평행할 때(폰을 앞으로만 기울여 찍은 흔한 경우) 매우 불안정함.
+  // 그럴듯한 범위(긴 변의 0.5~1.5배)일 때만 믿고, 아니면 일반적인 폰 기본 카메라 화각(약 26mm 환산 ≈ 긴 변의 0.8배)으로 가정
+  const maxDim = Math.max(imgW, imgH);
+  const angleBetween = (a,b,c,d)=>{
+    const t = Math.abs(Math.atan2(b.y-a.y,b.x-a.x) - Math.atan2(d.y-c.y,d.x-c.x)) % Math.PI;
+    return Math.min(t, Math.PI-t)*180/Math.PI;
+  };
+  const nearlyParallel = angleBetween(tl,tr,bl,br) < 3 || angleBetween(tl,bl,tr,br) < 3;
+  let f2 = (!nearlyParallel && n2[2]*n3[2] !== 0) ? -(n2[0]*n3[0] + n2[1]*n3[1]) / (n2[2]*n3[2]) : NaN;
+  if(!(f2 >= (0.5*maxDim)**2 && f2 <= (1.5*maxDim)**2)) f2 = (0.8*maxDim)**2;
+  const r = Math.sqrt((n2[0]*n2[0] + n2[1]*n2[1] + f2*n2[2]*n2[2]) / (n3[0]*n3[0] + n3[1]*n3[1] + f2*n3[2]*n3[2]));
+  return isFinite(r) && r > 0 ? r : null;
+}
+
+// 네 모서리(원본 좌표 [좌상,우상,우하,좌하])를 반듯한 직사각형으로 펴기
+// 출력 비율은 estimateAspectRatio로 추정한 실제 비율, 크기는 마주보는 변 중 긴 쪽 기준(해상도 손실 최소화),
+// 긴 변 최대 3508px(A4 300dpi 세로 길이). 저해상도 사진은 긴 변 2000px까지(최대 2배) 키워서 펴서 작은 글자에 픽셀을 더 줌.
+// 보간은 bicubic(Catmull-Rom) — 양선형보다 글자 가장자리가 덜 뭉개짐
+// 결과: { canvas, outside } — outside는 "원래 사진 밖이었던 픽셀" 마스크(1=밖), 그런 픽셀이 없으면 null
+function warpPerspective(canvas, corners, maxSide = 3508, minSide = 2000){
+  const [tl,tr,br,bl] = corners;
+  const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+  let outW = Math.max(dist(tl,tr), dist(bl,br));
+  let outH = Math.max(dist(tl,bl), dist(tr,br));
+  const naive = outW/outH;
+  const ratio = estimateAspectRatio(corners, canvas.width, canvas.height);
+  // 추정값이 변 길이 비율과 너무 동떨어지면(사진이 잘려서 중심이 광축이 아닌 경우 등) 믿지 않음
+  if(ratio && ratio > naive/1.8 && ratio < naive*1.8){
+    if(ratio > naive) outW = outH*ratio; else outH = outW/ratio;
+  }
+  const longest = Math.max(outW,outH);
+  const s = Math.min(maxSide/longest, Math.max(1, Math.min(2, minSide/longest)));
+  outW = Math.max(1, Math.round(outW*s)); outH = Math.max(1, Math.round(outH*s));
+
+  // 출력 픽셀 → 원본 위치로 역매핑해야 구멍 없이 채워짐
+  const m = computeHomography([{x:0,y:0},{x:outW,y:0},{x:outW,y:outH},{x:0,y:outH}], corners);
+  if(!m) return null;
+  const [a,b,c,d,e,f,g,h] = m;
+
+  const { width: W, height: H } = canvas;
+  const sd = canvas.getContext('2d').getImageData(0,0,W,H).data;
+  const out = document.createElement('canvas');
+  out.width=outW; out.height=outH;
+  const octx = out.getContext('2d');
+  const outData = octx.createImageData(outW,outH);
+  const od = outData.data;
+  const outside = new Uint8Array(outW*outH);
+  let outsideCount = 0;
+  const wx = new Float64Array(4), wy = new Float64Array(4);
+  const cubicWeights = (t, w)=>{
+    const t2=t*t, t3=t2*t;
+    w[0] = -0.5*t3 + t2 - 0.5*t;
+    w[1] = 1.5*t3 - 2.5*t2 + 1;
+    w[2] = -1.5*t3 + 2*t2 + 0.5*t;
+    w[3] = 0.5*t3 - 0.5*t2;
+  };
+
+  for(let v=0; v<outH; v++){
+    const vy = v+0.5;
+    for(let u=0; u<outW; u++){
+      const ux = u+0.5;
+      const den = g*ux + h*vy + 1;
+      const sx = (a*ux + b*vy + c)/den - 0.5;
+      const sy = (d*ux + e*vy + f)/den - 0.5;
+      const o = (v*outW+u)*4;
+      // 원본 사진 영역은 픽셀 중심 기준 [-0.5, W-0.5] — 그 밖은 사진에 없던 부분(종이 모서리가 사진 밖으로 나간 경우)
+      if(sx < -0.5 || sy < -0.5 || sx > W-0.5 || sy > H-0.5){
+        od[o]=od[o+1]=od[o+2]=od[o+3]=255;
+        outside[v*outW+u]=1; outsideCount++;
+        continue;
+      }
+      // bicubic(Catmull-Rom, a=-0.5): 주변 4×4 픽셀 가중합
+      const x0=Math.floor(sx), y0=Math.floor(sy), fx=sx-x0, fy=sy-y0;
+      cubicWeights(fx, wx); cubicWeights(fy, wy);
+      let sumR=0, sumG=0, sumB=0; // (g는 위의 변환 계수 이름이라 피함)
+      for(let j=0;j<4;j++){
+        const yy = Math.max(0, Math.min(H-1, y0-1+j)), row = yy*W, wyj = wy[j];
+        for(let i=0;i<4;i++){
+          const xx = Math.max(0, Math.min(W-1, x0-1+i)), q = (row+xx)*4, w = wx[i]*wyj;
+          sumR += sd[q]*w; sumG += sd[q+1]*w; sumB += sd[q+2]*w;
+        }
+      }
+      od[o] = sumR; od[o+1] = sumG; od[o+2] = sumB; od[o+3] = 255; // Uint8ClampedArray라 0~255로 자동 제한
+    }
+  }
+  octx.putImageData(outData,0,0);
+  return { canvas: out, outside: outsideCount ? outside : null };
+}
+
+/* ---------------------------------------------------------
+   사진 밖이었던 빈 칸 처리 — 종이 모서리가 사진 밖으로 나간 채 찍힌 경우, 펴진 결과에 생기는 빈 칸
+   - 채우기(기본): 빈 칸 바로 옆 종이색을 이어받아 자연스럽게 채움
+   - 잘라내기(선택): 빈 칸이 없는 가장 큰 직사각형으로 자름. 잘리는 부분에 글자·표가 있으면 채우기로 대체
+--------------------------------------------------------- */
+function dilateMask(mask, w, h, r){
+  const tmp = new Uint8Array(w*h), out = new Uint8Array(w*h);
+  for(let y=0;y<h;y++){
+    const row=y*w;
+    for(let x=0;x<w;x++){
+      let v=0;
+      for(let k=Math.max(0,x-r); k<=Math.min(w-1,x+r) && !v; k++) v = mask[row+k];
+      tmp[row+x]=v;
+    }
+  }
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      let v=0;
+      for(let k=Math.max(0,y-r); k<=Math.min(h-1,y+r) && !v; k++) v = tmp[k*w+x];
+      out[y*w+x]=v;
+    }
+  }
+  return out;
+}
+
+// push-pull 보간 — 아는 픽셀(가중치>0)만으로 만든 피라미드를 거꾸로 내려오며 빈 곳을 채움.
+// 빈 곳에는 가까운 아는 픽셀들의 색이 부드럽게 번져 들어오므로, 경계를 따라 밝기 변화가 이어짐
+//  ch: [R,G,B] 가중합, wt: 가중치(0~1) → 반환: 모든 칸이 채워진 [R,G,B] 평균색
+function pushPullFill(ch, wt, w, h){
+  const levels = [{ w, h, ch, wt }];
+  while(levels[levels.length-1].w > 1 || levels[levels.length-1].h > 1){
+    const L = levels[levels.length-1];
+    const nw = Math.ceil(L.w/2), nh = Math.ceil(L.h/2);
+    const nch = [new Float32Array(nw*nh), new Float32Array(nw*nh), new Float32Array(nw*nh)], nwt = new Float32Array(nw*nh);
+    for(let y=0;y<L.h;y++){
+      for(let x=0;x<L.w;x++){
+        const p=y*L.w+x, q=(y>>1)*nw+(x>>1);
+        nwt[q]+=L.wt[p];
+        for(let c=0;c<3;c++) nch[c][q]+=L.ch[c][p];
+      }
+    }
+    levels.push({ w:nw, h:nh, ch:nch, wt:nwt });
+  }
+  // 가장 거친 단계부터: 자기 칸 평균색(가중치만큼) + 한 단계 위를 양선형으로 늘린 색(나머지)
+  let up = null;
+  for(let li=levels.length-1; li>=0; li--){
+    const L = levels[li], col = [new Float32Array(L.w*L.h), new Float32Array(L.w*L.h), new Float32Array(L.w*L.h)];
+    const U = levels[li+1];
+    for(let y=0;y<L.h;y++){
+      for(let x=0;x<L.w;x++){
+        const p=y*L.w+x, wv=L.wt[p], a=Math.min(1,wv);
+        let u0=0,u1=0,u2=0;
+        if(up){
+          const fx = Math.max(0, Math.min(U.w-1, (x+0.5)/2-0.5)), fy = Math.max(0, Math.min(U.h-1, (y+0.5)/2-0.5));
+          const x0=Math.floor(fx), y0=Math.floor(fy), x1=Math.min(U.w-1,x0+1), y1=Math.min(U.h-1,y0+1), tx=fx-x0, ty=fy-y0;
+          const w00=(1-tx)*(1-ty), w10=tx*(1-ty), w01=(1-tx)*ty, w11=tx*ty;
+          const i00=y0*U.w+x0, i10=y0*U.w+x1, i01=y1*U.w+x0, i11=y1*U.w+x1;
+          u0 = up[0][i00]*w00 + up[0][i10]*w10 + up[0][i01]*w01 + up[0][i11]*w11;
+          u1 = up[1][i00]*w00 + up[1][i10]*w10 + up[1][i01]*w01 + up[1][i11]*w11;
+          u2 = up[2][i00]*w00 + up[2][i10]*w10 + up[2][i01]*w01 + up[2][i11]*w11;
+        }
+        if(wv > 0){
+          col[0][p] = a*L.ch[0][p]/wv + (1-a)*u0;
+          col[1][p] = a*L.ch[1][p]/wv + (1-a)*u1;
+          col[2][p] = a*L.ch[2][p]/wv + (1-a)*u2;
+        } else { col[0][p]=u0; col[1][p]=u1; col[2][p]=u2; }
+      }
+    }
+    up = col;
+  }
+  return up;
+}
+
+// 글자·표 선(주변보다 확실히 어두운 픽셀) 마스크 — 그림자에도 버티도록 주변 평균 밝기 대비로 판단(적응형 이진화)
+function computeInkMask(canvas, maxDim){
+  const { data: d, w, h, scale } = downscaleForAnalysis(canvas, maxDim);
+  const n = w*h;
+  const lum = new Float32Array(n);
+  for(let p=0;p<n;p++) lum[p] = 0.299*d[p*4]+0.587*d[p*4+1]+0.114*d[p*4+2];
+  // 적분 영상으로 주변 평균 밝기
+  const integ = new Float64Array((w+1)*(h+1));
+  for(let y=0;y<h;y++){
+    let row=0;
+    for(let x=0;x<w;x++){ row += lum[y*w+x]; integ[(y+1)*(w+1)+x+1] = integ[y*(w+1)+x+1] + row; }
+  }
+  const r = Math.max(8, Math.round(Math.max(w,h)/80));
+  const ink = new Uint8Array(n);
+  for(let y=0;y<h;y++){
+    const y0=Math.max(0,y-r), y1=Math.min(h,y+r+1);
+    for(let x=0;x<w;x++){
+      const x0=Math.max(0,x-r), x1=Math.min(w,x+r+1);
+      const mean = (integ[y1*(w+1)+x1]-integ[y0*(w+1)+x1]-integ[y1*(w+1)+x0]+integ[y0*(w+1)+x0])/((x1-x0)*(y1-y0));
+      const v = lum[y*w+x];
+      if(v < mean*0.8 && v < mean-20) ink[y*w+x]=1;
+    }
+  }
+  return { ink, w, h, scale };
+}
+
+// 채우기 — 빈 칸 옆 종이색을 이어받아 채우고, 주변 종이와 같은 수준의 잔잡음을 얹어 이음매가 안 보이게 함
+function fillOutsideRegion(canvas, outside){
+  const { width: W, height: H } = canvas;
+  const ctx = canvas.getContext('2d');
+  const img = ctx.getImageData(0,0,W,H), d = img.data;
+  // 사진 가장자리 1~2px은 렌즈 주변부 어두움·압축 잡티가 있어서 같이 다시 채움
+  const hole = dilateMask(outside, W, H, 2);
+
+  // 종이색 재료에서 글자·표 선은 뺌 (넣으면 채운 곳에 회색 얼룩이 번짐)
+  const ink = computeInkMask(canvas, 1200);
+  const isInk = (x,y)=> ink.ink[Math.min(ink.h-1,(y*ink.scale)|0)*ink.w + Math.min(ink.w-1,(x*ink.scale)|0)];
+
+  // 축소본(긴 변 512칸)에서 칸마다 "아는 종이 픽셀"의 평균색과 비율(가중치)을 구한 뒤 push-pull로 빈 칸을 채움
+  const fs = Math.min(1, 512/Math.max(W,H));
+  const fw = Math.max(1, Math.ceil(W*fs)), fh = Math.max(1, Math.ceil(H*fs));
+  const ch = [new Float32Array(fw*fh), new Float32Array(fw*fh), new Float32Array(fw*fh)], wt = new Float32Array(fw*fh), cnt = new Float32Array(fw*fh);
+  for(let y=0;y<H;y++){
+    const fy = Math.min(fh-1, (y*fs)|0);
+    for(let x=0;x<W;x++){
+      const q = fy*fw + Math.min(fw-1,(x*fs)|0), p = y*W+x;
+      cnt[q]++;
+      if(hole[p] || isInk(x,y)) continue;
+      wt[q]++; ch[0][q]+=d[p*4]; ch[1][q]+=d[p*4+1]; ch[2][q]+=d[p*4+2];
+    }
+  }
+  for(let q=0;q<fw*fh;q++){ if(cnt[q]){ const k=1/cnt[q]; wt[q]*=k; ch[0][q]*=k; ch[1][q]*=k; ch[2][q]*=k; } }
+  const field = pushPullFill(ch, wt, fw, fh);
+
+  const sample = (arr, x, y)=>{
+    const fx=Math.max(0,Math.min(fw-1,(x+0.5)*fs-0.5)), fy=Math.max(0,Math.min(fh-1,(y+0.5)*fs-0.5));
+    const x0=Math.floor(fx), y0=Math.floor(fy), x1=Math.min(fw-1,x0+1), y1=Math.min(fh-1,y0+1), tx=fx-x0, ty=fy-y0;
+    return arr[y0*fw+x0]*(1-tx)*(1-ty)+arr[y0*fw+x1]*tx*(1-ty)+arr[y1*fw+x0]*(1-tx)*ty+arr[y1*fw+x1]*tx*ty;
+  };
+
+  // 빈 칸과 맞닿은 종이의 잔잡음 크기(보간색과의 차이 표준편차) — 채운 곳에도 같은 수준으로 얹음
+  const near = dilateMask(hole, W, H, 12);
+  let sum2=0, n2=0;
+  for(let y=0;y<H;y+=2){
+    for(let x=0;x<W;x+=2){
+      const p=y*W+x;
+      if(!near[p] || hole[p] || isInk(x,y)) continue;
+      const diff = (d[p*4]+d[p*4+1]+d[p*4+2])/3 - (sample(field[0],x,y)+sample(field[1],x,y)+sample(field[2],x,y))/3;
+      if(Math.abs(diff) < 30){ sum2 += diff*diff; n2++; }
+    }
+  }
+  const sigma = n2 ? Math.min(6, Math.sqrt(sum2/n2)) : 0;
+  // 사진 잡음은 압축 때문에 2~4px 크기로 뭉쳐 있어서, 2px 간격 격자의 잡음을 양선형으로 늘려 비슷한 질감을 만듦
+  let seed = 12345;
+  const rnd = ()=>{ seed = (seed*1103515245 + 12345) & 0x7fffffff; return seed/0x7fffffff; };
+  const gauss = ()=> (rnd()+rnd()+rnd()-1.5)*2; // 표준편차 ≈ 1
+  const nw = (W>>1)+2, nh = (H>>1)+2, noise = new Float32Array(nw*nh);
+  for(let i=0;i<noise.length;i++) noise[i] = gauss()/0.72; // 양선형 보간으로 줄어드는 표준편차(≈0.72배) 보정
+  const noiseAt = (x,y)=>{
+    const fx=x/2, fy=y/2, x0=fx|0, y0=fy|0, tx=fx-x0, ty=fy-y0, i=y0*nw+x0;
+    return noise[i]*(1-tx)*(1-ty) + noise[i+1]*tx*(1-ty) + noise[i+nw]*(1-tx)*ty + noise[i+nw+1]*tx*ty;
+  };
+
+  for(let y=0;y<H;y++){
+    for(let x=0;x<W;x++){
+      const p=y*W+x;
+      if(!hole[p]) continue;
+      const nz = sigma*noiseAt(x,y);
+      d[p*4]   = sample(field[0],x,y) + nz;
+      d[p*4+1] = sample(field[1],x,y) + nz;
+      d[p*4+2] = sample(field[2],x,y) + nz;
+      d[p*4+3] = 255;
+    }
+  }
+  ctx.putImageData(img,0,0);
+  return canvas;
+}
+
+// 가장자리 정리 — 펴진 결과의 테두리에 붙어 남은 "종이가 아닌 것"(키보드·책상 조각, 접혀 들뜬 모서리의 그림자,
+// 아래 장·다른 종이 조각)을 찾아 종이 질감으로 채워서 깨끗한 직사각형으로 만듦.
+//  · 글자를 지운 배경 밝기·색으로 판단(모폴로지 닫힘) — 가운데 부분을 종이색 기준으로 삼음
+//  · 테두리에서 이어진, 종이보다 확실히 어둡거나(85% 미만) 색이 다른 영역만 후보
+//  · 아주 어두우면(70% 미만: 키보드·책상) 채우고, 덜 어두우면 글자가 없을 때만 채움(그림자 진 종이 위 글자는 보존)
+//  · 한 영역이 전체의 25% 이상이면 건드리지 않음(문서 자체가 어두운 경우 등)
+// 반환: 채운 픽셀 수
+function cleanBorderRegions(canvas){
+  const { width: W, height: H } = canvas;
+  const maxDim = 800;
+  const { data: d, w, h, scale: sc } = downscaleForAnalysis(canvas, maxDim);
+  const n = w*h;
+  // 채널별로 닫힘(최대→최소)으로 글자를 지운 배경
+  const bg = [0,1,2].map(c=>{
+    const a = new Float32Array(n);
+    for(let p=0;p<n;p++) a[p] = d[p*4+c];
+    return blur5(minMaxFilter(minMaxFilter(a,w,h,5,true),w,h,5,false),w,h);
+  });
+  const L = new Float32Array(n), CR = new Float32Array(n), CG = new Float32Array(n);
+  for(let p=0;p<n;p++){ const r=bg[0][p], g=bg[1][p], b=bg[2][p], sum=r+g+b+1; L[p]=sum/3; CR[p]=r/sum; CG[p]=g/sum; }
+  // 종이색 기준: 가운데 50% 영역의 중앙값
+  const pl=[], pr=[], pg=[];
+  for(let y=Math.round(h*0.25); y<h*0.75; y+=2) for(let x=Math.round(w*0.25); x<w*0.75; x+=2){ const p=y*w+x; pl.push(L[p]); pr.push(CR[p]); pg.push(CG[p]); }
+  const med = arr=>{ const v=arr.slice().sort((a,b)=>a-b); return v[v.length>>1]; };
+  const ref = { l: med(pl), cr: med(pr), cg: med(pg) };
+  const nonPaper = new Uint8Array(n);
+  for(let p=0;p<n;p++) nonPaper[p] = (L[p] < ref.l*0.85 || Math.abs(CR[p]-ref.cr)+Math.abs(CG[p]-ref.cg) > 0.04) ? 1 : 0;
+
+  // 테두리에서 이어진 후보 영역(4방향 연결)
+  const label = new Int32Array(n).fill(-1), stack = new Int32Array(n);
+  const ink = computeInkMask(canvas, maxDim);
+  const inkAt = p=> ink.ink[Math.min(ink.h-1, (((p/w)|0)*ink.h/h)|0)*ink.w + Math.min(ink.w-1, ((p%w)*ink.w/w)|0)];
+  const accept = [];
+  const seeds = [];
+  for(let x=0;x<w;x++){ seeds.push(x, (h-1)*w+x); }
+  for(let y=0;y<h;y++){ seeds.push(y*w, y*w+w-1); }
+  for(const s0 of seeds){
+    if(!nonPaper[s0] || label[s0]!==-1) continue;
+    const id = accept.length;
+    let sp=0; stack[sp++]=s0; label[s0]=id;
+    let area=0, sumL=0, inkN=0;
+    while(sp){
+      const p=stack[--sp], x=p%w, y=(p/w)|0;
+      area++; sumL+=L[p]; inkN+=inkAt(p);
+      if(x>0 && nonPaper[p-1] && label[p-1]===-1){ label[p-1]=id; stack[sp++]=p-1; }
+      if(x<w-1 && nonPaper[p+1] && label[p+1]===-1){ label[p+1]=id; stack[sp++]=p+1; }
+      if(y>0 && nonPaper[p-w] && label[p-w]===-1){ label[p-w]=id; stack[sp++]=p-w; }
+      if(y<h-1 && nonPaper[p+w] && label[p+w]===-1){ label[p+w]=id; stack[sp++]=p+w; }
+    }
+    const meanL = sumL/area, inkDensity = inkN/area;
+    accept.push(area < n*0.25 && (meanL < ref.l*0.7 || inkDensity < 0.01));
+  }
+  if(!accept.some(Boolean)) return 0;
+  // 채울 영역(축소본) → 1칸 넓혀 경계의 그림자 선까지 포함 → 원본 크기 마스크
+  const sm = new Uint8Array(n);
+  for(let p=0;p<n;p++) if(label[p]>=0 && accept[label[p]]) sm[p]=1;
+  const smd = dilateMask(sm, w, h, 1);
+  const mask = new Uint8Array(W*H);
+  let filled = 0;
+  for(let y=0;y<H;y++){
+    const sy = Math.min(h-1, (y*sc)|0);
+    for(let x=0;x<W;x++){
+      if(smd[sy*w + Math.min(w-1,(x*sc)|0)]){ mask[y*W+x]=1; filled++; }
+    }
+  }
+  fillOutsideRegion(canvas, mask);
+  return filled;
+}
+
+// 글자 줄 펴기 — 종이가 들떠서 휜 채 찍히면 펴진 뒤에도 글자 줄이 출렁임. 글자 줄마다 중심선이 얼마나 휘었는지
+// 2차 곡선으로 맞추고, 줄 사이는 보간해서 "세로 방향 이동량 지도"를 만든 뒤 그만큼 픽셀을 위아래로 옮겨 줄을 곧게 폄.
+// 글자 줄이 가로로 선 상태에서만 호출. 줄이 적거나(6줄 미만), 휜 줄이 거의 없거나, 이미 곧으면(최대 이동 1.5px 미만) 그대로 둠
+// 결과: { canvas, maxShift } (적용 안 했으면 canvas는 입력 그대로)
+function dewarpTextLines(canvas){
+  const { width: W, height: H } = canvas;
+  const { ink, w, h, scale } = computeInkMask(canvas, 1200);
+  // 글자 사이 빈틈을 가로로 메워(가로 번짐) 글자 줄을 한 덩어리로 — 세로 표 선은 미리 빼둠(길게 이어진 세로 획)
+  const gap = Math.max(4, Math.round(w/100)); // 한글 문장의 띄어쓰기까지 이어지도록
+  const sm = new Uint8Array(w*h);
+  for(let y=0;y<h;y++){
+    let last = -1e9;
+    for(let x=0;x<w;x++){
+      const p=y*w+x;
+      if(!ink[p]) continue;
+      // 세로로 길게 이어진 픽셀(표 세로선)은 줄 덩어리 재료에서 제외
+      let run=1; for(let k=1;k<=6 && y-k>=0 && ink[p-k*w];k++) run++; for(let k=1;k<=6 && y+k<h && ink[p+k*w];k++) run++;
+      if(run >= 12) continue;
+      if(x-last <= gap) for(let k=last+1;k<x;k++) sm[y*w+k]=1;
+      sm[p]=1; last=x;
+    }
+  }
+  // 줄 덩어리(연결 요소) → 길고 납작한 것만
+  const label = new Int32Array(w*h).fill(-1), stack = new Int32Array(w*h);
+  const lines = [];
+  for(let s0=0;s0<w*h;s0++){
+    if(!sm[s0] || label[s0]!==-1) continue;
+    const id = lines.length;
+    let sp=0; stack[sp++]=s0; label[s0]=id;
+    let minX=w,maxX=-1,minY=h,maxY=-1;
+    const pts=[];
+    while(sp){
+      const q=stack[--sp], x=q%w, y=(q/w)|0;
+      if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y;
+      pts.push(q);
+      if(x>0 && sm[q-1] && label[q-1]===-1){ label[q-1]=id; stack[sp++]=q-1; }
+      if(x<w-1 && sm[q+1] && label[q+1]===-1){ label[q+1]=id; stack[sp++]=q+1; }
+      if(y>0 && sm[q-w] && label[q-w]===-1){ label[q-w]=id; stack[sp++]=q-w; }
+      if(y<h-1 && sm[q+w] && label[q+w]===-1){ label[q+w]=id; stack[sp++]=q+w; }
+    }
+    lines.push({ minX,maxX,minY,maxY,pts });
+  }
+  const textLines = [];
+  for(const L of lines){
+    const lw=L.maxX-L.minX+1;
+    if(lw < w*0.15) continue;
+    // 열마다 중심 y와 세로 폭 — 두께는 "열별 세로 폭의 중앙값"으로 잼 (바깥 상자 높이로 재면 비스듬한 줄이 기울기만큼 두껍게 잡혀 탈락했음)
+    const sumY=new Float64Array(lw), cnt=new Float64Array(lw), topY=new Float64Array(lw).fill(1e9), botY=new Float64Array(lw).fill(-1);
+    for(const q of L.pts){ const x=q%w-L.minX, y=(q/w)|0; sumY[x]+=y; cnt[x]++; if(y<topY[x]) topY[x]=y; if(y>botY[x]) botY[x]=y; }
+    const spans=[]; for(let x=0;x<lw;x++) if(cnt[x]) spans.push(botY[x]-topY[x]+1);
+    spans.sort((a,b)=>a-b);
+    const lh = spans.length ? spans[spans.length>>1] : 1e9;
+    if(lh > h*0.03 || lw < lh*8) continue; // 두꺼운 덩어리는 여러 행이 엉겨 붙은 가짜 줄
+    const xs=[], ys=[];
+    for(let x=0;x<lw;x+=2) if(cnt[x]) { xs.push(x+L.minX); ys.push(sumY[x]/cnt[x]); }
+    if(xs.length < 10) continue;
+    const xm = xs.reduce((a,b)=>a+b,0)/xs.length;
+    let S=[0,0,0,0,0], T=[0,0,0];
+    for(let i=0;i<xs.length;i++){ const u=xs[i]-xm, y=ys[i]; S[0]++; S[1]+=u; S[2]+=u*u; S[3]+=u*u*u; S[4]+=u*u*u*u; T[0]+=y; T[1]+=u*y; T[2]+=u*u*y; }
+    // [S0 S1 S2; S1 S2 S3; S2 S3 S4]·[c b a] = T
+    const M=[[S[0],S[1],S[2],T[0]],[S[1],S[2],S[3],T[1]],[S[2],S[3],S[4],T[2]]];
+    let singular=false;
+    for(let c=0;c<3 && !singular;c++){ let piv=c; for(let r=c+1;r<3;r++) if(Math.abs(M[r][c])>Math.abs(M[piv][c])) piv=r; [M[c],M[piv]]=[M[piv],M[c]]; if(Math.abs(M[c][c])<1e-9){ singular=true; break; } for(let r=0;r<3;r++){ if(r===c) continue; const f=M[r][c]/M[c][c]; for(let k=c;k<4;k++) M[r][k]-=f*M[c][k]; } }
+    if(singular) continue;
+    const c0=M[0][3]/M[0][0], b1=M[1][3]/M[1][1], a2=M[2][3]/M[2][2];
+    if(![c0,b1,a2].every(isFinite)) continue;
+    // 잔차가 크면(줄이 아닌 덩어리) 버림
+    let res=0; for(let i=0;i<xs.length;i++){ const u=xs[i]-xm; const e=ys[i]-(a2*u*u+b1*u+c0); res+=e*e; }
+    if(Math.sqrt(res/xs.length) > lh*0.2+1) continue;
+    if(Math.abs(b1) > Math.tan(8*Math.PI/180)) continue; // 방향 맞춤 뒤인데 8° 넘게 기울었으면 엉뚱한 덩어리 (들뜬 모서리 근처 줄은 꽤 기울 수 있음)
+    const half = (L.maxX-L.minX)/2;
+    textLines.push({ x0:L.minX, x1:L.maxX, xm, a2, b1, c0, yRef:c0, sag: Math.abs(a2)*half*half });
+  }
+  if(textLines.length < 6) return { canvas, maxShift:0 };
+  // 실제로 휜 줄(가운데가 2px 이상 처진 줄)이 3개 이상일 때만 — 평평한 문서는 건드리지 않음
+  if(textLines.filter(t=> t.sag >= 2).length < 3) return { canvas, maxShift:0 };
+
+  // 열 구간(40칸)마다 "줄 위치 y → 이동량" 표본을 모아 y 방향으로 선형 보간.
+  // 같은 구간에서 위아래 이웃 줄들과 이동량이 크게 다른 표본(잘못 잡힌 줄)은 버림 — 그대로 두면 국소적으로 글자를 뒤틂
+  const nb = 40, bw = w/nb;
+  const D = new Float32Array(nb*h);
+  const colHas = new Uint8Array(nb);
+  for(let bi=0; bi<nb; bi++){
+    const xc = (bi+0.5)*bw;
+    let smp = [];
+    for(const t of textLines){
+      if(xc < t.x0 || xc > t.x1) continue;
+      const u = xc - t.xm;
+      smp.push({ yt: t.yRef, d: t.a2*u*u + t.b1*u });
+    }
+    smp.sort((a,b)=>a.yt-b.yt);
+    smp = smp.filter((q,k)=>{
+      const nbr = smp.slice(Math.max(0,k-2), k).concat(smp.slice(k+1, k+3)).map(o=>o.d).sort((a,b)=>a-b);
+      if(nbr.length < 2) return true;
+      const m = nbr[nbr.length>>1];
+      return Math.abs(q.d - m) <= Math.max(2, Math.abs(m)*0.6);
+    });
+    if(smp.length < 3) continue;
+    colHas[bi]=1;
+    let k=0;
+    for(let y=0;y<h;y++){
+      while(k < smp.length-1 && smp[k+1].yt <= y) k++;
+      let d;
+      if(y <= smp[0].yt) d = smp[0].d;
+      else if(y >= smp[smp.length-1].yt) d = smp[smp.length-1].d;
+      else { const A=smp[k], B=smp[k+1]; const f=(y-A.yt)/Math.max(1e-6,B.yt-A.yt); d = A.d*(1-f) + B.d*f; }
+      D[bi*h+y] = d;
+    }
+  }
+  // 표본 없는 열 구간은 가까운 구간에서 가져옴
+  for(let bi=0; bi<nb; bi++){
+    if(colHas[bi]) continue;
+    let L=-1, R=-1;
+    for(let k=bi-1;k>=0;k--) if(colHas[k]){ L=k; break; }
+    for(let k=bi+1;k<nb;k++) if(colHas[k]){ R=k; break; }
+    if(L<0 && R<0) return { canvas, maxShift:0 };
+    for(let y=0;y<h;y++) D[bi*h+y] = L<0 ? D[R*h+y] : R<0 ? D[L*h+y] : D[L*h+y] + (D[R*h+y]-D[L*h+y])*(bi-L)/(R-L);
+  }
+  let maxShift = 0;
+  for(let i=0;i<D.length;i++) if(Math.abs(D[i]) > maxShift) maxShift = Math.abs(D[i]);
+  const maxShiftFull = maxShift/scale;
+  if(maxShiftFull < 1.5) return { canvas, maxShift: maxShiftFull };
+  if(maxShift > h*0.05) return { canvas, maxShift: maxShiftFull }; // 비정상적으로 큰 이동 — 줄 인식이 틀렸을 가능성
+
+  // 원본 해상도에서 세로로만 다시 표본 추출 (열 구간 사이는 선형 보간)
+  const src = canvas.getContext('2d').getImageData(0,0,W,H).data;
+  const out = document.createElement('canvas');
+  out.width=W; out.height=H;
+  const octx = out.getContext('2d');
+  const od = octx.createImageData(W,H), o = od.data;
+  for(let x=0;x<W;x++){
+    const fx = Math.max(0, Math.min(nb-1, x*scale/bw - 0.5)), b0=Math.floor(fx), b1i=Math.min(nb-1,b0+1), tx=fx-b0;
+    for(let y=0;y<H;y++){
+      const ys = Math.min(h-1, y*scale), yi = Math.floor(ys), ty = ys-yi, yi1 = Math.min(h-1, yi+1);
+      const d0 = D[b0*h+yi]*(1-ty) + D[b0*h+yi1]*ty, d1 = D[b1i*h+yi]*(1-ty) + D[b1i*h+yi1]*ty;
+      const sy = y + (d0*(1-tx) + d1*tx)/scale;
+      const y0 = Math.max(0, Math.min(H-1, Math.floor(sy))), y1 = Math.min(H-1, y0+1), f = Math.max(0, Math.min(1, sy-Math.floor(sy)));
+      const i0=(y0*W+x)*4, i1=(y1*W+x)*4, oi=(y*W+x)*4;
+      o[oi]=src[i0]*(1-f)+src[i1]*f; o[oi+1]=src[i0+1]*(1-f)+src[i1+1]*f; o[oi+2]=src[i0+2]*(1-f)+src[i1+2]*f; o[oi+3]=255;
+    }
+  }
+  octx.putImageData(od,0,0);
+  return { canvas: out, maxShift: maxShiftFull };
+}
+
+// 흐린 부분만 골라 선명하게 — 초점이 덜 맞은 가장자리 쪽 글자는 획 윤곽이 뭉툭함. 구역(64px)마다 글자 윤곽의
+// 또렷함을 재서, 문서에서 가장 또렷한 쪽(상위 25%) 대비 흐린 구역일수록 언샤프 마스크를 강하게(최대 1.2배) 걸음.
+// 이미 또렷한 구역은 거의 건드리지 않음. (흐려서 잃은 정보를 되살리는 것은 아니고, 읽기 좋게 윤곽을 세우는 처리)
+function sharpenBlurryRegions(canvas){
+  const { width: W, height: H } = canvas;
+  const ctx = canvas.getContext('2d');
+  const img = ctx.getImageData(0,0,W,H), d = img.data;
+  const n = W*H;
+  const lum = new Float32Array(n);
+  for(let p=0;p<n;p++) lum[p] = 0.299*d[p*4]+0.587*d[p*4+1]+0.114*d[p*4+2];
+  const blur = blur5(blur5(lum, W, H), W, H);
+  const T = 64, tw = Math.ceil(W/T), th = Math.ceil(H/T);
+  const sumD = new Float64Array(tw*th), cntD = new Float64Array(tw*th);
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const p=y*W+x, det=Math.abs(lum[p]-blur[p]);
+    if(det < 4) continue; // 글자 윤곽 근처만
+    const t=((y/T)|0)*tw + ((x/T)|0);
+    sumD[t]+=det; cntD[t]++;
+  }
+  const sharp = new Float64Array(tw*th).fill(NaN), vals=[];
+  for(let t=0;t<tw*th;t++) if(cntD[t] > T*T*0.01){ sharp[t]=sumD[t]/cntD[t]; vals.push(sharp[t]); }
+  if(vals.length < 4) return canvas;
+  vals.sort((a,b)=>a-b);
+  const ref = vals[Math.floor(vals.length*0.75)];
+  const amt = new Float32Array(tw*th);
+  for(let t=0;t<tw*th;t++) amt[t] = isNaN(sharp[t]) ? 0 : Math.max(0, Math.min(1.2, (ref/sharp[t] - 1)*1.5));
+  for(let y=0;y<H;y++){
+    const fy=Math.max(0,Math.min(th-1,(y+0.5)/T-0.5)), y0=Math.floor(fy), y1=Math.min(th-1,y0+1), ty=fy-y0;
+    for(let x=0;x<W;x++){
+      const fx=Math.max(0,Math.min(tw-1,(x+0.5)/T-0.5)), x0=Math.floor(fx), x1=Math.min(tw-1,x0+1), tx=fx-x0;
+      const a = amt[y0*tw+x0]*(1-tx)*(1-ty) + amt[y0*tw+x1]*tx*(1-ty) + amt[y1*tw+x0]*(1-tx)*ty + amt[y1*tw+x1]*tx*ty;
+      if(a < 0.02) continue;
+      const p=y*W+x, add = a*(lum[p]-blur[p]);
+      d[p*4]+=add; d[p*4+1]+=add; d[p*4+2]+=add;
+    }
+  }
+  ctx.putImageData(img,0,0);
+  return canvas;
+}
+
+// 잘라내기 — 빈 칸이 없는 가장 큰 직사각형. 잘려 나가는 부분(사진 안쪽이던 곳)에 글자·표가 있으면 null(→ 채우기로 대체)
+function cropOutsideRegion(canvas, outside){
+  const { width: W, height: H } = canvas;
+  const hole = dilateMask(outside, W, H, 2);
+  // 격자(긴 변 400칸)로 줄여서 계산 — 칸 안에 빈 픽셀이 하나라도 있으면 빈 칸으로 봄(보수적으로)
+  const cs = Math.max(1, Math.ceil(Math.max(W,H)/400));
+  const gw = Math.ceil(W/cs), gh = Math.ceil(H/cs);
+  const bad = new Uint8Array(gw*gh);
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++) if(hole[y*W+x]) bad[((y/cs)|0)*gw + ((x/cs)|0)] = 1;
+  // 히스토그램 방식 최대 직사각형
+  const hist = new Int32Array(gw);
+  let best = { area:0 };
+  for(let gy=0; gy<gh; gy++){
+    for(let gx=0; gx<gw; gx++) hist[gx] = bad[gy*gw+gx] ? 0 : hist[gx]+1;
+    const stack = [];
+    for(let gx=0; gx<=gw; gx++){
+      const hgt = gx<gw ? hist[gx] : 0;
+      while(stack.length && hist[stack[stack.length-1]] >= hgt){
+        const top = stack.pop(), hh = hist[top];
+        const left = stack.length ? stack[stack.length-1]+1 : 0;
+        const area = hh*(gx-left);
+        if(area > best.area) best = { area, x0:left, x1:gx-1, y0:gy-hh+1, y1:gy };
+      }
+      stack.push(gx);
+    }
+  }
+  if(!best.area) return null;
+  const rx0 = best.x0*cs, ry0 = best.y0*cs, rx1 = Math.min(W, (best.x1+1)*cs), ry1 = Math.min(H, (best.y1+1)*cs);
+
+  // 잘려 나갈 부분(원래 사진 안쪽이던 곳)에 글자·표가 있는지 확인
+  const ink = computeInkMask(canvas, 1200);
+  let inkHits = 0;
+  for(let y=0;y<ink.h;y++){
+    for(let x=0;x<ink.w;x++){
+      if(!ink.ink[y*ink.w+x]) continue;
+      const ox=(x+0.5)/ink.scale, oy=(y+0.5)/ink.scale;
+      if(ox>=rx0 && ox<rx1 && oy>=ry0 && oy<ry1) continue; // 남는 부분
+      const op = Math.min(H-1,oy|0)*W + Math.min(W-1,ox|0);
+      if(hole[op]) continue; // 원래 빈 칸
+      inkHits++;
+    }
+  }
+  if(inkHits > Math.max(15, ink.w*ink.h*0.0003)) return null;
+
+  const out = document.createElement('canvas');
+  out.width = rx1-rx0; out.height = ry1-ry0;
+  out.getContext('2d').drawImage(canvas, rx0, ry0, out.width, out.height, 0, 0, out.width, out.height);
+  return out;
+}
+
+/* ---------------------------------------------------------
+   글자 방향 자동 맞춤 (90° 단위) — 펴진 문서에서 글자 덩어리(연결 요소)를 보고 판단
+   - 가로/세로: 같은 줄 글자 사이 간격이 줄 간격보다 좁으므로, 글자마다 "가장 가까운 이웃"이 옆에 있는지 위아래에 있는지 다수결
+   - 위/아래(180°): 쉼표·마침표 같은 작은 점은 옆 글자의 아래쪽(기준선)에 붙음 → 작은 점이 옆 글자의 어느 쪽에 붙어 있는지 다수결
+   확신이 없으면 돌리지 않음
+--------------------------------------------------------- */
+function rotateCanvas(canvas, deg){
+  if(!deg) return canvas;
+  const out = document.createElement('canvas');
+  const swap = deg === 90 || deg === 270;
+  out.width = swap ? canvas.height : canvas.width;
+  out.height = swap ? canvas.width : canvas.height;
+  const ctx = out.getContext('2d');
+  // 중심 기준(w/2)으로 돌리면 크기가 홀수일 때 0.5px 어긋나 전체가 살짝 뭉개지므로, 모서리 기준으로 정수 이동 → 픽셀만 자리바꿈
+  if(deg === 90){ ctx.translate(out.width, 0); ctx.rotate(Math.PI/2); }
+  else if(deg === 180){ ctx.translate(out.width, out.height); ctx.rotate(Math.PI); }
+  else if(deg === 270){ ctx.translate(0, out.height); ctx.rotate(-Math.PI/2); }
+  ctx.drawImage(canvas, 0, 0);
+  return out;
+}
+
+// 어두운 글자 덩어리 찾기 — 적응형 이진화(computeInkMask) 후,
+// 표 선처럼 길게 이어진 선은 글자가 아니므로 미리 지움
+function findInkComponents(canvas, maxDim){
+  const { ink, w, h } = computeInkMask(canvas, maxDim);
+  const n = w*h;
+  // 긴 가로/세로 선 지우기 (표 선)
+  const minRun = Math.round(Math.max(w,h)*0.05);
+  const clearRuns = (horizontal)=>{
+    const outer = horizontal ? h : w, inner = horizontal ? w : h;
+    for(let o=0;o<outer;o++){
+      let start=-1;
+      for(let i=0;i<=inner;i++){
+        const p = i<inner ? (horizontal ? o*w+i : i*w+o) : -1;
+        if(p>=0 && ink[p]){ if(start<0) start=i; continue; }
+        if(start>=0 && i-start >= minRun){
+          for(let k=start;k<i;k++) ink[horizontal ? o*w+k : k*w+o] = 0;
+        }
+        start=-1;
+      }
+    }
+  };
+  clearRuns(true); clearRuns(false);
+  // 8방향 연결 요소
+  const label = new Int32Array(n).fill(-1);
+  const stack = new Int32Array(n);
+  const comps = [];
+  for(let s=0;s<n;s++){
+    if(!ink[s] || label[s]!==-1) continue;
+    const id = comps.length;
+    let sp=0; stack[sp++]=s; label[s]=id;
+    let minX=w, minY=h, maxX=-1, maxY=-1, area=0;
+    while(sp){
+      const p=stack[--sp], x=p%w, y=(p/w)|0;
+      area++;
+      if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y;
+      for(let dy=-1;dy<=1;dy++){
+        const yy=y+dy; if(yy<0||yy>=h) continue;
+        for(let dx=-1;dx<=1;dx++){
+          const xx=x+dx; if(xx<0||xx>=w) continue;
+          const q=yy*w+xx;
+          if(ink[q] && label[q]===-1){ label[q]=id; stack[sp++]=q; }
+        }
+      }
+    }
+    comps.push({ minX, minY, maxX, maxY, area, cx:(minX+maxX)/2, cy:(minY+maxY)/2, bw:maxX-minX+1, bh:maxY-minY+1 });
+  }
+  return { comps, w, h };
+}
+
+// 결과: { axis:'horizontal'|'vertical'|null, rotation: 0|90|180|270(시계방향으로 돌릴 각도), votes }
+function detectTextOrientation(canvas){
+  // 펴진 결과(긴 변 최대 2000px)를 줄이지 않고 분석 — 줄이면 2~3px짜리 쉼표·마침표가 뭉개져 위/아래 단서가 약해짐
+  const { comps, w, h } = findInkComponents(canvas, 2000);
+  const sized = comps.filter(c=> c.area >= 4 && Math.max(c.bw,c.bh) < Math.min(w,h)*0.1);
+  if(sized.length < 30) return { axis:null, rotation:0, reason:'few-components' };
+  // 글자 크기 추정 — 큰 쪽 절반의 중앙값 (쉼표·점 같은 작은 것에 끌려가지 않게)
+  const sizes = sized.map(c=>Math.max(c.bw,c.bh)).sort((a,b)=>a-b);
+  const s = sizes[Math.floor(sizes.length*0.75)];
+  const big = sized.filter(c=> Math.max(c.bw,c.bh) >= s*0.5 && Math.max(c.bw,c.bh) <= s*3);
+  const small = sized.filter(c=> Math.max(c.bw,c.bh) <= s*0.4 && c.area <= s*s*0.12);
+  // 이웃 검색용 격자
+  const cell = Math.max(4, s*2), gw = Math.ceil(w/cell)+1, grid = new Map();
+  big.forEach((c,i)=>{ const k=Math.floor(c.cy/cell)*gw+Math.floor(c.cx/cell); if(!grid.has(k)) grid.set(k,[]); grid.get(k).push(c); });
+  // 주변 5×5칸(반경 4s 이상 보장)을 봄 — 3×3칸이면 격자 경계 위치에 따라 이웃을 놓치기도 해서 이미지 방향에 따라 결과가 달라졌음
+  const near = (x,y)=>{ const gx=Math.floor(x/cell), gy=Math.floor(y/cell), out=[];
+    for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++){ if(gx+dx<0||gx+dx>=gw) continue; const g=grid.get((gy+dy)*gw+gx+dx); if(g) out.push(...g); }
+    return out; };
+
+  // 1) 가로/세로: 덩어리마다 좌우 이웃과의 빈틈 vs 위아래 이웃과의 빈틈 비교 다수결
+  //    중심 간 거리로 재면, 글자가 단어 덩어리로 뭉친 저해상도 사진에서 "옆 덩어리 중심"이 "윗줄 중심"보다 멀어져 오판함.
+  //    테두리 사이 빈틈(글자·단어 간격 < 줄 간격)은 뭉쳐도 유지됨.
+  //    한글은 한 글자가 여러 조각(ㅇ·ㅗ·받침 등)으로 나뉘어 조각끼리의 위아래 간격이 "줄 간격"처럼 잡히므로,
+  //    글자 크기의 12% 이내로 맞닿은 조각들을 먼저 한 덩어리로 묶은 뒤 비교함
+  const mg = Math.max(1, Math.round(s*0.12));
+  const parent = sized.map((_,i)=>i);
+  const find = i=>{ while(parent[i]!==i){ parent[i]=parent[parent[i]]; i=parent[i]; } return i; };
+  const byX = sized.map((_,i)=>i).sort((a,b)=> sized[a].minX - sized[b].minX);
+  for(let ii=0; ii<byX.length; ii++){
+    const a = sized[byX[ii]];
+    for(let jj=ii+1; jj<byX.length; jj++){
+      const b = sized[byX[jj]];
+      if(b.minX - a.maxX - 1 > mg) break; // minX 순으로 정렬돼 있어서 이후는 더 멀어짐
+      const gx = Math.max(b.minX-a.maxX, a.minX-b.maxX) - 1, gy = Math.max(b.minY-a.maxY, a.minY-b.maxY) - 1;
+      if(gx <= mg && gy <= mg) parent[find(byX[ii])] = find(byX[jj]);
+    }
+  }
+  const groupMap = new Map();
+  sized.forEach((c,i)=>{
+    const r = find(i), g = groupMap.get(r);
+    if(!g) groupMap.set(r, { minX:c.minX, minY:c.minY, maxX:c.maxX, maxY:c.maxY });
+    else { g.minX=Math.min(g.minX,c.minX); g.minY=Math.min(g.minY,c.minY); g.maxX=Math.max(g.maxX,c.maxX); g.maxY=Math.max(g.maxY,c.maxY); }
+  });
+  const groups = [...groupMap.values()].map(g=>({ ...g, bw:g.maxX-g.minX+1, bh:g.maxY-g.minY+1 })).filter(g=> Math.max(g.bw,g.bh) >= s*0.5);
+  // 좌우 빈틈: minX 순으로 훑으며 3s 안쪽의, 세로로 30% 이상 겹치는 덩어리 (위아래도 같은 방식)
+  const gapVotes = boxes=>{
+  const gH = new Float64Array(boxes.length).fill(Infinity), gV = new Float64Array(boxes.length).fill(Infinity);
+  const sweep = (horizontal, gapArr)=>{
+    const lo = horizontal ? 'minX' : 'minY', hi = horizontal ? 'maxX' : 'maxY';
+    const olo = horizontal ? 'minY' : 'minX', ohi = horizontal ? 'maxY' : 'maxX', osz = horizontal ? 'bh' : 'bw';
+    const ord = boxes.map((_,i)=>i).sort((a,b)=> boxes[a][lo] - boxes[b][lo]);
+    for(let ii=0; ii<ord.length; ii++){
+      const a = boxes[ord[ii]];
+      for(let jj=ii+1; jj<ord.length; jj++){
+        const b = boxes[ord[jj]];
+        const gap = b[lo] - a[hi] - 1;
+        if(gap > s*3) break;
+        if(gap < 0) continue;
+        const ov = Math.min(a[ohi],b[ohi]) - Math.max(a[olo],b[olo]) + 1;
+        if(ov < Math.min(a[osz],b[osz])*0.3) continue;
+        if(gap < gapArr[ord[ii]]) gapArr[ord[ii]] = gap;
+        if(gap < gapArr[ord[jj]]) gapArr[ord[jj]] = gap;
+      }
+    }
+  };
+  sweep(true, gH); sweep(false, gV);
+  let hor=0, ver=0;
+  for(let i=0;i<boxes.length;i++){
+    if(gH[i] === Infinity && gV[i] === Infinity) continue;
+    if(gH[i] < gV[i]*0.6) hor++;
+    else if(gV[i] < gH[i]*0.6) ver++;
+  }
+  return { hor, ver };
+  };
+  // 두 가지 증거를 함께 씀 — 조각을 묶은 덩어리(한글 문장에 강함) × 묶지 않은 글자(촘촘한 표 문서에 강함).
+  // 한쪽만 쓰면 기준에 아슬아슬하게 걸리는 문서가 있어서, 브라우저마다 이미지 축소 방식이 미세하게 달라도 판단이 뒤집혔음
+  const vm = gapVotes(groups), vu = gapVotes(big);
+  const hor = vm.hor + vu.hor, ver = vm.ver + vu.ver;
+  const logRatio = Math.log((vm.hor+1)/(vm.ver+1)) + Math.log((vu.hor+1)/(vu.ver+1));
+  // 두 비율의 곱이 1.8² 이상이면 확정 (각각 1.8배씩인 것과 같은 수준)
+  const need = 2*Math.log(1.8);
+  let axis = null;
+  if(hor >= 40 && logRatio >= need) axis='horizontal';
+  else if(ver >= 40 && logRatio <= -need) axis='vertical';
+  if(!axis) return { axis:null, rotation:0, reason:'axis-unclear', votes:{hor,ver,lr:+logRatio.toFixed(2)} };
+
+  // 2) 위/아래: 작은 점이 "글자 줄 방향으로 바로 옆에 있는" 큰 글자의 어느 쪽(줄에 수직인 방향)에 붙어 있는지
+  //    가로 글이면 u=x(줄 방향), v=y / 세로로 누운 글이면 u=y, v=x
+  const U = c=> axis==='horizontal' ? [c.minX,c.maxX] : [c.minY,c.maxY];
+  const V = c=> axis==='horizontal' ? [c.minY,c.maxY] : [c.minX,c.maxX];
+  let plus=0, minus=0;
+  for(const sm of small){
+    const [su0,su1]=U(sm), [sv0,sv1]=V(sm), svc=(sv0+sv1)/2;
+    // 줄 방향으로 바로 옆(0.6s 이내)에 있는 큰 글자들 모두에 대해 상대 위치를 구해 평균 — 하나만 고르면
+    // 양옆 글자 높이가 다를 때(취소선, 손글씨 등) 검색 순서(=이미지 방향)에 따라 결론이 바뀜
+    let relSum=0, relN=0;
+    for(const b of near(sm.cx,sm.cy)){
+      const [bu0,bu1]=U(b), [bv0,bv1]=V(b);
+      const gap = su0 > bu1 ? su0-bu1 : bu0 > su1 ? bu0-su1 : -1; // 줄 방향으로 겹치면 제외 (ㅎ의 꼭지, i의 점 등)
+      if(gap < 0 || gap > s*0.6) continue;
+      if(sv1 < bv0 - s*0.3 || sv0 > bv1 + s*0.3) continue;   // 줄에 수직인 방향으로는 겹쳐야 같은 줄
+      if(bv1-bv0+1 < s*0.5) continue;                        // 줄에 수직인 방향으로 얇은 덩어리(가로획 조각 등)는 기준 글자로 부적합
+      // 픽셀 칸 기준 연속 좌표 [bv0, bv1+1]에서의 상대 위치 — 180° 뒤집으면 정확히 1-rel이 되도록
+      relSum += (svc+0.5-bv0)/(bv1+1-bv0); relN++;
+    }
+    if(!relN) continue;
+    const rel = relSum/relN;
+    if(rel > 0.75) plus++; else if(rel < 0.25) minus++;
+  }
+  const tot = plus+minus;
+  const votes = { hor, ver, lr:+logRatio.toFixed(2), plus, minus };
+  // 단서가 충분히 많으면(40개 이상) 70%, 적으면 75% 이상 한쪽으로 몰려야 확정
+  if(tot < 8 || Math.max(plus,minus) < tot*(tot >= 40 ? 0.7 : 0.75)) return { axis, rotation:0, reason:'direction-unclear', votes };
+  // 기준선 쪽(+v 또는 -v)이 "아래"가 되도록 시계방향 회전 각도 결정
+  //  가로 글: 기준선이 아래(+y)면 그대로, 위(-y)면 180°
+  //  세로 글: 기준선이 오른쪽(+x)이면 반시계로 90° 누운 것 → 시계 90°, 왼쪽(-x)이면 시계 270°
+  let rotation;
+  if(axis==='horizontal') rotation = plus > minus ? 0 : 180;
+  else rotation = plus > minus ? 90 : 270;
+  return { axis, rotation, votes };
+}
+
+// 문서 자동 크롭 · 원근 보정 — 네 모서리를 확실하게 찾았을 때만 펴고, 아니면 기존 박스 크롭으로 대체
+function autoCropDocument(canvas){
+  const det = detectDocumentCorners(canvas);
+  if(det.status === 'fullFrame'){
+    // 직선 방식이 종이 후보를 찾긴 했지만 확신이 없었던 경우엔 알려줌 (스캔본처럼 후보 자체가 없으면 조용히 통과)
+    if(det.linesReason === 'weak-sides') return { canvas, warning: '📐 문서의 네 모서리를 확실하게 찾지 못해서, 원근 보정 없이 원본을 그대로 사용했어요.' };
+    return canvas;
+  }
+  if(det.status === 'ok'){
+    const wr = warpPerspective(canvas, det.corners);
+    if(wr){
+      // 펴기 직후, 방향 맞춤·스캔 효과 등 다음 처리 전에 사진 밖이었던 빈 칸부터 정리
+      let warped = wr.canvas, outsideNote = null;
+      if(wr.outside){
+        const cropped = outsideMode === 'crop' ? cropOutsideRegion(warped, wr.outside) : null;
+        if(cropped) warped = cropped;
+        else {
+          fillOutsideRegion(warped, wr.outside);
+          if(outsideMode === 'crop') outsideNote = '✂️ 빈 부분을 잘라내면 글자나 표가 잘려서, 대신 주변 종이색으로 채웠어요.';
+        }
+      }
+      // 가장자리에 남은 키보드·책상·접힌 모서리 등을 종이 질감으로 채워 깨끗한 직사각형으로
+      cleanBorderRegions(warped);
+
+      // 펴진 문서의 글자 방향을 보고 90° 단위로 세움
+      // (corners·rotation은 다음 단계의 모서리 수동 조정 / 회전 버튼이 이어받을 값)
+      const ori = detectTextOrientation(warped);
+      let result = ori.rotation ? rotateCanvas(warped, ori.rotation) : warped;
+      const tilted = ori.axis === 'vertical' && !ori.rotation ? '↻ 글자가 옆으로 누워 있는데 어느 쪽이 위인지 확신할 수 없어서 돌리지 않았어요.' : null;
+      // 글자 줄이 가로로 선 상태일 때만 미세 기울기 보정 (±5°, 계산이 확실할 때만)
+      let skew = 0;
+      if(!tilted && ori.axis){
+        const est = estimateSkew(result, 5);
+        if(est.confident && Math.abs(est.angle) >= 0.5){
+          const rs = rotateSmallAngle(result, est.angle);
+          const cropped = outsideMode === 'crop' ? cropOutsideRegion(rs.canvas, rs.outside) : null;
+          result = cropped || fillOutsideRegion(rs.canvas, rs.outside);
+          skew = +est.angle.toFixed(1);
+        }
+      }
+      // 글자 줄이 가로로 선 상태면: 휜 종이 때문에 출렁이는 글자 줄을 펴고, 흐린 부분만 골라 선명하게
+      let dewarp = 0;
+      if(!tilted && ori.axis){
+        const dw = dewarpTextLines(result);
+        if(dw.canvas !== result){ result = dw.canvas; dewarp = +dw.maxShift.toFixed(1); }
+      }
+      sharpenBlurryRegions(result);
+      return { corners: det.corners, rotation: ori.rotation, skew, dewarp, canvas: result, warning: [outsideNote, tilted].filter(Boolean).join(' ') || null };
+    }
+  }
+  const boxed = boxCropDocument(canvas);
+  if(det.status === 'uncertain' && !(boxed instanceof HTMLCanvasElement) && !boxed.warning){
+    return { canvas: boxed.canvas, warning: '📐 문서의 네 모서리를 확실하게 찾지 못해서, 원근 보정 없이 네모 크롭만 했어요.' };
+  }
+  return boxed;
+}
+
+// 기울기 추정 — 글자 줄(가로선) 프로파일이 가장 또렷해지는 각도를 찾음
+// (제대로 정렬되면 글자들이 특정 가로줄에 몰려서 행별 픽셀 수 편차가 커짐 → 그 편차가 최대가 되는 각도)
+// 결과 { angle, confident, reason } — 아래 중 하나라도 걸리면 confident=false (돌리면 오히려 나빠질 수 있음)
+//  글자가 너무 적음 / 최고점이 탐색 범위 끝에 걸림 / 최고점이 뾰족하지 않음(±2°와 별 차이 없음) / 0°보다 별로 나아지지 않음
+// (0.5° 미만이면 이미 반듯한 것으로 보고 confident=true)
+function estimateSkew(canvas, range){
+  // 주변 밝기 대비로 글자만 골라냄 — 고정 기준(밝기<180)이면 그림자·책상 나뭇결까지 "글자"로 잡혀 각도가 엉뚱하게 나옴
+  const { ink: bin, w: sw, h: sh } = computeInkMask(canvas, 420);
+  let darkTotal = 0;
+  for(let p=0;p<sw*sh;p++) darkTotal += bin[p];
+  if(darkTotal < sw*sh*0.005) return { angle:0, confident:false, reason:'little-ink' };
 
   const cx = sw/2, cy = sh/2;
   function rowVarianceAtAngle(deg){
@@ -875,7 +2567,7 @@ function deskewDocument(canvas){
   }
 
   let bestAngle=0, bestVar=-1;
-  for(let deg=-10; deg<=10; deg+=0.5){
+  for(let deg=-range; deg<=range; deg+=0.5){
     const v = rowVarianceAtAngle(deg);
     if(v>bestVar){ bestVar=v; bestAngle=deg; }
   }
@@ -884,8 +2576,47 @@ function deskewDocument(canvas){
     const v = rowVarianceAtAngle(deg);
     if(v>bestVar){ bestVar=v; bestAngle=deg; }
   }
+  if(Math.abs(bestAngle) < 0.5) return { angle:bestAngle, confident:true, reason:'straight' }; // 이미 충분히 반듯함 — 돌릴 필요도, 경고할 필요도 없음
+  if(Math.abs(bestAngle) > range-0.75) return { angle:bestAngle, confident:false, reason:'edge-of-range' };
+  const side = Math.max(rowVarianceAtAngle(bestAngle-2), rowVarianceAtAngle(bestAngle+2));
+  if(side > bestVar*0.8) return { angle:bestAngle, confident:false, reason:'flat-peak' };
+  if(Math.abs(bestAngle) >= 0.3 && bestVar < rowVarianceAtAngle(0)*1.1) return { angle:bestAngle, confident:false, reason:'no-gain' };
+  return { angle:bestAngle, confident:true };
+}
 
-  if(Math.abs(bestAngle) < 0.3) return canvas; // 이미 충분히 반듯함
+// 작은 각도 회전(미세 기울기 보정용) — 결과 { canvas, outside(돌리면서 생긴 빈 칸 마스크) }
+function rotateSmallAngle(canvas, deg){
+  const { width: W, height: H } = canvas;
+  const rad = deg*Math.PI/180, cos = Math.cos(rad), sin = Math.sin(rad);
+  const newW = Math.round(W*Math.abs(cos) + H*Math.abs(sin)), newH = Math.round(W*Math.abs(sin) + H*Math.abs(cos));
+  const out = document.createElement('canvas');
+  out.width = newW; out.height = newH;
+  const ctx = out.getContext('2d');
+  ctx.translate(newW/2, newH/2);
+  ctx.rotate(-rad);
+  ctx.drawImage(canvas, -W/2, -H/2);
+  const outside = new Uint8Array(newW*newH);
+  for(let v=0; v<newH; v++){
+    const dy = v+0.5-newH/2;
+    for(let u=0; u<newW; u++){
+      const dx = u+0.5-newW/2;
+      const sx = dx*cos - dy*sin + W/2, sy = dx*sin + dy*cos + H/2;
+      if(sx < 0 || sy < 0 || sx > W || sy > H) outside[v*newW+u] = 1;
+    }
+  }
+  return { canvas: out, outside };
+}
+
+// 기울기 자동 보정 — 계산이 확실할 때만 돌림 (확실하지 않으면 원본 유지: 돌려서 더 나빠지는 일이 없게)
+function deskewDocument(canvas){
+  const { width: W, height: H } = canvas;
+  const est = estimateSkew(canvas, 10);
+  if(!est.confident){
+    if(est.reason !== 'little-ink') return { canvas, warning: '📐 기울기를 확실하게 계산하지 못해서 돌리지 않았어요.' };
+    return canvas;
+  }
+  const bestAngle = est.angle;
+  if(Math.abs(bestAngle) < 0.5) return canvas; // 이미 충분히 반듯함
 
   const rad = bestAngle*Math.PI/180;
   const cosA=Math.abs(Math.cos(rad)), sinA=Math.abs(Math.sin(rad));
@@ -903,28 +2634,40 @@ function deskewDocument(canvas){
 }
 
 
-// 노이즈 제거 — 3x3 중앙값 필터 (소금-후추 노이즈에 특히 효과적)
+// 노이즈 제거 — 주변 8칸과 동떨어진 "고립된 점"(스캔 잡티·먼지·소금-후추 노이즈)만 3x3 중앙값으로 바꿈.
+// 예전엔 모든 픽셀을 3x3 중앙값으로 바꿔서, 1~2px 두께의 작은 글자 획까지 잡티처럼 뭉개졌음.
+// 글자 획 픽셀은 같은 획의 이웃 픽셀도 비슷하게 어두우므로 "고립"이 아니어서 그대로 남음
 function denoiseMedian(canvas){
   const ctx = canvas.getContext('2d');
   const { width, height } = canvas;
   const src = ctx.getImageData(0,0,width,height);
   const dst = ctx.createImageData(width,height);
   const sd = src.data, dd = dst.data;
-  const idx = (x,y)=>(y*width+x)*4;
-  for(let y=0;y<height;y++){
-    for(let x=0;x<width;x++){
-      const i = idx(x,y);
-      if(x===0||y===0||x===width-1||y===height-1){
-        dd[i]=sd[i]; dd[i+1]=sd[i+1]; dd[i+2]=sd[i+2]; dd[i+3]=sd[i+3];
-        continue;
+  dd.set(sd);
+  const n = width*height;
+  const lum = new Float32Array(n);
+  for(let p=0;p<n;p++) lum[p] = 0.299*sd[p*4]+0.587*sd[p*4+1]+0.114*sd[p*4+2];
+  const T = 40;           // 중앙값과 이만큼 이상 차이 나야 잡티 후보
+  const vals = new Float32Array(9), cv = new Uint8Array(9);
+  const sort9 = a=>{ for(let i=1;i<9;i++){ const v=a[i]; let j=i-1; while(j>=0 && a[j]>v){ a[j+1]=a[j]; j--; } a[j+1]=v; } };
+  for(let y=1;y<height-1;y++){
+    for(let x=1;x<width-1;x++){
+      const p = y*width+x, v = lum[p];
+      let k=0, similar=0;
+      for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+        const q = p+dy*width+dx, lv = lum[q];
+        vals[k++] = lv;
+        if(q!==p && Math.abs(lv-v) < T/2) similar++;
       }
+      if(similar > 1) continue;          // 비슷한 이웃이 2개 이상이면 획·선의 일부 → 건드리지 않음
+      sort9(vals);
+      if(Math.abs(v - vals[4]) <= T) continue;
       for(let c=0;c<3;c++){
-        const vals=[];
-        for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++) vals.push(sd[idx(x+dx,y+dy)+c]);
-        vals.sort((a,b)=>a-b);
-        dd[i+c]=vals[4];
+        k=0;
+        for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++) cv[k++] = sd[(p+dy*width+dx)*4+c];
+        cv.sort();
+        dd[p*4+c] = cv[4];
       }
-      dd[i+3]=sd[i+3];
     }
   }
   ctx.putImageData(dst,0,0);
