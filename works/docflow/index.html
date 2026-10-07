@@ -190,7 +190,7 @@
 <div class="wrap">
   <div class="top">
     <div class="top-title">📄 DocFlow</div>
-    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-07-05</div>
+    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-07-07</div>
     <div class="top-sub">문서 이미지를 업로드하고 필요한 처리만 체크하면 한 번에 정리해드려요.</div>
     <div class="badge-local">🔒 이 페이지에서 하는 모든 처리는 브라우저 안에서만 이뤄져요 — 서버로 업로드되지 않아요</div>
   </div>
@@ -1500,7 +1500,8 @@ function detectThreeSides(E, lines, pairs){
 
 // 여러 장이 겹친 문서 묶음 — 아래 장들의 가장자리가 층층이 어긋나 바깥쪽에 곧은 선으로 보이고,
 // 맨 위 장(실제 내용이 있는 장)의 테두리는 그 바로 안쪽에 있음. 고른 변마다 바로 안쪽에
-//  · 거의 평행하고(4° 이내) · 안쪽 거리가 짧고(사진 짧은 변의 10% 이내) · 엣지가 이어져 있고(지지율 40% 이상)
+//  · 거의 평행하고(10° 이내 — 뒤에 비스듬히 깔린 별개의 종이도 포함) · 안쪽 거리가 짧고(가운데에서 사진 짧은 변의 10% 이내,
+//    양 끝에서도 안쪽에 있으면서 20% 이내) · 엣지가 이어져 있고(지지율 40% 이상)
 //  · 종이 안의 색 띠(표 칸 등) 경계가 아니고(band<0.3) · 두 선 사이 띠가 종이색(=아래 장)인
 // 선이 있으면 그중 가장 안쪽 선으로 옮김. 맨 위 장 테두리는 종이-종이 경계라 "양쪽 색 차이" 대신 엣지 지지율로 평가함
 // 결과: { lines, flags(옮긴 변), support(옮긴 변의 지지율) }
@@ -1536,12 +1537,14 @@ function preferInnermostSheet(E, lines, sideLines, quad){
     if((center.x-mid.x)*nx + (center.y-mid.y)*ny < 0){ nx=-nx; ny=-ny; } // 안쪽 방향
     let best=null, bestT=0, bestSup=0;
     for(const c of lines){
-      if(c===L || lineAngleDiff(c,L) > 4 || (c.band||0) > 0.3) continue;
-      // 변 가운데에서 안쪽으로 c까지의 거리
+      if(c===L || lineAngleDiff(c,L) > 10 || (c.band||0) > 0.3) continue;
+      // 변의 가운데·양 끝에서 안쪽으로 c까지의 거리 — 비스듬하면 두 선 사이가 쐐기 모양이라 세 곳 모두 확인
       const cc=Math.cos(c.theta), cs=Math.sin(c.theta), den = nx*cc + ny*cs;
       if(Math.abs(den) < 1e-6) continue;
-      const t = (c.rho - (mid.x*cc + mid.y*cs)) / den;
+      const inDist = q=> (c.rho - (q.x*cc + q.y*cs)) / den;
+      const t = inDist(mid), ta = inDist(a), tb = inDist(b);
       if(!(t > 2 && t <= maxIn) || t <= bestT) continue;
+      if(ta < -2 || tb < -2 || ta > maxIn*2 || tb > maxIn*2) continue; // 변 구간 안에서 바깥 선을 넘어가거나 너무 멀어지면 제외
       const a2 = lineIntersect(c, prev), b2 = lineIntersect(c, next);
       if(!a2 || !b2) continue;
       const ev = evalQuadSide(E, a2, b2, center, 2);
@@ -2169,6 +2172,32 @@ function dewarpTextLines(canvas){
     if(L<0 && R<0) return { canvas, maxShift:0 };
     for(let y=0;y<h;y++) D[bi*h+y] = L<0 ? D[R*h+y] : R<0 ? D[L*h+y] : D[L*h+y] + (D[R*h+y]-D[L*h+y])*(bi-L)/(R-L);
   }
+  // 이동량 지도를 가로(띠 여러 개 폭)·세로로 넓게 다듬음 — 띠마다 잡힌 줄 조합이 달라 이웃 띠끼리 이동량이 들쭉날쭉하면
+  // 곧아야 할 표 선이 톱니처럼 출렁였음. 종이 전체의 완만한 휨만 남김
+  const boxPass = (getIdx, len, count, r)=>{
+    const tmp = new Float32Array(len);
+    for(let k=0;k<count;k++){
+      for(let rep=0; rep<3; rep++){
+        for(let i=0;i<len;i++){ let sum=0, n=0; for(let j=Math.max(0,i-r); j<=Math.min(len-1,i+r); j++){ sum+=D[getIdx(k,j)]; n++; } tmp[i]=sum/n; }
+        for(let i=0;i<len;i++) D[getIdx(k,i)] = tmp[i];
+      }
+    }
+  };
+  boxPass((y,bi)=> bi*h+y, nb, h, 2);                                    // 가로: 띠 ±2개
+  boxPass((bi,y)=> bi*h+y, h, nb, Math.max(2, Math.round(h/40)));        // 세로
+  // 실제로 나아질 때만 적용 — 줄마다 "펴기 전 휨"과 "지도를 적용한 뒤 남는 휨"을 비교해서 40% 이상 줄어들어야 함.
+  // 평평한 문서는 줄의 휨이 측정 잡음뿐이라 지도로 설명되지 않음 → 건너뜀 (그대로 적용하면 오히려 물결이 생겼음)
+  let beforeSum=0, afterSum=0;
+  for(const t of textLines){
+    const b0 = Math.max(0, Math.ceil(t.x0/bw - 0.5)), b1 = Math.min(nb-1, Math.floor(t.x1/bw - 0.5));
+    if(b1 - b0 < 3) continue;
+    const yi = Math.max(0, Math.min(h-1, Math.round(t.yRef)));
+    const ds=[], rs=[];
+    for(let bi=b0; bi<=b1; bi++){ const u=(bi+0.5)*bw - t.xm, d=t.a2*u*u + t.b1*u; ds.push(d); rs.push(d - D[bi*h+yi]); }
+    const dev = arr=>{ const m=arr.reduce((x,y)=>x+y,0)/arr.length; return arr.reduce((x,y)=>x+(y-m)*(y-m),0); };
+    beforeSum += dev(ds); afterSum += dev(rs);
+  }
+  if(!(beforeSum > 0) || afterSum > beforeSum*0.6) return { canvas, maxShift: 0 };
   let maxShift = 0;
   for(let i=0;i<D.length;i++) if(Math.abs(D[i]) > maxShift) maxShift = Math.abs(D[i]);
   const maxShiftFull = maxShift/scale;
