@@ -236,7 +236,7 @@
   <div class="inapp-banner" id="inappBanner" role="status"></div>
   <div class="top">
     <div class="top-title">📄 DocFlow</div>
-    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-07-16</div>
+    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-07-22</div>
     <div class="top-sub">문서 이미지를 업로드하고 필요한 처리만 체크하면 한 번에 정리해드려요.</div>
     <div class="badge-local">🔒 이 페이지에서 하는 모든 처리는 브라우저 안에서만 이뤄져요 — 서버로 업로드되지 않아요</div>
   </div>
@@ -460,8 +460,15 @@ function externalOpenLabel(){
   return 'Chrome으로 열기';
 }
 function externalMenuHint(){
-  if(INAPP.ios) return '화면의 <b>⋯</b> 또는 공유 버튼 → <b>Safari로 열기</b>';
+  if(INAPP.ios) return '화면의 <b>⋯</b>(또는 공유 버튼) → <b>Safari로 열기</b>';
   return '오른쪽 <b>⋮</b> → <b>다른 브라우저로 열기</b>';
+}
+
+// "어떻게 여는지" 안내 — 바로 여는 버튼이 있으면 메뉴와 버튼 둘 다 된다고 알려줌
+function externalHowTo(where){
+  // 예) "오른쪽 ⋮ → 다른 브라우저로 열기를 누르거나, 아래 [다른 브라우저로 열기] 버튼을 눌러"
+  if(externalOpenUrl()) return `${externalMenuHint()}를 누르거나, ${where} <b>[${externalOpenLabel()}]</b> 버튼을 눌러`;
+  return `${externalMenuHint()}를 눌러`;
 }
 
 function renderInAppBanner(strong){
@@ -471,7 +478,7 @@ function renderInAppBanner(strong){
   el.innerHTML = `
     <button class="inapp-close" id="inappClose" aria-label="닫기">×</button>
     ${strong ? '⚠️ <b>PDF는 이 화면에서 저장할 수 없어요.</b>' : `📱 지금 <b>${INAPP.name} 안의 브라우저</b>로 열려 있어서 <b>저장이 안 될 수 있어요.</b>`}<br>
-    ${externalMenuHint()} 로 열어주세요.
+    ${externalHowTo('아래')} 열어주세요.
     <div class="inapp-sub">다른 브라우저로 열면 사진을 다시 올려야 해요. 이미지 결과(JPG)는 이 화면에서도 "길게 눌러 저장"으로 받을 수 있어요.</div>
     ${href ? `<div class="inapp-actions"><a class="btn-open-external" href="${href}">${externalOpenLabel()}</a></div>` : ''}`;
   el.classList.add('show');
@@ -492,7 +499,7 @@ function showImageSaveSheet(canvas, mime, quality){
   document.getElementById('saveSheetBody').innerHTML = `
     <div class="save-sheet-hint">아래 이미지를 <b>길게 눌러</b> <b>"이미지 저장"</b>을 선택하세요.</div>
     <img class="save-sheet-img" src="${dataUrl}" alt="처리 결과">
-    <div class="gen-hint" style="text-align:center;">저장 메뉴가 안 나오면 ${externalMenuHint()} 로 연 뒤 다운로드해주세요.</div>`;
+    <div class="gen-hint" style="text-align:center;">저장 메뉴가 안 나오면 ${externalHowTo('아래')} 연 뒤 다운로드해주세요.</div>`;
   document.getElementById('saveSheetActions').innerHTML = href ? `<a class="btn-open-external" href="${href}">${externalOpenLabel()}</a>` : '';
   document.getElementById('saveSheet').classList.add('show');
 }
@@ -504,7 +511,7 @@ function showPdfBlockedSheet(onImage){
   document.getElementById('saveSheetBody').innerHTML = `
     <div class="save-sheet-hint" style="text-align:left;">
       ${INAPP.name} 안의 브라우저는 PDF 파일 저장을 지원하지 않아요.<br>
-      ${externalMenuHint()} 로 연 뒤 다시 처리해서 PDF로 받아주세요.<br>
+      ${externalHowTo('아래')} 연 뒤 다시 처리해서 PDF로 받아주세요.<br>
       <span class="gen-hint">다른 브라우저로 열면 사진을 다시 올려야 해요.</span>
     </div>`;
   document.getElementById('saveSheetActions').innerHTML =
@@ -550,6 +557,7 @@ const SECTIONS = [
     {id:'deskew', name:'기울기 자동 보정', desc:'기울어진 문서를 똑바로 맞춰요. (배경이 있는 사진이면 "문서 자동 크롭"도 같이 체크해주세요)', ready:true},
     {id:'trimMargin', name:'여백 자동 제거', desc:'문서 바깥의 불필요한 여백을 잘라내요.', ready:true},
     {id:'denoise', name:'노이즈 제거', desc:'스캔할 때 생기는 잡티·얼룩을 부드럽게 줄여요.', ready:true},
+    {id:'scanEffect', name:'스캔 효과 (그림자 제거)', desc:'그림자와 누런·푸르스름한 조명색을 지워 배경을 하얗게, 글자와 표 선은 또렷하게 만들어요. 스캐너로 스캔한 것처럼 보여요.', ready:true},
     {id:'autoCrop', name:'문서 자동 크롭 · 원근 보정', desc:'사진 속 종이의 테두리를 찾아서, 비스듬히 찍혔으면 반듯한 직사각형으로 펴고 배경을 잘라내요. 글자 방향을 보고 똑바로 세워줘요. (모서리를 확실하게 못 찾으면 펴지 않아요)', ready:true},
   ]},
   { title:'문서 정리', items:[
@@ -569,8 +577,8 @@ const PRESETS = [
   {id:'stamp', name:'도장 추출하기', emoji:'🔴', checks:['trimMargin','denoise','sharpen','stampExtract'], format:'png', ready:true},
   {id:'report', name:'보고서 삽입', emoji:'📋', checks:['trimMargin','sharpen','contrast'], format:'jpg', ready:true},
   {id:'signature', name:'서명 추출하기', emoji:'✍️', checks:['denoise','signatureExtract','contrast'], format:'png', ready:true},
-  {id:'ocr', name:'OCR 최적화', emoji:'🔍', checks:['deskew','trimMargin','denoise','removeLines','grayscale'], format:'png', ready:true},
-  {id:'archive', name:'문서 보관', emoji:'📁', checks:['autoCrop','deskew','denoise'], format:'pdf', ready:true},
+  {id:'ocr', name:'OCR 최적화', emoji:'🔍', checks:['deskew','scanEffect','trimMargin','denoise','removeLines','grayscale'], format:'png', scanMode:'bw', ready:true},
+  {id:'archive', name:'문서 보관', emoji:'📁', checks:['autoCrop','deskew','scanEffect','denoise'], format:'pdf', scanMode:'color', ready:true},
   {id:'custom', name:'직접 선택하기', emoji:'🎛️', checks:[], format:null, ready:true},
 ];
 
@@ -599,6 +607,7 @@ let signatureSelection = null; // 원본 이미지 좌표계 기준 {x,y,w,h} �
 //  autoRot: 처리할 때 자동 방향 맞춤이 돌릴 것으로 예상되는 각도 — 미리보기를 실제 결과 방향으로 보여주는 데 씀
 //  editing: 손잡이·돋보기를 보여주는 조정 화면이 열려 있는지
 let cornerState = { key: 0, det: null, corners: null, mode: 'auto', rotation: 0, detecting: false, autoRot: 0, editing: false, prevBeforeFull: null };
+let scanMode = 'color'; // 스캔 효과: 'color'(직인·형광펜 색 유지) | 'bw'(완전한 흑백, 글자 가장 선명)
 let outsideMode = 'fill'; // 원근 보정 후 사진 밖이었던 빈 칸 처리: 'fill'(종이색으로 채우기) | 'crop'(빈 부분 잘라내기)
 
 // 공개 배포본은 true로 — 도장/서명 "추출" 결과물에 워터마크를 남겨서 실사용 위조를 막음
@@ -651,6 +660,7 @@ function renderPresets(){
           checked = new Set(p.checks.filter(id=>ITEM_MAP[id]?.ready));
         }
         if(p.format) selectedFormat = p.format;
+        if(p.scanMode) scanMode = p.scanMode;
         renderPresets(); renderSections(); renderFormats();
         updateProcessBtn();
       };
@@ -693,12 +703,31 @@ function renderSections(){
         row.classList.add('has-sub');
         list.appendChild(renderOutsideModeRow());
       }
+      if(item.id === 'scanEffect' && on){
+        row.classList.add('has-sub');
+        list.appendChild(renderScanModeRow());
+      }
     });
     group.appendChild(list);
     wrap.appendChild(group);
   });
   updateSignatureSelectUI();
   updateCornerUI();
+}
+
+// "스캔 효과" 하위 옵션 — 컬러/흑백
+function renderScanModeRow(){
+  const wrap = document.createElement('div');
+  wrap.className = 'sub-option-row';
+  wrap.innerHTML = '<div class="sub-option-label">스캔 색상</div>';
+  [['color','컬러 (직인·형광펜 색 유지)'], ['bw','흑백 (글자가 가장 선명)']].forEach(([id, name])=>{
+    const b = document.createElement('button');
+    b.className = 'format-btn sub-option-btn' + (scanMode===id ? ' selected' : '');
+    b.textContent = name;
+    b.onclick = e=>{ e.stopPropagation(); scanMode = id; renderSections(); };
+    wrap.appendChild(b);
+  });
+  return wrap;
 }
 
 // "문서 자동 크롭" 하위 옵션 — 종이 모서리가 사진 밖으로 나갔던 부분(펴진 뒤 빈 칸)을 어떻게 할지
@@ -749,6 +778,22 @@ fileInput.addEventListener('change', e=>{
   if(e.target.files[0]) loadFile(e.target.files[0]);
 });
 
+// 큰 사진 안전장치 — 휴대폰 원본(4000px 이상)은 처리 메모리·시간이 커서, 긴 변 3000px로 줄여서 씀.
+// 결과물은 따로 긴 변 2400px(A4 약 205dpi)로 제한하므로 줄여도 글자 화질에는 거의 영향이 없음
+const MAX_INPUT_SIDE = 3000;
+// 결과: 줄였으면 { dataUrl, width, height }, 줄일 필요 없으면 null
+function shrinkLargeImage(img){
+  const long = Math.max(img.width, img.height);
+  if(long <= MAX_INPUT_SIDE) return null;
+  const s = MAX_INPUT_SIDE / long;
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.width*s); c.height = Math.round(img.height*s);
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+  return { dataUrl: c.toDataURL('image/jpeg', 0.95), width: c.width, height: c.height };
+}
+
 function loadFile(file){
   const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
   if(!file.type.startsWith('image/') && !isPdf){ alert('이미지 또는 PDF 파일만 올릴 수 있어요.'); return; }
@@ -760,14 +805,21 @@ function loadFile(file){
   reader.onload = e=>{
     const img = new Image();
     img.onload = ()=>{
-      originalImage = img;
-      document.getElementById('originalPreview').src = e.target.result;
-      const badge = document.getElementById('fileBadge');
-      badge.classList.add('show');
-      badge.textContent = `📄 ${file.name} · ${img.width}×${img.height}`;
-      resetSignatureSelection(e.target.result);
-      resetDocCorners(e.target.result);
-      updateProcessBtn();
+      const small = shrinkLargeImage(img);
+      const use = (finalImg, dataUrl, note)=>{
+        originalImage = finalImg;
+        document.getElementById('originalPreview').src = dataUrl;
+        const badge = document.getElementById('fileBadge');
+        badge.classList.add('show');
+        badge.textContent = `📄 ${file.name} · ${finalImg.width}×${finalImg.height}${note}`;
+        resetSignatureSelection(dataUrl);
+        resetDocCorners(dataUrl);
+        updateProcessBtn();
+      };
+      if(!small){ use(img, e.target.result, ''); return; }
+      const img2 = new Image();
+      img2.onload = ()=> use(img2, small.dataUrl, ` (원본 ${img.width}×${img.height}이 커서 줄여서 처리해요 — 글자 화질엔 영향 거의 없어요)`);
+      img2.src = small.dataUrl;
     };
     img.src = e.target.result;
   };
@@ -2266,10 +2318,11 @@ function estimateAspectRatio(corners, imgW, imgH){
 
 // 네 모서리(원본 좌표 [좌상,우상,우하,좌하])를 반듯한 직사각형으로 펴기
 // 출력 비율은 estimateAspectRatio로 추정한 실제 비율, 크기는 마주보는 변 중 긴 쪽 기준(해상도 손실 최소화),
-// 긴 변 최대 3508px(A4 300dpi 세로 길이). 저해상도 사진은 긴 변 2000px까지(최대 2배) 키워서 펴서 작은 글자에 픽셀을 더 줌.
+// 긴 변 최대 2400px(A4 약 205dpi — 7pt 글자까지 또렷함을 확인. 3508px(300dpi)은 휴대폰에서 처리 시간·메모리가 약 2배라 낮춤).
+// 저해상도 사진은 긴 변 2000px까지(최대 2배) 키워서 펴서 작은 글자에 픽셀을 더 줌.
 // 보간은 bicubic(Catmull-Rom) — 양선형보다 글자 가장자리가 덜 뭉개짐
 // 결과: { canvas, outside } — outside는 "원래 사진 밖이었던 픽셀" 마스크(1=밖), 그런 픽셀이 없으면 null
-function warpPerspective(canvas, corners, maxSide = 3508, minSide = 2000){
+function warpPerspective(canvas, corners, maxSide = 2400, minSide = 2000){
   const [tl,tr,br,bl] = corners;
   const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
   let outW = Math.max(dist(tl,tr), dist(bl,br));
@@ -2780,7 +2833,7 @@ function dewarpTextLines(canvas, minLines = 6, minPerBin = 3, measureOnly = fals
 // 흐린 부분만 골라 선명하게 — 초점이 덜 맞은 가장자리 쪽 글자는 획 윤곽이 뭉툭함. 구역(64px)마다 글자 윤곽의
 // 또렷함을 재서, 문서에서 가장 또렷한 쪽(상위 25%) 대비 흐린 구역일수록 언샤프 마스크를 강하게(최대 1.2배) 걸음.
 // 이미 또렷한 구역은 거의 건드리지 않음. (흐려서 잃은 정보를 되살리는 것은 아니고, 읽기 좋게 윤곽을 세우는 처리)
-function sharpenBlurryRegions(canvas){
+function sharpenBlurryRegions(canvas, maxAmt = 1.2){
   const { width: W, height: H } = canvas;
   const ctx = canvas.getContext('2d');
   const img = ctx.getImageData(0,0,W,H), d = img.data;
@@ -2802,7 +2855,7 @@ function sharpenBlurryRegions(canvas){
   vals.sort((a,b)=>a-b);
   const ref = vals[Math.floor(vals.length*0.75)];
   const amt = new Float32Array(tw*th);
-  for(let t=0;t<tw*th;t++) amt[t] = isNaN(sharp[t]) ? 0 : Math.max(0, Math.min(1.2, (ref/sharp[t] - 1)*1.5));
+  for(let t=0;t<tw*th;t++) amt[t] = isNaN(sharp[t]) ? 0 : Math.max(0, Math.min(maxAmt, (ref/sharp[t] - 1)*1.5));
   for(let y=0;y<H;y++){
     const fy=Math.max(0,Math.min(th-1,(y+0.5)/T-0.5)), y0=Math.floor(fy), y1=Math.min(th-1,y0+1), ty=fy-y0;
     for(let x=0;x<W;x++){
@@ -3273,6 +3326,419 @@ function deskewDocument(canvas){
 }
 
 
+// 흑백 스캔용 직인 영역 — 결과: 원본 크기 마스크(1=직인 영역) 또는 null
+function findStampRegions(norm, W, H){
+  const sc = Math.min(1, 500/Math.max(W,H));
+  const w = Math.max(1, Math.round(W*sc)), h = Math.max(1, Math.round(H*sc));
+  const red = new Float32Array(w*h);
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+    const p = Math.min(H-1, Math.floor((y+0.5)/sc))*W + Math.min(W-1, Math.floor((x+0.5)/sc));
+    const r=norm[p*3], g=norm[p*3+1], b=norm[p*3+2];
+    red[y*w+x] = (r - Math.max(g,b) > 40 && r > 90) ? 1 : 0;
+  }
+  // 획 사이를 메워 한 덩어리로 (닫힘)
+  const rr = Math.max(2, Math.round(Math.min(w,h)*0.01));
+  const blob = minMaxFilter(minMaxFilter(red,w,h,rr,true),w,h,rr,false);
+  const label = new Int32Array(w*h).fill(-1), stack = new Int32Array(w*h);
+  const mask = new Uint8Array(w*h); let found = false;
+  const minS = Math.min(w,h)*0.04, maxS = Math.min(w,h)*0.30;
+  for(let s0=0; s0<w*h; s0++){
+    if(blob[s0] < 0.5 || label[s0] !== -1) continue;
+    let sp=0; stack[sp++]=s0; label[s0]=s0;
+    let x0=w, y0=h, x1=-1, y1=-1; const mem=[]; let redN=0;
+    while(sp){
+      const q=stack[--sp], x=q%w, y=(q/w)|0; mem.push(q); if(red[q]) redN++;
+      if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y;
+      if(x>0 && blob[q-1]>=0.5 && label[q-1]===-1){ label[q-1]=s0; stack[sp++]=q-1; }
+      if(x<w-1 && blob[q+1]>=0.5 && label[q+1]===-1){ label[q+1]=s0; stack[sp++]=q+1; }
+      if(y>0 && blob[q-w]>=0.5 && label[q-w]===-1){ label[q-w]=s0; stack[sp++]=q-w; }
+      if(y<h-1 && blob[q+w]>=0.5 && label[q+w]===-1){ label[q+w]=s0; stack[sp++]=q+w; }
+    }
+    const bw = x1-x0+1, bh = y1-y0+1, asp = bw/bh;
+    if(bw < minS || bh < minS || bw > maxS || bh > maxS || asp < 0.6 || asp > 1.67) continue;
+    if(redN < bw*bh*0.15) continue;
+    // 덩어리를 감싸는 사각형 전체(+여유 2칸)를 직인 영역으로
+    for(let y=Math.max(0,y0-2); y<=Math.min(h-1,y1+2); y++) for(let x=Math.max(0,x0-2); x<=Math.min(w-1,x1+2); x++) mask[y*w+x]=1;
+    found = true;
+  }
+  if(!found) return null;
+  const out = new Uint8Array(W*H);
+  for(let y=0;y<H;y++){ const sy=Math.min(h-1,(y*sc)|0); for(let x=0;x<W;x++) out[y*W+x] = mask[sy*w + Math.min(w-1,(x*sc)|0)]; }
+  return out;
+}
+
+// 스캔 효과 — 그림자·조명색을 지워 배경을 하얗게, 글자·표 선은 진하게. 컬러(scanMode 'color') / 흑백('bw')
+// 배경(종이색) 추정을 두 가지로 해서 섞음
+//  · 넓은 배경: 격자 칸(긴 변의 1/14)마다 채널별 밝은 쪽(상위 8%) → 이웃 칸 중 가장 밝은 값 → 부드럽게.
+//    칸 안에 흰 종이가 조금이라도 있으면 종이색이 잡혀서, 노란 칸·회색 칸·파란 머리글 같은 칠해진 영역을 지켜줌.
+//    대신 손 그림자처럼 경계가 뚜렷한 그림자는 따라가지 못함
+//  · 촘촘한 배경: 축소본에서 글자만 지운(모폴로지 닫힘) 배경 → 그림자 경계를 따라감. 대신 칠해진 칸도 배경으로 봄
+//  → 촘촘한 배경은 "그림자로 보이는 곳"의 어두운 정도(감쇠)를 재는 데만 씀: 넓은 배경보다 5% 이상 어둡고,
+//    색이 없고(무채색), 5% 이상 어둡고, 종이 가장자리에 닿거나 넓게(전체의 6% 이상) 퍼진 영역. 손·휴대폰 그림자는 종이 밖에서 들어오고,
+//    회색 칸은 표 안에 갇혀 있다는 차이를 이용함. 잡티가 많은 사진은 잡티 크기를 재서 다듬고 기준을 맞춤
+function scanEffect(canvas){
+  const ctx = canvas.getContext('2d');
+  const { width: W, height: H } = canvas;
+  const img = ctx.getImageData(0,0,W,H), d = img.data;
+
+  // --- 넓은 배경 (격자 칸) ---
+  const cell = Math.max(16, Math.round(Math.max(W,H)/14));
+  const gw = Math.ceil(W/cell), gh = Math.ceil(H/cell);
+  // 종이 전체의 색조 — 밝은 쪽 픽셀(상위 30%)의 색조 중앙값. 누런·푸르스름한 조명이면 종이도 그쪽으로 기울어 있음
+  const smp=[];
+  for(let p=0;p<W*H;p+=17){ const i=p*4, sum=d[i]+d[i+1]+d[i+2]; smp.push([sum, d[i]/(sum+1), d[i+1]/(sum+1)]); }
+  smp.sort((a,b)=>b[0]-a[0]);
+  const top = smp.slice(0, Math.max(1, Math.round(smp.length*0.3)));
+  const medOf = arr=>{ const v=arr.slice().sort((a,b)=>a-b); return v[v.length>>1]; };
+  const paperR = medOf(top.map(t=>t[1])), paperG = medOf(top.map(t=>t[2]));
+  // 칸마다 종이 색조와 비슷한 픽셀만 모아 배경을 잡음 — 노란 칸·빨간 글씨 같은 색이 배경으로 잡혀
+  // 옆의 흰 종이가 반대색(하늘색 등)으로 물드는 것을 막음
+  const hist = new Uint32Array(gw*gh*768), cnt = new Uint32Array(gw*gh), used = new Uint32Array(gw*gh);
+  for(let y=0;y<H;y+=2){
+    const gy = (y/cell)|0;
+    for(let x=0;x<W;x+=2){
+      const g = gy*gw + ((x/cell)|0), i = (y*W+x)*4, base = g*768;
+      cnt[g]++;
+      const sum = d[i]+d[i+1]+d[i+2]+1;
+      if(sum > 90 && Math.abs(d[i]/sum - paperR) + Math.abs(d[i+1]/sum - paperG) > 0.06) continue;
+      hist[base + d[i]]++; hist[base + 256 + d[i+1]]++; hist[base + 512 + d[i+2]]++; used[g]++;
+    }
+  }
+  const bg0 = new Float32Array(gw*gh*3), valid = new Uint8Array(gw*gh);
+  for(let g=0; g<gw*gh; g++){
+    if(used[g] < cnt[g]*0.05) continue; // 종이색 픽셀이 거의 없는 칸(통째로 칠해진 칸) → 이웃에서 채움
+    valid[g] = 1;
+    const need = Math.max(1, Math.round(used[g]*0.08));
+    for(let c=0;c<3;c++){
+      let acc=0, v=255; const base = g*768 + c*256;
+      for(; v>=0; v--){ acc += hist[base+v]; if(acc >= need) break; }
+      bg0[g*3+c] = Math.max(v, 1);
+    }
+  }
+  // 빈 칸은 가까운 유효한 칸 값으로 채움 (바깥으로 번져가며)
+  if(!valid.some(Boolean)){ for(let g=0; g<gw*gh; g++){ bg0[g*3]=bg0[g*3+1]=bg0[g*3+2]=255; valid[g]=1; } }
+  for(let iter=0; iter<gw+gh && valid.some(v=>!v); iter++){
+    const nv = valid.slice();
+    for(let gy=0; gy<gh; gy++) for(let gx=0; gx<gw; gx++){
+      const g=gy*gw+gx; if(valid[g]) continue;
+      let n=0, r=0, gg=0, b=0;
+      for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){ const yy=gy+dy, xx=gx+dx; if(yy<0||xx<0||yy>=gh||xx>=gw) continue; const k=yy*gw+xx; if(!valid[k]) continue; r+=bg0[k*3]; gg+=bg0[k*3+1]; b+=bg0[k*3+2]; n++; }
+      if(n){ bg0[g*3]=r/n; bg0[g*3+1]=gg/n; bg0[g*3+2]=b/n; nv[g]=1; }
+    }
+    valid.set(nv);
+  }
+  const lum3 = (a,k)=> a[k*3]+a[k*3+1]+a[k*3+2];
+  const bg1 = new Float32Array(gw*gh*3);
+  for(let gy=0; gy<gh; gy++) for(let gx=0; gx<gw; gx++){
+    let best = gy*gw+gx;
+    for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+      const yy=gy+dy, xx=gx+dx; if(yy<0||xx<0||yy>=gh||xx>=gw) continue;
+      const k = yy*gw+xx; if(lum3(bg0,k) > lum3(bg0,best)) best = k;
+    }
+    for(let c=0;c<3;c++) bg1[(gy*gw+gx)*3+c] = bg0[best*3+c];
+  }
+  const coarse = new Float32Array(gw*gh*3);
+  for(let gy=0; gy<gh; gy++) for(let gx=0; gx<gw; gx++){
+    for(let c=0;c<3;c++){
+      let sum=0, n=0;
+      for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+        const yy=gy+dy, xx=gx+dx; if(yy<0||xx<0||yy>=gh||xx>=gw) continue;
+        sum += bg1[(yy*gw+xx)*3+c]; n++;
+      }
+      coarse[(gy*gw+gx)*3+c] = sum/n;
+    }
+  }
+  const coarseAt = (fx, fy, c)=>{ // fx, fy: 원본 좌표
+    const gx = Math.max(0, Math.min(gw-1, (fx+0.5)/cell - 0.5)), gy = Math.max(0, Math.min(gh-1, (fy+0.5)/cell - 0.5));
+    const x0=Math.floor(gx), y0=Math.floor(gy), x1=Math.min(gw-1,x0+1), y1=Math.min(gh-1,y0+1), tx=gx-x0, ty=gy-y0;
+    return coarse[(y0*gw+x0)*3+c]*(1-tx)*(1-ty) + coarse[(y0*gw+x1)*3+c]*tx*(1-ty) + coarse[(y1*gw+x0)*3+c]*(1-tx)*ty + coarse[(y1*gw+x1)*3+c]*tx*ty;
+  };
+
+  // --- 촘촘한 배경 (축소본에서 글자를 지운 배경) ---
+  const sm = downscaleForAnalysis(canvas, 1000); // 그림자 경계를 따라가야 해서 너무 작게 줄이지 않음
+  const sw = sm.w, sh = sm.h, sn = sw*sh, ks = sm.scale; // ks: 원본 → 축소본 배율
+  const fine = [0,1,2].map(c=>{
+    const a = new Float32Array(sn);
+    for(let q=0;q<sn;q++) a[q] = sm.data[q*4+c];
+    // 밝은 배경 위의 어두운 획(글자·표 선)을 지움: 최대 필터 → 최소 필터 (원본 기준 약 20px 굵기까지 지워지는 반경)
+    const rr = Math.max(2, Math.round(10*ks));
+    return blur5(minMaxFilter(minMaxFilter(a,sw,sh,rr,true),sw,sh,rr,false),sw,sh);
+  });
+  // 그림자 후보: 넓은 배경보다 10% 이상 어둡고, 색이 없는(무채색) 곳
+  const cand = new Uint8Array(sn), colored = new Uint8Array(sn), ratio = new Float32Array(sn);
+  for(let y=0;y<sh;y++) for(let x=0;x<sw;x++){
+    const q=y*sw+x, ox=(x+0.5)/ks, oy=(y+0.5)/ks;
+    const fr=fine[0][q], fg=fine[1][q], fb=fine[2][q], fl=Math.max(1,fr+fg+fb);
+    const cr=coarseAt(ox,oy,0), cg=coarseAt(ox,oy,1), cb=coarseAt(ox,oy,2), cl=Math.max(1,cr+cg+cb);
+    // 색조(밝기 뺀 비율)가 종이와 비슷해야 그림자 — 칠해진 칸은 색조가 다름
+    const chroma = Math.abs(fr/fl - cr/cl) + Math.abs(fg/fl - cg/cl) + Math.abs(fb/fl - cb/cl);
+    if(chroma >= 0.06){ colored[q] = 1; continue; }
+    ratio[q] = fl/cl;
+    if(fl <= cl*0.95) cand[q] = 1; // 5% 이상 어두우면 그림자 후보 (10%로 하면 그림자 경계의 옅은 띠가 빠져 얼룩으로 남음)
+  }
+  // 가장자리에 닿거나 넓게 퍼진 덩어리만 그림자로 인정
+  const shadow = new Uint8Array(sn), label = new Int32Array(sn).fill(-1), stack = new Int32Array(sn);
+  for(let s0=0; s0<sn; s0++){
+    if(!cand[s0] || label[s0]!==-1) continue;
+    let sp=0; stack[sp++]=s0; label[s0]=s0;
+    const members=[]; let touches=false;
+    while(sp){
+      const q=stack[--sp], x=q%sw, y=(q/sw)|0; members.push(q);
+      if(x<=1||y<=1||x>=sw-2||y>=sh-2) touches=true;
+      if(x>0 && cand[q-1] && label[q-1]===-1){ label[q-1]=s0; stack[sp++]=q-1; }
+      if(x<sw-1 && cand[q+1] && label[q+1]===-1){ label[q+1]=s0; stack[sp++]=q+1; }
+      if(y>0 && cand[q-sw] && label[q-sw]===-1){ label[q-sw]=s0; stack[sp++]=q-sw; }
+      if(y<sh-1 && cand[q+sw] && label[q+sw]===-1){ label[q+sw]=s0; stack[sp++]=q+sw; }
+    }
+    let isShadow = touches || members.length > sn*0.06;
+    if(!isShadow){
+      // 작고 안쪽에 갇힌 덩어리: 인쇄된 회색 칸이면 경계 바로 바깥이 곧바로 흰 종이(비율 ≈ 1)이고,
+      // 종이의 완만한 명암 얼룩이면 바깥도 여전히 살짝 어두움 → 경계가 흐린 것은 명암으로 보고 보정
+      const off = Math.max(3, Math.round(4*ks*2));
+      let rs=0, rn=0;
+      for(const q of members){
+        const x=q%sw, y=(q/sw)|0;
+        for(const [dx,dy] of [[off,0],[-off,0],[0,off],[0,-off]]){
+          const xx=x+dx, yy=y+dy; if(xx<0||yy<0||xx>=sw||yy>=sh) continue;
+          const k=yy*sw+xx; if(label[k]===s0 || cand[k] || colored[k]) continue;
+          rs+=ratio[k]; rn++;
+        }
+      }
+      if(rn > 0 && rs/rn < 0.955) isShadow = true;
+    }
+    if(isShadow) for(const q of members) shadow[q]=1;
+  }
+  // 그림자 감쇠 지도 A (1 = 그림자 없음, 0.5 = 절반 어두움) — 넓은 배경에 곱해서 최종 배경을 만듦
+  //  · 그림자 픽셀: A = 촘촘한 배경 밝기 ÷ 넓은 배경 밝기 (그림자 경계를 그대로 따라감)
+  //  · 그림자 바깥: A = 1
+  //  · 칠해진 칸(노란 칸 등 색이 있는 곳): 알 수 없음 → 주변 값으로 채움(push-pull)
+  //    → 그림자 안의 노란 칸은 그림자만큼 밝아져 원래 색을 되찾고, 그림자 밖의 칸은 그대로
+  // 완만한 명암 판단용: 무채색 픽셀의 비율(촘촘한 배경 ÷ 넓은 배경)을 넓은 범위(짧은 변의 6%)로 평균.
+  // 종이 전체에 걸친 완만한 어두움은 평균에도 그대로 남지만, 표 안의 회색 음영 칸처럼 좁은 영역은
+  // 주변 흰 종이와 섞여 평균이 1에 가까워짐 → 음영 칸은 보정(하얗게 지움) 대상에서 빠짐
+  const rr2 = Math.max(4, Math.round(Math.min(sw,sh)*0.06));
+  const rNum = new Float32Array(sn), rDen = new Float32Array(sn);
+  for(let q=0;q<sn;q++) if(!colored[q]){ rNum[q]=ratio[q]; rDen[q]=1; }
+  const boxBlur = (a, r)=>{ // 가로·세로 누적합 박스 평균
+    const t = new Float32Array(sn), o = new Float32Array(sn);
+    for(let y=0;y<sh;y++){ let acc=0; const row=y*sw; for(let x=0;x<sw+r;x++){ if(x<sw) acc+=a[row+x]; if(x-2*r-1>=0) acc-=a[row+x-2*r-1]; const cx=x-r; if(cx>=0&&cx<sw) t[row+cx]=acc; } }
+    for(let x=0;x<sw;x++){ let acc=0; for(let y=0;y<sh+r;y++){ if(y<sh) acc+=t[y*sw+x]; if(y-2*r-1>=0) acc-=t[(y-2*r-1)*sw+x]; const cy=y-r; if(cy>=0&&cy<sh) o[cy*sw+x]=acc; } }
+    return o;
+  };
+  const rN = boxBlur(rNum, rr2), rD = boxBlur(rDen, rr2);
+  const aCh = [new Float32Array(sn), new Float32Array(sn), new Float32Array(sn)], aW = new Float32Array(sn);
+  let anyShadow = false;
+  for(let y=0;y<sh;y++) for(let x=0;x<sw;x++){
+    const q=y*sw+x;
+    let a = -1;
+    if(shadow[q]){
+      const ox=(x+0.5)/ks, oy=(y+0.5)/ks;
+      const cl = coarseAt(ox,oy,0)+coarseAt(ox,oy,1)+coarseAt(ox,oy,2);
+      a = Math.max(0.4, Math.min(1, (fine[0][q]+fine[1][q]+fine[2][q])/Math.max(1,cl)));
+      anyShadow = true;
+    } else if(!colored[q]){
+      // 무채색이면서 그림자 덩어리로 인정되지 않은 곳: 넓은 범위로 살짝 어두운(10% 이내) 완만한 명암만 보정
+      const rl = rD[q] > 0 ? rN[q]/rD[q] : 1;
+      // 넓게 봐도 꽤 어두운 곳(그림자 근처)이면 그 픽셀의 비율로 직접 보정 — 예전엔 이 경우 보정을 빠뜨려 얼룩 띠가 남았음
+      a = rl > 0.9 ? Math.min(1, rl) : Math.min(1, Math.max(0.4, ratio[q]));
+    }
+    if(a >= 0){ aCh[0][q]=a; aCh[1][q]=a; aCh[2][q]=a; aW[q]=1; }
+  }
+  let A = null;
+  if(anyShadow){
+    A = blur5(pushPullFill(aCh, aW, sw, sh)[0], sw, sh);
+  }
+  const fineAt = (a, fx, fy)=>{ // 축소본 좌표에서 양선형
+    const x = Math.max(0, Math.min(sw-1, fx)), y = Math.max(0, Math.min(sh-1, fy));
+    const x0=Math.floor(x), y0=Math.floor(y), x1=Math.min(sw-1,x0+1), y1=Math.min(sh-1,y0+1), tx=x-x0, ty=y-y0;
+    return a[y0*sw+x0]*(1-tx)*(1-ty) + a[y0*sw+x1]*tx*(1-ty) + a[y1*sw+x0]*(1-tx)*ty + a[y1*sw+x1]*tx*ty;
+  };
+
+  // --- 나누기 (배경 = 넓은 배경 × 그림자 감쇠) ---
+  const MAX_GAIN = 3; // 너무 어두운 곳(검게 칠한 영역 등)을 억지로 하얗게 만들지 않도록
+  let norm = new Float32Array(W*H*3);
+  for(let y=0;y<H;y++){
+    const sy = (y+0.5)*ks - 0.5;
+    for(let x=0;x<W;x++){
+      const a = A ? fineAt(A, (x+0.5)*ks - 0.5, sy) : 1, i=(y*W+x)*4, o=(y*W+x)*3;
+      for(let c=0;c<3;c++){
+        const b = coarseAt(x, y, c) * a;
+        norm[o+c] = d[i+c] * Math.min(MAX_GAIN, 255/Math.max(1,b)); // 255를 넘는 값도 일단 보관(잡티 측정용)
+      }
+    }
+  }
+
+  // --- 잡티 크기 측정: 종이로 보이는 픽셀(밝기 200 이상)이 255 주변에서 얼마나 흔들리는지(MAD) ---
+  const noiseOf = arr=>{
+    const devs=[];
+    for(let p=0;p<W*H;p+=13){ const l=0.299*arr[p*3]+0.587*arr[p*3+1]+0.114*arr[p*3+2]; if(l>200) devs.push(l); }
+    if(devs.length < 50) return 0;
+    devs.sort((a,b)=>a-b); const med = devs[devs.length>>1];
+    const ad = devs.map(v=>Math.abs(v-med)).sort((a,b)=>a-b);
+    return 1.4826*ad[ad.length>>1];
+  };
+  let sigma = noiseOf(norm);
+  // 잡티가 크면(어둡게 찍혀 증폭된 사진) 3×3 평균으로 한 번 다듬음 — 잡티는 약 1/3로 줄고 글자는 거의 그대로
+  if(sigma > 6){
+    const sm3 = new Float32Array(W*H*3);
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+      for(let c=0;c<3;c++){
+        let sum=0, n=0;
+        for(let dy=-1;dy<=1;dy++){ const yy=y+dy; if(yy<0||yy>=H) continue; for(let dx=-1;dx<=1;dx++){ const xx=x+dx; if(xx<0||xx>=W) continue; sum+=norm[(yy*W+xx)*3+c]; n++; } }
+        sm3[(y*W+x)*3+c] = sum/n;
+      }
+    }
+    norm = sm3; sigma = noiseOf(norm);
+  }
+
+  // --- 음영 칸(표 머리글 등 회색이 깔린 칸) 지도 ---
+  // 무채색이고, 주변 종이보다 3.5~40% 어두운 곳(그림자·완만한 명암을 뺀 뒤 기준). 이런 칸은 위의 나누기만으로는
+  // 거의 흰색에 가까워져 하얗게 날아가므로, 칸 자체의 밝기를 기준으로 다시 나눠 안의 글자를 진하게 하고
+  // 칸은 연한 회색(SHADE)으로 남김
+  const SHADE = 0.9;
+  // 음영 판단용 배경은 글자를 더 확실히 지운 것(반경 3배 — 원본 기준 약 60px 굵기까지)을 씀.
+  // 위의 촘촘한 배경은 그림자 경계를 따라가느라 반경이 작아서, 글자가 빽빽한 칸에선 글자가 덜 지워져 어둡게 남음
+  const bigR = Math.max(3, Math.round(30*ks));
+  const lumS = new Float32Array(sn);
+  for(let q=0;q<sn;q++) lumS[q] = sm.data[q*4]+sm.data[q*4+1]+sm.data[q*4+2];
+  const fineBig = blur5(minMaxFilter(minMaxFilter(lumS,sw,sh,bigR,true),sw,sh,bigR,false),sw,sh);
+  const shW = new Float32Array(sn), srAll = new Float32Array(sn);
+  for(let q=0;q<sn;q++){
+    if(colored[q] || shadow[q]) continue;
+    const rl = rD[q] > 0 ? rN[q]/rD[q] : 1;
+    const ox=(q%sw+0.5)/ks, oy=(((q/sw)|0)+0.5)/ks;
+    const cl = Math.max(1, coarseAt(ox,oy,0)+coarseAt(ox,oy,1)+coarseAt(ox,oy,2));
+    const sr = (fineBig[q]/cl) / Math.max(0.5, rl);
+    srAll[q] = sr;
+    if(sr > 0.6 && sr < 0.975) shW[q] = 1;
+  }
+  // 픽셀 단위로 판단하면 칸 안에서 군데군데만 잡혀 얼룩이 생김 → 틈을 메우고(닫힘) 자잘한 점을 지운 뒤(열림),
+  // 일정 크기 이상인 덩어리만 음영 칸으로 보고, 덩어리마다 하나의 밝기(중앙값)를 씀
+  const cr = Math.max(2, Math.round(Math.min(sw,sh)*0.006));
+  let shM = minMaxFilter(minMaxFilter(shW,sw,sh,cr,true),sw,sh,cr,false);
+  shM = minMaxFilter(minMaxFilter(shM,sw,sh,cr,false),sw,sh,cr,true);
+  // 그림자 바로 옆의 띠(그림자 경계에서 덜 보정된 부분)를 음영 칸으로 착각하지 않도록 그림자 주변을 표시
+  const shadowNear = minMaxFilter(Float32Array.from(shadow), sw, sh, Math.max(3, Math.round(Math.min(sw,sh)*0.02)), true);
+  const shLbl = new Int32Array(sn).fill(-1), stk = new Int32Array(sn);
+  const shMask = new Float32Array(sn), shLevel = new Float32Array(sn).fill(1);
+  for(let s0=0; s0<sn; s0++){
+    if(shM[s0] < 0.5 || shLbl[s0] !== -1) continue;
+    let sp=0; stk[sp++]=s0; shLbl[s0]=s0; const mem=[]; let edgeTouch=false, nearShadow=0;
+    while(sp){
+      const q=stk[--sp], x=q%sw, y=(q/sw)|0; mem.push(q);
+      if(x<=1||y<=1||x>=sw-2||y>=sh-2) edgeTouch=true;
+      if(shadowNear[q] > 0.5) nearShadow++;
+      if(x>0 && shM[q-1]>=0.5 && shLbl[q-1]===-1){ shLbl[q-1]=s0; stk[sp++]=q-1; }
+      if(x<sw-1 && shM[q+1]>=0.5 && shLbl[q+1]===-1){ shLbl[q+1]=s0; stk[sp++]=q+1; }
+      if(y>0 && shM[q-sw]>=0.5 && shLbl[q-sw]===-1){ shLbl[q-sw]=s0; stk[sp++]=q-sw; }
+      if(y<sh-1 && shM[q+sw]>=0.5 && shLbl[q+sw]===-1){ shLbl[q+sw]=s0; stk[sp++]=q+sw; }
+    }
+    if(mem.length < sn*0.002) continue;
+    // 인쇄된 음영 칸은 종이 안쪽에 있고 그림자와 무관함 — 사진 가장자리에 닿거나 그림자에 붙은 덩어리는 얼룩·그림자 띠로 봄
+    if(edgeTouch || nearShadow > mem.length*0.1) continue;
+    const vals = mem.map(q=>srAll[q]).filter(v=>v>0.6 && v<0.975).sort((a,b)=>a-b);
+    if(vals.length < mem.length*0.3) continue;
+    const lv = vals[vals.length>>1];
+    for(const q of mem){ shMask[q]=1; shLevel[q]=lv; }
+  }
+  const shWs = blur5(shMask, sw, sh);
+  const shNum = blur5(shMask.map((m,q)=> m*shLevel[q]), sw, sh);
+  const shadeAt = (x, y)=>{ // → [가중치, 칸 밝기 비율]
+    const fx = (x+0.5)*ks - 0.5, fy = (y+0.5)*ks - 0.5;
+    const w = fineAt(shWs, fx, fy);
+    if(w < 0.02) return null;
+    return [Math.min(1, w*1.5), Math.max(0.5, Math.min(1, fineAt(shNum, fx, fy)/w))];
+  };
+  const mapVal = (lut, v, sh)=>{
+    const base = lut[Math.min(255, v)|0];
+    if(!sh) return base;
+    const alt = lut[Math.min(255, v/sh[1])|0] * SHADE;
+    return base*(1-sh[0]) + alt*sh[0];
+  };
+
+  if(scanMode === 'bw'){
+    // 흑백 — "깨끗한 회색조": 배경은 흰색, 글자는 진하게 하되 글자 가장자리의 중간 톤은 남김.
+    // (검정/흰색 둘로만 나누면 획이 두꺼워지고 붙어서 팩스처럼 뭉개짐 — 회색조는 원래 획 굵기가 그대로 유지되고,
+    //  OCR도 자체 이진화를 하므로 이쪽이 더 유리함)
+    // 직인 영역 찾기 — 빨간 픽셀 덩어리 중 정사각형에 가깝고 빽빽한 것(문서 짧은 변의 4~30% 크기)만 직인으로 봄.
+    // 빨간 글씨(숫자·강조 문구)는 작거나 가로세로로 길게 늘어서 있어서 직인으로 잡히지 않음 → 일반 밝기대로 진하게 남음
+    const stampMask = findStampRegions(norm, W, H);
+    const WHITE = Math.max(222, Math.min(240, 255 - 3*sigma)), BLACK = 60;
+    const lut = new Uint8ClampedArray(256);
+    for(let t=0; t<256; t++){
+      const k = Math.max(0, Math.min(1, (t-BLACK)/(WHITE-BLACK)));
+      lut[t] = Math.round(255 * Math.pow(k, 1.5)); // 1.5 감마: 중간 톤은 남기면서 글자 쪽을 진하게
+    }
+    for(let p=0;p<W*H;p++){
+      const r=Math.min(255,norm[p*3]), g=Math.min(255,norm[p*3+1]), b=Math.min(255,norm[p*3+2]);
+      let lum = 0.299*r + 0.587*g + 0.114*b;
+      if(stampMask && stampMask[p]){
+        // 직인: 지우지 않고 연한 회색으로 남김 (증빙서류에서 직인이 있다는 게 보여야 함).
+        // 붉을수록 밝게 올려서 연한 회색이 되고, 직인 밑의 검은 글자는 붉은 기가 없어 그대로 진하게 남음
+        const red = Math.max(0, Math.min(1, (r - Math.max(g,b) - 20)/40));
+        lum = Math.max(lum, lum + (205 - lum)*red);
+      }
+      const o = mapVal(lut, lum, shadeAt(p%W, (p/W)|0));
+      d[p*4]=d[p*4+1]=d[p*4+2]=o;
+    }
+  } else {
+    // 컬러 — 거의 흰 부분은 완전한 흰색, 글자 쪽은 조금 더 진하게.
+    // 흰색 기준은 흐린 선과 연한 음영 칸이 날아가지 않게 높게 두되(최대 242), 잡티가 크면 조금 낮춤(최소 228 —
+    // 더 낮추면 표의 회색 음영 칸까지 하얗게 지워짐)
+    // 글자 쪽은 1.45 감마로 진하게 — 배경으로 나누면 글자도 함께 밝아지므로(약 1.2배), 흐린 사진의 글자가
+    // 원본보다 옅어 보이지 않게 중간 톤을 끌어내림. 직인·형광펜 같은 진한 색은 거의 그대로 유지됨
+    const WHITE = Math.max(228, Math.min(242, 255 - 3*sigma)), BLACK = 45;
+    const lut = new Uint8ClampedArray(256);
+    for(let t=0; t<256; t++){
+      const k = Math.max(0, Math.min(1, (t-BLACK)/(WHITE-BLACK)));
+      lut[t] = Math.round(255 * Math.pow(k, 1.45));
+    }
+    for(let p=0;p<W*H;p++){
+      const sh = shadeAt(p%W, (p/W)|0);
+      d[p*4] = mapVal(lut, norm[p*3], sh); d[p*4+1] = mapVal(lut, norm[p*3+1], sh); d[p*4+2] = mapVal(lut, norm[p*3+2], sh);
+    }
+  }
+  // --- 2차 정리: 남은 얼룩 지우기 ---
+  // 경계가 흐릿한 명암 얼룩(살짝 보랏빛·푸른빛이 도는 것 포함)은 그림자로도, 넓은 명암으로도 잡히지 않아 남음.
+  // 결과물에서 글자를 지운 배경을 채널별로 한 번 더 구해서, 살짝(30% 이내) 어둡고 색이 옅은 곳은 흰색으로 다시 맞춤.
+  // 확실히 색칠된 곳(노란 칸·파란 머리글 등, 채도 큼)과 음영 칸은 건드리지 않음
+  {
+    const tmp = document.createElement('canvas'); tmp.width = W; tmp.height = H;
+    tmp.getContext('2d').putImageData(img, 0, 0);
+    const s2 = downscaleForAnalysis(tmp, 1200), w2 = s2.w, h2 = s2.h, k2 = s2.scale, n2 = w2*h2;
+    // 글자 획·표 선(원본 기준 약 10px 굵기까지)만 지우는 작은 반경 — 반경이 크면 폭 넓은 얼룩까지 "굵은 획"으로 보고 지워버려서
+    // 정작 얼룩이 배경으로 잡히지 않음. 굵은 글씨 획은 충분히 어두워서(180 미만) 아래에서 제외됨
+    const rr3 = Math.max(2, Math.round(5*k2));
+    const R2 = [0,1,2].map(c=>{
+      const a = new Float32Array(n2); for(let q=0;q<n2;q++) a[q] = s2.data[q*4+c];
+      return blur5(blur5(minMaxFilter(minMaxFilter(a,w2,h2,rr3,true),w2,h2,rr3,false),w2,h2),w2,h2);
+    });
+    // 확실히 색칠된 곳: 원래 픽셀 채도가 큰 곳(그 주변 포함)
+    const C2 = new Float32Array(n2);
+    for(let q=0;q<n2;q++){ const r=s2.data[q*4], g=s2.data[q*4+1], b=s2.data[q*4+2]; if(Math.max(r,g,b) - Math.min(r,g,b) > 45) C2[q] = 1; }
+    const colNear = minMaxFilter(C2, w2, h2, rr3, true);
+    const at2 = (a, x, y)=>{
+      const fx = Math.max(0, Math.min(w2-1, (x+0.5)*k2 - 0.5)), fy = Math.max(0, Math.min(h2-1, (y+0.5)*k2 - 0.5));
+      const x0=Math.floor(fx), y0=Math.floor(fy), x1=Math.min(w2-1,x0+1), y1=Math.min(h2-1,y0+1), tx=fx-x0, ty=fy-y0;
+      return a[y0*w2+x0]*(1-tx)*(1-ty) + a[y0*w2+x1]*tx*(1-ty) + a[y1*w2+x0]*(1-tx)*ty + a[y1*w2+x1]*tx*ty;
+    };
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+      const br = at2(R2[0],x,y), bg_ = at2(R2[1],x,y), bb = at2(R2[2],x,y);
+      const mn = Math.min(br,bg_,bb), mx = Math.max(br,bg_,bb);
+      if(mn >= 252) continue;                       // 이미 흰색
+      if(mn < 180 || mx - mn > 35) continue;        // 너무 어둡거나(검은 띠 등) 배경 자체가 색칠된 곳은 그대로
+      if(at2(colNear, x, y) > 0.2) continue;        // 색칠된 칸·색 글씨 근처는 그대로
+      const sh = shadeAt(x, y); if(sh && sh[0] > 0.1) continue; // 음영 칸은 그대로
+      const i=(y*W+x)*4;
+      d[i] = Math.min(255, d[i]*255/br); d[i+1] = Math.min(255, d[i+1]*255/bg_); d[i+2] = Math.min(255, d[i+2]*255/bb);
+    }
+  }
+  ctx.putImageData(img,0,0);
+  // 멀리 찍혀 흐린 쪽(원근으로 해상도가 낮은 쪽)만 과하지 않게 한 번 더 또렷하게 — 이미 또렷한 곳은 거의 건드리지 않음
+  sharpenBlurryRegions(canvas, 0.6);
+  return canvas;
+}
+
 // 노이즈 제거 — 주변 8칸과 동떨어진 "고립된 점"(스캔 잡티·먼지·소금-후추 노이즈)만 3x3 중앙값으로 바꿈.
 // 예전엔 모든 픽셀을 3x3 중앙값으로 바꿔서, 1~2px 두께의 작은 글자 획까지 잡티처럼 뭉개졌음.
 // 글자 획 픽셀은 같은 획의 이웃 픽셀도 비슷하게 어두우므로 "고립"이 아니어서 그대로 남음
@@ -3647,12 +4113,15 @@ const PROCESSORS = {
   autoCrop: autoCropDocument,
   deskew: deskewDocument,
   removeLines: removeTableLines,
+  scanEffect: scanEffect,
 };
 // 항상 이 순서로 적용 (체크 안 한 건 건너뜀)
 // signatureExtract는 사용자가 "원본 이미지" 좌표 기준으로 영역을 골랐기 때문에, 다른 단계가 크기를 바꾸기 전인
 // 맨 처음에 실행해야 좌표가 어긋나지 않음. 그다음 배경과 함께 찍힌 사진이면 자동크롭으로 문서만 추리고,
-// 기울어졌으면 반듯하게 편 다음, 노이즈 제거 → 표 선 제거(반듯해야 직선 인식이 잘 됨) → 여백 정리 순으로 진행.
-const PROCESS_ORDER = ['signatureExtract','autoCrop','deskew','denoise','removeLines','trimMargin','grayscale','contrast','sharpen','stampExtract'];
+// 기울어졌으면 반듯하게 편 다음, 스캔 효과(그림자 제거) → 노이즈 제거 → 표 선 제거(반듯해야 직선 인식이 잘 됨) → 여백 정리 순으로 진행.
+// 스캔 효과를 표 선 제거보다 먼저 하는 이유: 그림자 경계가 어두운 선으로 잡혀 표 선으로 오인되는 걸 막기 위해.
+// 원근 보정 단계에서 채운 빈 칸·가장자리도 스캔 효과에서 함께 하얗게 정리되어 이음매가 남지 않음
+const PROCESS_ORDER = ['signatureExtract','autoCrop','deskew','scanEffect','denoise','removeLines','trimMargin','grayscale','contrast','sharpen','stampExtract'];
 
 /* ---------------------------------------------------------
    처리 실행
