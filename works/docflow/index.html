@@ -236,7 +236,7 @@
   <div class="inapp-banner" id="inappBanner" role="status"></div>
   <div class="top">
     <div class="top-title">📄 DocFlow</div>
-    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-08-02</div>
+    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-08-03</div>
     <div class="top-sub">문서 이미지를 업로드하고 필요한 처리만 체크하면 한 번에 정리해드려요.</div>
     <div class="badge-local">🔒 이 페이지에서 하는 모든 처리는 브라우저 안에서만 이뤄져요 — 서버로 업로드되지 않아요</div>
   </div>
@@ -297,6 +297,11 @@
       <button class="btn-ghost" id="rotRightBtn" title="결과를 오른쪽으로 90° 돌리기">↻ 90°</button>
     </div>
     <div class="corner-flash" id="cornerFlash"></div>
+    <div id="cornerDebug" style="display:none;margin-top:12px;">
+      <div class="gen-hint">🔧 진단 화면 — 이 화면을 캡처해서 보내주시면 원인을 확인할 수 있어요</div>
+      <canvas id="cornerDebugCanvas" style="width:100%;max-width:560px;display:block;border-radius:8px;margin-top:6px;"></canvas>
+      <pre id="cornerDebugText" style="white-space:pre-wrap;font-size:10.5px;color:var(--muted);margin-top:6px;"></pre>
+    </div>
   </div>
 
   <div class="section">
@@ -782,16 +787,49 @@ fileInput.addEventListener('change', e=>{
 // 결과물은 따로 긴 변 2400px(A4 약 205dpi)로 제한하므로 줄여도 글자 화질에는 거의 영향이 없음
 const MAX_INPUT_SIDE = 3000;
 // 결과: 줄였으면 { dataUrl, width, height }, 줄일 필요 없으면 null
+// 브라우저의 drawImage 축소·JPEG 재압축은 브라우저마다 결과 픽셀이 달라서, 같은 사진도 휴대폰과 PC에서
+// 모서리 검출 결과가 달라졌음 → 원본 픽셀을 칸 면적 비율대로 직접 평균(면적 리샘플링)하고, 재압축 없이 캔버스 그대로 씀
 function shrinkLargeImage(img){
-  const long = Math.max(img.width, img.height);
+  const W = img.width, H = img.height, long = Math.max(W, H);
   if(long <= MAX_INPUT_SIDE) return null;
   const s = MAX_INPUT_SIDE / long;
-  const c = document.createElement('canvas');
-  c.width = Math.round(img.width*s); c.height = Math.round(img.height*s);
-  const ctx = c.getContext('2d');
-  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(img, 0, 0, c.width, c.height);
-  return { dataUrl: c.toDataURL('image/jpeg', 0.95), width: c.width, height: c.height };
+  const w = Math.round(W*s), h = Math.round(H*s);
+  const src = cloneCanvasFromImage(img).getContext('2d').getImageData(0,0,W,H).data;
+  // 1차원 면적 가중치: 출력 칸 i가 덮는 원본 구간 [i/s, (i+1)/s)
+  const weights = (inN, outN)=>{
+    const r = inN/outN, list = [];
+    for(let i=0;i<outN;i++){
+      const a = i*r, b = (i+1)*r, ws = [];
+      for(let k=Math.floor(a); k<Math.min(inN, Math.ceil(b)); k++){
+        const wv = Math.min(b, k+1) - Math.max(a, k);
+        if(wv > 0) ws.push(k, wv/r);
+      }
+      list.push(ws);
+    }
+    return list;
+  };
+  const wx = weights(W, w), wy = weights(H, h);
+  const tmp = new Float32Array(w*H*3);
+  for(let y=0;y<H;y++){
+    const row = y*W*4;
+    for(let x=0;x<w;x++){
+      const ws = wx[x]; let r=0, g=0, b=0;
+      for(let k=0;k<ws.length;k+=2){ const i=row+ws[k]*4, wv=ws[k+1]; r+=src[i]*wv; g+=src[i+1]*wv; b+=src[i+2]*wv; }
+      const o=(y*w+x)*3; tmp[o]=r; tmp[o+1]=g; tmp[o+2]=b;
+    }
+  }
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const ctx = c.getContext('2d'), out = ctx.createImageData(w, h), od = out.data;
+  for(let y=0;y<h;y++){
+    const ws = wy[y];
+    for(let x=0;x<w;x++){
+      let r=0, g=0, b=0;
+      for(let k=0;k<ws.length;k+=2){ const o=(ws[k]*w+x)*3, wv=ws[k+1]; r+=tmp[o]*wv; g+=tmp[o+1]*wv; b+=tmp[o+2]*wv; }
+      const i=(y*w+x)*4; od[i]=r; od[i+1]=g; od[i+2]=b; od[i+3]=255;
+    }
+  }
+  ctx.putImageData(out, 0, 0);
+  return { canvas: c, dataUrl: c.toDataURL('image/jpeg', 0.9), width: w, height: h };
 }
 
 function loadFile(file){
@@ -817,9 +855,8 @@ function loadFile(file){
         updateProcessBtn();
       };
       if(!small){ use(img, e.target.result, ''); return; }
-      const img2 = new Image();
-      img2.onload = ()=> use(img2, small.dataUrl, ` (원본 ${img.width}×${img.height}이 커서 줄여서 처리해요 — 글자 화질엔 영향 거의 없어요)`);
-      img2.src = small.dataUrl;
+      // 처리에는 줄인 캔버스를 그대로 씀(재압축 없음), 미리보기 표시용으로만 dataURL 사용
+      use(small.canvas, small.dataUrl, ` (원본 ${img.width}×${img.height}이 커서 줄여서 처리해요 — 글자 화질엔 영향 거의 없어요)`);
     };
     img.src = e.target.result;
   };
@@ -1017,6 +1054,37 @@ function previewAutoRotation(){
   return st.autoRot;
 }
 
+// 진단 화면 — 주소에 ?debug=1을 붙이면 표시. 검출한 직선(파랑)·고른 네 변(분홍)·모서리(초록)와 숫자 정보를 보여줌
+const DEBUG_MODE = /[?&]debug=1/.test(location.search);
+function renderCornerDebug(det){
+  if(!DEBUG_MODE || !originalImage) return;
+  const box = document.getElementById('cornerDebug'); box.style.display = '';
+  const c = cloneCanvasFromImage(originalImage);
+  const E = computeColorEdges(c, 640), lines = houghLines(E, 32);
+  const W = c.width, H = c.height, P = 0.1, sc = 800 / (Math.max(W,H)*(1+2*P));
+  const cv = document.getElementById('cornerDebugCanvas');
+  cv.width = W*(1+2*P)*sc; cv.height = H*(1+2*P)*sc;
+  const x = cv.getContext('2d'); x.fillStyle = '#222'; x.fillRect(0,0,cv.width,cv.height);
+  const ox = W*P*sc, oy = H*P*sc, k = W/E.sw;
+  x.drawImage(c, ox, oy, W*sc, H*sc);
+  x.lineWidth = 1; x.strokeStyle = 'rgba(0,200,255,0.55)';
+  lines.forEach(l=>{ const e = clipLineToRect(l, E.sw, E.sh); if(!e) return; x.beginPath(); x.moveTo(ox+e[0].x*k*sc, oy+e[0].y*k*sc); x.lineTo(ox+e[1].x*k*sc, oy+e[1].y*k*sc); x.stroke(); });
+  const q = det && (det.corners || det.guess);
+  if(q){ x.strokeStyle = '#ff3cff'; x.lineWidth = 3; x.beginPath(); q.forEach((p,i)=>{ const X=ox+p.x*sc, Y=oy+p.y*sc; i?x.lineTo(X,Y):x.moveTo(X,Y); }); x.closePath(); x.stroke();
+    x.fillStyle = '#3f3'; q.forEach(p=>{ x.beginPath(); x.arc(ox+p.x*sc, oy+p.y*sc, 5, 0, Math.PI*2); x.fill(); }); }
+  // 처리 결과와 같은 픽셀인지 비교할 수 있게 원본 픽셀 요약값(지문)도 표시
+  const d = c.getContext('2d').getImageData(0,0,W,H).data; let h1 = 0;
+  for(let i=0;i<d.length;i+=4*997) h1 = (h1*31 + d[i] + d[i+1]*3 + d[i+2]*7) >>> 0;
+  document.getElementById('cornerDebugText').textContent = [
+    `${(document.querySelector('.top div[style*="font-size:10px"]')||{}).textContent||''}`,
+    `입력 ${W}×${H}  픽셀지문 ${h1.toString(16)}`,
+    `검출 ${det ? det.method+'/'+det.status+' '+(det.reason||'') : '-'}  변품질 ${det && det.sides ? JSON.stringify(det.sides) : '-'}`,
+    `모서리 ${q ? JSON.stringify(q.map(p=>[Math.round(p.x),Math.round(p.y)])) : '-'}`,
+    `직선 ${lines.length}개`,
+    navigator.userAgent,
+  ].join('\n');
+}
+
 function runCornerDetect(){
   const key = cornerState.key;
   cornerState.detecting = true;
@@ -1032,6 +1100,7 @@ function runCornerDetect(){
     cornerState.editing = cornerNeedsCheck(det);
     cornerState.autoRot = det.status === 'ok' ? estimateAutoRotation(det.corners) : 0;
     renderCorners();
+    renderCornerDebug(det);
   }, 30);
 }
 
