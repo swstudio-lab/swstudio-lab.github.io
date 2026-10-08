@@ -310,7 +310,7 @@
   </div>
 
   <button class="btn-primary" id="processBtn" disabled>처리하기</button>
-  <div class="spinner-line" id="spinnerLine"><span class="spinner-dot"></span> 처리하는 중이에요...</div>
+  <div class="spinner-line" id="spinnerLine"><span class="spinner-dot"></span> <span id="spinnerText">처리하는 중이에요...</span></div>
   <div class="warning-box" id="warningBox"></div>
 
   <div class="preview-wrap" id="previewWrap">
@@ -559,7 +559,7 @@ function saveCanvasFile(canvas, filename, mime, quality){
 
 const SECTIONS = [
   { title:'이미지 보정', items:[
-    {id:'deskew', name:'기울기 자동 보정', desc:'기울어진 문서를 똑바로 맞춰요. (배경이 있는 사진이면 "문서 자동 크롭"도 같이 체크해주세요)', ready:true},
+    {id:'deskew', name:'기울기 자동 보정', desc:'기울어진 문서를 똑바로 맞춰요. ("문서 자동 크롭 · 원근 보정"을 켜면 그 안에서 함께 맞춰져요)', ready:true},
     {id:'trimMargin', name:'여백 자동 제거', desc:'문서 바깥의 불필요한 여백을 잘라내요.', ready:true},
     {id:'denoise', name:'노이즈 제거', desc:'스캔할 때 생기는 잡티·얼룩을 부드럽게 줄여요.', ready:true},
     {id:'scanEffect', name:'스캔 효과 (그림자 제거)', desc:'그림자와 누런·푸르스름한 조명색을 지워 배경을 하얗게, 글자와 표 선은 또렷하게 만들어요. 스캐너로 스캔한 것처럼 보여요.', ready:true},
@@ -582,8 +582,9 @@ const PRESETS = [
   {id:'stamp', name:'도장 추출하기', emoji:'🔴', checks:['trimMargin','denoise','sharpen','stampExtract'], format:'png', ready:true},
   {id:'report', name:'보고서 삽입', emoji:'📋', checks:['trimMargin','sharpen','contrast'], format:'jpg', ready:true},
   {id:'signature', name:'서명 추출하기', emoji:'✍️', checks:['denoise','signatureExtract','contrast'], format:'png', ready:true},
-  {id:'ocr', name:'OCR 최적화', emoji:'🔍', checks:['deskew','scanEffect','trimMargin','denoise','removeLines','grayscale'], format:'png', scanMode:'bw', ready:true},
-  {id:'archive', name:'문서 보관', emoji:'📁', checks:['autoCrop','deskew','scanEffect','denoise'], format:'pdf', scanMode:'color', ready:true},
+  // 기울기 자동 보정은 원근 보정에, 흑백 변환은 스캔 효과(흑백)에 포함되므로 프리셋에 넣지 않음 (INCLUDED_BY 참고)
+  {id:'ocr', name:'OCR 최적화', emoji:'🔍', checks:['autoCrop','scanEffect','trimMargin','denoise','removeLines'], format:'png', scanMode:'bw', ready:true},
+  {id:'archive', name:'문서 보관', emoji:'📁', checks:['autoCrop','scanEffect','denoise'], format:'pdf', scanMode:'color', ready:true},
   {id:'custom', name:'직접 선택하기', emoji:'🎛️', checks:[], format:null, ready:true},
 ];
 
@@ -593,6 +594,15 @@ const FORMATS = [
   {id:'webp', name:'WEBP'},
   {id:'pdf', name:'PDF'},
 ];
+
+// 다른 항목에 이미 포함된 항목 — 같이 돌리면 같은 일을 두 번 하게 됨. 포함한 항목이 켜져 있으면 흐리게 표시하고 체크 못 하게 함
+//  · 기울기 자동 보정: 원근 보정이 펼 때 미세 기울기를 맞추고, 펴지 않는 경우(종이 테두리 없는 스캔본 등)에도 기울기를 맞춤
+//  · 흑백 변환: 스캔 효과의 흑백 모드가 이미 회색조로 만듦
+const INCLUDED_BY = {
+  deskew: ()=> checked.has('autoCrop') ? '원근 보정에 포함됨' : null,
+  grayscale: ()=> checked.has('scanEffect') && scanMode === 'bw' ? '스캔 효과(흑백)에 포함됨' : null,
+};
+const includedIn = id=> INCLUDED_BY[id] ? INCLUDED_BY[id]() : null;
 
 const ALL_ITEMS = SECTIONS.flatMap(s=>s.items);
 const ITEM_MAP = Object.fromEntries(ALL_ITEMS.map(i=>[i.id,i]));
@@ -677,6 +687,8 @@ function renderPresets(){
 function renderSections(){
   const wrap = document.getElementById('sectionsWrap');
   wrap.innerHTML = '';
+  // 다른 항목에 포함된 항목은 체크를 풀어 둠 (포함한 항목을 끄면 다시 고를 수 있음)
+  for(const id of Object.keys(INCLUDED_BY)) if(includedIn(id)) checked.delete(id);
   SECTIONS.forEach(sec=>{
     const group = document.createElement('div');
     group.innerHTML = `<div style="font-size:11.5px;color:var(--muted);margin:12px 0 6px;">${sec.title}</div>`;
@@ -684,17 +696,19 @@ function renderSections(){
     list.className = 'check-group';
     sec.items.forEach(item=>{
       const row = document.createElement('div');
-      row.className = 'check-row' + (!item.ready ? ' disabled' : '');
+      const included = includedIn(item.id);
+      row.className = 'check-row' + (!item.ready || included ? ' disabled' : '');
       const on = checked.has(item.id);
+      const tag = !item.ready ? '준비중' : included;
       row.innerHTML = `
         <div class="box ${on?'on':''}"></div>
         <div style="flex:1;">
           <div class="check-name">${item.name}</div>
           <div class="check-desc">${item.desc}</div>
         </div>
-        ${!item.ready ? '<div class="check-soon">준비중</div>' : ''}
+        ${tag ? `<div class="check-soon">${tag}</div>` : ''}
       `;
-      if(item.ready){
+      if(item.ready && !included){
         row.onclick = ()=>{
           selectedPreset = null; // 수동으로 건드리면 프리셋 선택 해제
           if(checked.has(item.id)) checked.delete(item.id);
@@ -718,6 +732,7 @@ function renderSections(){
   });
   updateSignatureSelectUI();
   updateCornerUI();
+  updateProcessBtn();
 }
 
 // "스캔 효과" 하위 옵션 — 컬러/흑백
@@ -3336,19 +3351,62 @@ function autoCropCore(canvas){
   }
   const det = (sameImage && cornerState.det) || detectDocumentCorners(canvas);
   if(det.status === 'fullFrame'){
-    // 직선 방식이 종이 후보를 찾긴 했지만 확신이 없었던 경우엔 알려줌 (스캔본처럼 후보 자체가 없으면 조용히 통과)
-    if(det.linesReason === 'weak-sides') return { canvas, warning: '📐 문서의 네 모서리를 확실하게 찾지 못해서, 원근 보정 없이 원본을 그대로 사용했어요. ("문서 모서리"에서 직접 맞출 수 있어요)' };
-    return canvas;
+    // 사진 전체가 문서로 보임 — 펴지는 않고, 살짝 비뚤게 들어갔으면 기울기만 맞춤
+    const st = straightenUnwarped(canvas);
+    // 가장자리까지 종이색인 스캔본(배경 없음): 경고할 일이 아님 — 기울기를 바로잡았을 때만 담담하게 알림
+    if(edgesArePaper(canvas)) return st.skew ? { canvas: st.canvas, warning: '📐 문서가 살짝 기울어져 들어가서 반듯하게 바로잡았어요.' } : st.canvas;
+    // 배경이 있는 사진인데 네 모서리를 찾지 못한 경우에만 경고
+    return { canvas: st.canvas, warning: st.skew
+      ? '📐 문서의 네 모서리를 확실하게 찾지 못해서 원근 보정은 하지 않고, 기울기만 바로잡았어요. ("문서 모서리"에서 직접 맞출 수 있어요)'
+      : '📐 문서의 네 모서리를 확실하게 찾지 못해서, 원근 보정 없이 원본을 그대로 사용했어요. ("문서 모서리"에서 직접 맞출 수 있어요)' };
   }
   if(det.status === 'ok'){
     const done = finishWarpedDocument(canvas, det.corners);
     if(done) return done;
   }
   const boxed = boxCropDocument(canvas);
+  const boxedCanvas = boxed instanceof HTMLCanvasElement ? boxed : boxed.canvas;
+  // 네모 크롭으로 대체된 경우(또는 이미 문서가 사진에 꽉 찬 경우)도 기울기는 맞춤 — 펼 때는 finishWarpedDocument 안에서 맞춤
+  const st = straightenUnwarped(boxedCanvas);
   if(det.status === 'uncertain' && !(boxed instanceof HTMLCanvasElement) && !boxed.warning){
-    return { canvas: boxed.canvas, warning: '📐 문서의 네 모서리를 확실하게 찾지 못해서, 원근 보정 없이 네모 크롭만 했어요. ("문서 모서리"에서 직접 맞출 수 있어요)' };
+    return { canvas: st.canvas, warning: '📐 문서의 네 모서리를 확실하게 찾지 못해서, 원근 보정 없이 네모 크롭만 했어요. ("문서 모서리"에서 직접 맞출 수 있어요)' };
   }
-  return boxed;
+  return boxed instanceof HTMLCanvasElement ? st.canvas : { ...boxed, canvas: st.canvas };
+}
+
+// 사진 가장자리가 모두 종이로 보이는지(=책상 등 배경이 없는 스캔본) — 가장자리 띠(짧은 변의 4%)의 85% 이상이
+// 가운데 종이와 밝기·색조가 비슷하면 종이로 봄
+function edgesArePaper(canvas){
+  const { data: d, w, h } = downscaleForAnalysis(canvas, 240);
+  const px = [];
+  for(let y=Math.round(h*0.2); y<h*0.8; y++) for(let x=Math.round(w*0.2); x<w*0.8; x++){
+    const i=(y*w+x)*4, sum=d[i]+d[i+1]+d[i+2]+1;
+    px.push([sum, d[i]/sum, d[i+1]/sum]);
+  }
+  px.sort((a,b)=>b[0]-a[0]);
+  const top = px.slice(0, Math.max(1, Math.round(px.length*0.3))); // 가운데의 밝은 쪽 30% = 종이
+  const med = k=>{ const v=top.map(t=>t[k]).sort((a,b)=>a-b); return v[v.length>>1]; };
+  const pSum = med(0), pR = med(1), pG = med(2);
+  const b = Math.max(2, Math.round(Math.min(w,h)*0.04));
+  let n=0, ok=0;
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+    if(x>=b && y>=b && x<w-b && y<h-b) continue;
+    const i=(y*w+x)*4, sum=d[i]+d[i+1]+d[i+2]+1;
+    n++;
+    if(sum >= pSum*0.85 && Math.abs(d[i]/sum - pR) + Math.abs(d[i+1]/sum - pG) < 0.05) ok++;
+  }
+  return ok >= n*0.85;
+}
+
+// 펴지 않은 문서의 미세 기울기 보정 (±10°, 계산이 확실할 때만) — 원근 보정을 켜면 "기울기 자동 보정"을 따로 안 돌려도 되게.
+// 돌리면서 생긴 모서리 빈 칸은 원근 보정과 같은 방식(종이색 채우기 / 빈 부분 잘라내기)으로 정리
+// 결과 { canvas, skew(돌린 각도, 안 돌렸으면 0) }
+function straightenUnwarped(canvas){
+  const est = estimateSkew(canvas, 10);
+  if(!est.confident || Math.abs(est.angle) < 0.5) return { canvas, skew: 0 };
+  const rs = rotateSmallAngle(canvas, est.angle);
+  const cropped = outsideMode === 'crop' ? cropOutsideRegion(rs.canvas, rs.outside) : null;
+  return { canvas: cropped || fillOutsideRegion(rs.canvas, rs.outside), skew: +est.angle.toFixed(1) };
 }
 
 // 기울기 추정 — 글자 줄(가로선) 프로파일이 가장 또렷해지는 각도를 찾음
@@ -3857,6 +3915,56 @@ function scanEffect(canvas){
       d[i] = Math.min(255, d[i]*255/br); d[i+1] = Math.min(255, d[i+1]*255/bg_); d[i+2] = Math.min(255, d[i+2]*255/bb);
     }
   }
+  // --- 3차 정리(흑백만): 연하게 칠해진 칸의 얼룩 펴기 ---
+  // 연한 하늘색 머리글처럼 넓게 이어진 연한 칸은 "완만한 명암"으로 보정돼 흰색 기준선 바로 근처에 걸리고,
+  // 흑백에서 흰 점·연회색 점이 섞인 얼룩이 됐음(원본보다 나빠지고, 열 이름을 OCR이 잘못 읽을 수 있음).
+  // 글자 가장자리가 아닌 곳에서 연회색 점(205~254)이 점점이 섞인 곳만 찾아 바탕을 고른 흰색으로 폄.
+  //  · 글자(150 미만)와 그 2px 안(글자 가장자리의 중간 톤)은 그대로 — 글자 굵기·모양 유지
+  //  · 표 선·진한 회색(205 미만)은 그대로
+  //  · 고르게 회색이 깔린 곳(연회색 점이 75% 이상으로 빽빽하고 평균이 235 미만 = 인쇄된 회색 칸)과
+  //    위의 음영 칸 지도에 잡힌 곳은 그대로. 빽빽해도 흰색에 가까운(평균 235 이상) 얼룩은 폄
+  if(scanMode === 'bw'){
+    const N = W*H;
+    const nearInk = new Uint8Array(N), tmpM = new Uint8Array(N);
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+      const p=y*W+x; if(d[p*4] >= 150) continue;
+      for(let k=Math.max(0,x-2); k<=Math.min(W-1,x+2); k++) tmpM[y*W+k] = 1;
+    }
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+      const p=y*W+x; if(!tmpM[p]) continue;
+      for(let k=Math.max(0,y-2); k<=Math.min(H-1,y+2); k++) nearInk[k*W+x] = 1;
+    }
+    const speck = new Float32Array(N), speckV = new Float32Array(N);
+    for(let p=0;p<N;p++){ const v=d[p*4]; if(v >= 205 && v < 255 && !nearInk[p]){ speck[p] = 1; speckV[p] = v; } }
+    // (2r+1)² 상자 합 (가로 누적 → 세로 누적) — 연회색 점 밀도·평균 밝기용
+    const r = Math.max(4, Math.round(Math.max(W,H)/340)), area = (2*r+1)*(2*r+1);
+    const boxSum = src=>{
+      const rowS = new Float32Array(N), out = new Float32Array(N), col = new Float64Array(W);
+      for(let y=0;y<H;y++){
+        let acc=0; const row=y*W;
+        for(let x=0;x<W+r;x++){
+          if(x<W) acc += src[row+x];
+          if(x-2*r-1 >= 0) acc -= src[row+x-2*r-1];
+          const cx = x-r; if(cx>=0 && cx<W) rowS[row+cx] = acc;
+        }
+      }
+      for(let y=0;y<H+r;y++){
+        if(y<H) for(let x=0;x<W;x++) col[x] += rowS[y*W+x];
+        if(y-2*r-1 >= 0) for(let x=0;x<W;x++) col[x] -= rowS[(y-2*r-1)*W+x];
+        const cy = y-r; if(cy>=0 && cy<H) for(let x=0;x<W;x++) out[cy*W+x] = col[x];
+      }
+      return out;
+    };
+    const cnt = boxSum(speck), sumV = boxSum(speckV);
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+      const p=y*W+x;
+      if(!speck[p]) continue;
+      const dens = cnt[p]/area;
+      if(dens < 0.03 || (dens > 0.75 && sumV[p]/cnt[p] < 235)) continue;
+      const sh = shadeAt(x, y); if(sh && sh[0] > 0.1) continue;
+      d[p*4] = d[p*4+1] = d[p*4+2] = 255;
+    }
+  }
   ctx.putImageData(img,0,0);
   // 멀리 찍혀 흐린 쪽(원근으로 해상도가 낮은 쪽)만 과하지 않게 한 번 더 또렷하게 — 이미 또렷한 곳은 거의 건드리지 않음
   sharpenBlurryRegions(canvas, 0.6);
@@ -4301,9 +4409,10 @@ function findTableLines(canvas){
 //  · 지운 자리는 선의 수직 방향 양옆(가로 선이면 바로 위·아래) 바탕색을 위치에 따라 이어서 채움
 //    — 회색 머리글 칸과 흰 칸 사이의 선이면 위는 회색, 아래는 흰색으로. 넓은 범위의 "종이색 평균"으로 채웠을 때는
 //      회색 칸 안에서 멀리 있는 흰 종이색을 가져와 깨진 무늬처럼 얼룩졌었음
+// found: 같은 canvas로 미리 부른 findTableLines 결과(진행 문구를 나눠 보여줄 때) — 없으면 여기서 찾음
 // 반환: canvas, 또는 { canvas, warning }. 진단용으로 마지막 분석 결과를 removeTableLines.debug에 남김
-function removeTableLines(canvas){
-  const T = findTableLines(canvas);
+function removeTableLines(canvas, found){
+  const T = found || findTableLines(canvas);
   const { W, H, img, ink, lum, bgF, cross, filled, maxThick } = T;
   const remove = T.mask, N = W*H, d = img.data;
 
@@ -4696,7 +4805,13 @@ const PROCESSORS = {
   signatureExtract: extractSignature,
   autoCrop: autoCropDocument,
   deskew: deskewDocument,
-  removeLines: removeTableLines,
+  // 표 선 제거는 오래 걸려서(큰 사진 5초 이상) 찾기/지우기 사이에 진행 문구를 바꾸고 화면을 한 번 그림
+  removeLines: async (canvas, status)=>{
+    await status('표 선 찾는 중…');
+    const found = findTableLines(canvas);
+    await status('표 선 지우는 중…');
+    return removeTableLines(canvas, found);
+  },
   scanEffect: scanEffect,
 };
 // 항상 이 순서로 적용 (체크 안 한 건 건너뜀)
@@ -4706,32 +4821,52 @@ const PROCESSORS = {
 // 스캔 효과를 표 선 제거보다 먼저 하는 이유: 그림자 경계가 어두운 선으로 잡혀 표 선으로 오인되는 걸 막기 위해.
 // 원근 보정 단계에서 채운 빈 칸·가장자리도 스캔 효과에서 함께 하얗게 정리되어 이음매가 남지 않음
 const PROCESS_ORDER = ['signatureExtract','autoCrop','deskew','scanEffect','denoise','removeLines','trimMargin','grayscale','contrast','sharpen','stampExtract'];
+// 처리 중 단계별 진행 문구 — 휴대폰에서 오래 걸리는 단계도 멈춘 것처럼 보이지 않게
+const STEP_LABELS = {
+  signatureExtract:'서명 오려내는 중…', autoCrop:'문서 테두리를 찾아 반듯하게 펴는 중…', deskew:'기울기 맞추는 중…',
+  scanEffect:'그림자 지우고 배경 하얗게 만드는 중…', denoise:'잡티 줄이는 중…', removeLines:'표 선 찾는 중…',
+  trimMargin:'여백 정리하는 중…', grayscale:'흑백으로 바꾸는 중…', contrast:'명암 맞추는 중…', sharpen:'선명하게 만드는 중…',
+  stampExtract:'도장 오려내는 중…',
+};
+// 화면이 실제로 한 번 그려질 때까지 기다림 (requestAnimationFrame 다음 → 그리기가 끝난 뒤)
+const nextPaint = ()=> new Promise(r=> requestAnimationFrame(()=> setTimeout(r, 0)));
 
 /* ---------------------------------------------------------
    처리 실행
 --------------------------------------------------------- */
 document.getElementById('processBtn').addEventListener('click', async ()=>{
   if(!originalImage) return;
+  const spinnerText = document.getElementById('spinnerText');
+  const steps = PROCESS_ORDER.filter(key=> checked.has(key) && !includedIn(key));
+  let stepNo = 0;
+  // 진행 문구 바꾸고 화면에 그려질 때까지 기다림 — "(2/5) 표 선 찾는 중…"
+  const status = async text=>{
+    const t = `(${stepNo}/${steps.length}) ${text}`;
+    if(spinnerText.textContent === t) return;
+    spinnerText.textContent = t; await nextPaint();
+  };
+  spinnerText.textContent = '처리 준비 중…';
   document.getElementById('spinnerLine').classList.add('show');
   document.getElementById('warningBox').classList.remove('show');
   document.getElementById('processBtn').disabled = true;
-  await new Promise(r=>setTimeout(r, 30)); // 스피너가 실제로 한 번 그려지도록 살짝 여유를 둠
+  await nextPaint();
 
   let canvas = cloneCanvasFromImage(originalImage);
   const warnings = [];
 
-  for(const key of PROCESS_ORDER){
-    if(!checked.has(key)) continue;
-    const fn = PROCESSORS[key];
-    const result = fn(canvas);
+  for(const key of steps){
+    stepNo++;
+    await status(STEP_LABELS[key] || '처리하는 중…');
+    const result = await PROCESSORS[key](canvas, status);
     if(result instanceof HTMLCanvasElement){
       canvas = result;
     } else {
       canvas = result.canvas;
       if(result.warning) warnings.push(result.warning);
     }
-    await new Promise(r=>setTimeout(r, 0)); // 각 단계 사이에 화면이 멈춘 것처럼 안 보이게
   }
+  spinnerText.textContent = '결과 그리는 중…';
+  await nextPaint();
 
   resultCanvas = canvas;
   const resultEl = document.getElementById('resultPreview');
