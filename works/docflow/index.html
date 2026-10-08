@@ -236,7 +236,7 @@
   <div class="inapp-banner" id="inappBanner" role="status"></div>
   <div class="top">
     <div class="top-title">📄 DocFlow</div>
-    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-07-22</div>
+    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-08-01</div>
     <div class="top-sub">문서 이미지를 업로드하고 필요한 처리만 체크하면 한 번에 정리해드려요.</div>
     <div class="badge-local">🔒 이 페이지에서 하는 모든 처리는 브라우저 안에서만 이뤄져요 — 서버로 업로드되지 않아요</div>
   </div>
@@ -2050,9 +2050,27 @@ function detectThreeSides(E, lines, pairs){
     if(open(q) > 0 && dd > Pd){ Pd = dd; P = q; }
   }
   if(!P) return null;
-  // R의 기울기는 마주보는 변 b와 평행하게 둠. (표 선 무리의 소실점으로 원근까지 맞추려 했으나, 평행이 아닌 선이 섞이면
-  // 계산이 불안정해서 같은 사진도 돌려 넣은 방향에 따라 R이 크게 틀어졌음. R은 사진 밖이라 영향은 가장자리에 한정됨)
-  const u = dirOf(b);
+  // R의 기울기: 사진 밖으로 나간 변 쪽에 가장 가까운 "b와 거의 평행한 긴 인쇄 선"(표 바깥 테두리 등)의 방향을 따름.
+  // 인쇄된 선은 종이 테두리와 평행하게 찍혀 있어서, 가까운 선일수록 사진 속 원근 방향이 종이 테두리와 거의 같음.
+  // 그런 선이 없으면 b와 평행하게 둠. (예전엔 항상 b와 평행 → 비스듬히 찍은 사진에서 그쪽 변이 기울어져 나왔고,
+  //  선 무리 전체의 소실점을 쓰는 방식은 평행이 아닌 선이 섞이면 불안정했음)
+  let u = dirOf(b);
+  {
+    const Pd2 = Math.abs(sdist(b, P));
+    const minVotes2 = Math.min(sw,sh)*0.2;
+    let bestL = null, bestD = Infinity;
+    for(const l of lines){
+      if(l === b || l === a1 || l === a2) continue;
+      // 색 칸 경계(띠)도 인쇄된 선이라 방향 참고용으로는 씀 (종이 테두리 후보로는 제외되지만 여기선 방향만 빌림)
+      if(lineAngleDiff(l, b) > 8 || (l.votes||0) < minVotes2) continue;
+      const db = Math.abs(sdist(b, lineIntersect(l, a1) || P)) ;
+      // b에서 충분히 멀고(전체 폭의 50% 이상) 열린 쪽에 있는 선 중 R 위치(P)에 가장 가까운 것
+      const dP = Math.abs(sdist(l, P));
+      if(db < Pd2*0.5 || open(lineIntersect(l, a1) || P) <= 0) continue;
+      if(dP < bestD){ bestD = dP; bestL = l; }
+    }
+    if(bestL && bestD < Pd2*0.35) u = dirOf(bestL);
+  }
   const nx = -u.y, ny = u.x; // R의 법선
   let theta = Math.atan2(ny, nx), rho = P.x*nx + P.y*ny;
   if(theta < 0){ theta += Math.PI; rho = -rho; }
