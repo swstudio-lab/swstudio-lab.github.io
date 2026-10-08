@@ -566,7 +566,7 @@ const SECTIONS = [
     {id:'autoCrop', name:'문서 자동 크롭 · 원근 보정', desc:'사진 속 종이의 테두리를 찾아서, 비스듬히 찍혔으면 반듯한 직사각형으로 펴고 배경을 잘라내요. 글자 방향을 보고 똑바로 세워줘요. (모서리를 확실하게 못 찾으면 펴지 않아요)', ready:true},
   ]},
   { title:'문서 정리', items:[
-    {id:'removeLines', name:'표 선 제거', desc:'표의 테두리 선을 지워요. (배경이 어두운 사진이면 "문서 자동 크롭"을 먼저 체크해주세요 — 어두운 배경도 선으로 오인될 수 있어요)', ready:true},
+    {id:'removeLines', name:'표 선 제거', desc:'표의 테두리 선을 지워요. 사진이 기울어져 있어도 돼요. 글자·색칠된 칸·손으로 그은 밑줄이나 체크 표시는 남겨요.', ready:true},
     {id:'removeBg', name:'배경 제거', desc:'문서 주변의 복잡한 배경을 지워요.', ready:false},
     {id:'grayscale', name:'흑백 변환', desc:'컬러 이미지를 흑백으로 바꿔요.', ready:true},
     {id:'contrast', name:'명암 보정', desc:'밝고 어두운 부분의 대비를 자동으로 맞춰요.', ready:true},
@@ -3903,69 +3903,330 @@ function denoiseMedian(canvas){
   return canvas;
 }
 
-// 표의 테두리/구분선처럼 "길게 쭉 이어진 직선"만 골라서 지움 (글자는 한 방향으로 길게 이어지는 경우가 거의 없어서 대부분 안 지워짐)
-// 가로 방향으로 길게 연속된 어두운 픽셀, 세로 방향으로 길게 연속된 어두운 픽셀을 각각 찾아서 흰색으로 지움
-// 회전·안티에일리어싱 등으로 선 중간에 작은 흰 틈이 생겨도(gapTol 이내) 하나의 선으로 보고 이어서 인식함
+// 표 선 제거 — 표의 테두리·구분선처럼 "가늘고 길게 쭉 이어진 선"만 골라서 주변 종이색으로 지움
+//  · 어두운 픽셀은 "주변 종이보다 확실히 어두운가"로 판단(글자·선을 지운 종이 밝기 대비) — 고정 기준(밝기<200)이었을 때는
+//    그늘진 회색 종이(밝기 190 안팎) 전체가 "길게 이어진 어두운 줄"로 잡혀 글자까지 통째로 하얗게 지워졌음
+//  · 문서(가장 큰 밝은 덩어리) 안에서만 찾음 — 책상 무늬·종이 테두리를 선으로 오인하지 않게
+//  · 기울어진 선도 찾음: 축소본에서 선 방향(각도)을 먼저 재고, 그 각도들로 긴 연속 구간을 찾음 → 원근 보정 없이도 동작
+//  · 글자 보호: 선과 수직 방향으로 선 두께보다 두꺼운 곳(선에 걸친 글자 획)은 남기고,
+//    얇은 부분이 적은 구간(글자 줄·색칠된 띠 등)은 선이 아니라고 보고 통째로 남김 — 애매하면 지우지 않음
+//  · 지운 자리는 주변 종이색(글자·선을 뺀 이웃 픽셀 평균)으로 채움 — 흰색으로 칠하면 회색 종이 위에 흰 줄이 생김
+// 반환: canvas, 또는 { canvas, warning }. 진단용으로 마지막 분석 결과를 removeTableLines.debug에 남김
 function removeTableLines(canvas){
   const ctx = canvas.getContext('2d');
   const { width: W, height: H } = canvas;
-  const imgData = ctx.getImageData(0,0,W,H);
-  const d = imgData.data;
-  const isDark = (x,y)=>{
-    const i=(y*W+x)*4;
-    return (0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]) < 200;
-  };
+  const N = W*H, S = Math.max(W, H);
+  const img = ctx.getImageData(0,0,W,H), d = img.data;
 
-  const minHLen = Math.max(24, Math.round(W*0.22));
-  const minVLen = Math.max(24, Math.round(H*0.22));
-  const gapTol = 3; // 이 정도 틈은 같은 선의 일부로 봄
-  const lineMask = new Uint8Array(W*H);
+  // --- 종이 밝기(글자·선을 지운 배경) — 축소본에서 모폴로지 닫힘으로 ---
+  const sm = downscaleForAnalysis(canvas, 1000);
+  const sw = sm.w, sh = sm.h, ks = sm.scale;
+  const lumS = new Float32Array(sw*sh);
+  for(let q=0;q<sw*sh;q++) lumS[q] = 0.299*sm.data[q*4]+0.587*sm.data[q*4+1]+0.114*sm.data[q*4+2];
+  const rr = Math.max(3, Math.round(S/150*ks)); // 원본 기준 약 S/75 굵기까지의 어두운 것(글자·선)을 지움
+  const bgS = blur5(minMaxFilter(minMaxFilter(lumS,sw,sh,rr,true),sw,sh,rr,false),sw,sh);
+  const inkThr = bg => Math.max(16, bg*0.1);
 
-  function scanAxis(horizontal, minLen){
-    const outerLen = horizontal ? H : W;
-    const innerLen = horizontal ? W : H;
-    const positions = new Int32Array(innerLen);
-    for(let o=0; o<outerLen; o++){
-      let runStart=-1, lastDark=-1, count=0;
-      const flush = ()=>{
-        if(runStart>=0 && (lastDark-runStart+1)>=minLen){
-          for(let k=0;k<count;k++){
-            const pos = positions[k];
-            const idx = horizontal ? (o*W+pos) : (pos*W+o);
-            lineMask[idx]=1;
-          }
+  // --- 문서 영역: 종이 네 모서리(원근 보정과 같은 검출)로 만든 사각형 안쪽 ---
+  // 밝기만으로 종이를 나누면(Otsu) 그늘진 종이·표 부분이 "문서 밖"으로 잡혀서 선을 못 찾았음.
+  // 종이 테두리(종이/책상 경계)는 선이 아니므로 사각형을 살짝 줄여서 뺌.
+  // 이미 펴진 문서처럼 사각형 바깥도 종이색이면(표 테두리를 종이 테두리로 잘못 잡은 것) 사진 전체를 문서로 봄
+  const bw = sw, bh = sh;
+  const inside = new Uint8Array(bw*bh).fill(1);
+  const det = detectDocumentCorners(canvas);
+  let docQuad = null;
+  if(det.status === 'ok' && det.corners){
+    const q = det.corners.map(p=>({ x:p.x*ks, y:p.y*ks }));
+    const cx = q.reduce((a,p)=>a+p.x,0)/4, cy = q.reduce((a,p)=>a+p.y,0)/4;
+    const scaled = k=> q.map(p=>({ x: cx+(p.x-cx)*k, y: cy+(p.y-cy)*k }));
+    const inQuad = (qq, x, y)=>{ // 볼록 사각형 안쪽 판정(변마다 같은 쪽인지)
+      let sgn = 0;
+      for(let i=0;i<4;i++){
+        const a = qq[i], b = qq[(i+1)%4], c = (b.x-a.x)*(y-a.y) - (b.y-a.y)*(x-a.x);
+        if(c !== 0){ if(sgn === 0) sgn = Math.sign(c); else if(Math.sign(c) !== sgn) return false; }
+      }
+      return true;
+    };
+    // 테두리 바로 안쪽 띠와 바로 바깥쪽 띠의 종이색(글자 없는 픽셀 중앙값) 비교
+    const qIn = scaled(0.95), qOut = scaled(1.05), qShrink = scaled(0.985);
+    const bandIn = [[],[],[]], bandOut = [[],[],[]];
+    for(let y=0;y<sh;y+=2) for(let x=0;x<sw;x+=2){
+      const p = y*sw+x;
+      if(bgS[p] - lumS[p] > 8) continue;
+      const inside0 = inQuad(q, x, y);
+      const band = inside0 ? (inQuad(qIn, x, y) ? null : bandIn) : (inQuad(qOut, x, y) ? bandOut : null);
+      if(!band) continue;
+      for(let c=0;c<3;c++) band[c].push(sm.data[p*4+c]);
+    }
+    const med = a=>{ const v=a.slice().sort((m,n)=>m-n); return v[v.length>>1]; };
+    let diff = Infinity;
+    if(bandOut[0].length >= 50 && bandIn[0].length >= 50) diff = [0,1,2].reduce((s,c)=> s + Math.abs(med(bandIn[c]) - med(bandOut[c])), 0);
+    if(diff > 30){
+      docQuad = det.corners;
+      for(let y=0;y<sh;y++) for(let x=0;x<sw;x++) inside[y*sw+x] = inQuad(qShrink, x+0.5, y+0.5) ? 1 : 0;
+    }
+  }
+  const bsx = bw/W, bsy = bh/H;
+
+  // --- 원본 크기 잉크 마스크 ---
+  const lum = new Float32Array(N), bgF = new Float32Array(N), ink = new Uint8Array(N);
+  for(let y=0;y<H;y++){
+    const fy = Math.max(0, Math.min(sh-1, (y+0.5)*ks-0.5)), y0 = Math.floor(fy), y1 = Math.min(sh-1,y0+1), ty = fy-y0;
+    const by = Math.min(bh-1, (y*bsy)|0)*bw;
+    for(let x=0;x<W;x++){
+      const p = y*W+x, i = p*4;
+      const fx = Math.max(0, Math.min(sw-1, (x+0.5)*ks-0.5)), x0 = Math.floor(fx), x1 = Math.min(sw-1,x0+1), tx = fx-x0;
+      const bg = bgS[y0*sw+x0]*(1-tx)*(1-ty) + bgS[y0*sw+x1]*tx*(1-ty) + bgS[y1*sw+x0]*(1-tx)*ty + bgS[y1*sw+x1]*tx*ty;
+      const v = 0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
+      lum[p] = v; bgF[p] = bg;
+      if(inside[by + Math.min(bw-1, (x*bsx)|0)] && bg - v > inkThr(bg)) ink[p] = 1;
+    }
+  }
+
+  // --- 방향을 따라 긴 연속 구간 찾기 ---
+  // vertical=false: 가로 계열(수평에서 deg만큼 기운 방향), true: 세로 계열(수직에서 deg만큼 기운 방향)
+  // 구간(틈 gap 이하는 이어진 것으로 봄)이 minLen 이상이면 onRun(구간 픽셀 목록, 개수)
+  function sweepRuns(mask, w, h, deg, vertical, minLen, gap, buf, onRun){
+    const t = Math.tan(deg*Math.PI/180);
+    const along = vertical ? h : w, across = vertical ? w : h;
+    const drift = t*(along-1);
+    const o0 = Math.floor(Math.min(0, -drift)), o1 = Math.ceil(Math.max(across-1, across-1-drift));
+    for(let o=o0; o<=o1; o++){
+      let start=-1, last=-1, cnt=0;
+      for(let s=0; s<=along; s++){
+        let on = false, p = -1;
+        if(s < along){
+          const c = Math.round(o + s*t);
+          if(c >= 0 && c < across){ p = vertical ? s*w + c : c*w + s; on = mask[p] === 1; }
         }
-        runStart=-1; lastDark=-1; count=0;
-      };
-      for(let i=0;i<innerLen;i++){
-        const dark = horizontal ? isDark(i,o) : isDark(o,i);
-        if(dark){
-          if(runStart<0) runStart=i;
-          lastDark=i;
-          positions[count++]=i;
-        } else if(runStart>=0 && (i-lastDark)>gapTol){
-          flush();
+        if(on){
+          if(start<0) start = s;
+          last = s; buf[cnt++] = p;
+        } else if(start>=0 && (s-last > gap || p < 0)){
+          if(last-start+1 >= minLen) onRun(buf, cnt);
+          start=-1; last=-1; cnt=0;
         }
       }
-      flush();
     }
   }
 
-  scanAxis(true, minHLen);  // 가로선
-  scanAxis(false, minVLen); // 세로선
+  // --- 1) 축소본에서 선 방향 재기 (2° 간격, ±44°) ---
+  const inkS = new Uint8Array(sw*sh);
+  for(let y=0;y<sh;y++) for(let x=0;x<sw;x++){
+    const q = y*sw+x;
+    if(inside[Math.min(bh-1, ((y+0.5)/ks*bsy)|0)*bw + Math.min(bw-1, ((x+0.5)/ks*bsx)|0)] && bgS[q]-lumS[q] > inkThr(bgS[q])) inkS[q] = 1;
+  }
+  const minLenS = Math.max(20, Math.round(S*0.035*ks));
+  const bufS = new Int32Array(Math.max(sw,sh)+1);
+  const angleSets = [false, true].map(vertical=>{
+    const scores = [];
+    for(let deg=-44; deg<=44; deg+=2){
+      let sc = 0;
+      sweepRuns(inkS, sw, sh, deg, vertical, minLenS, 1, bufS, (b,n)=>{ sc += n; });
+      scores.push({ deg, sc });
+    }
+    const best = Math.max(...scores.map(s=>s.sc));
+    const set = new Set();
+    if(best >= minLenS*3){
+      for(const s of scores) if(s.sc >= best*0.12) for(let k=-2;k<=2;k++) if(Math.abs(s.deg+k) <= 45) set.add(s.deg+k);
+    }
+    return [...set].sort((a,b)=>a-b);
+  });
 
+  // --- 2) 원본 크기에서 선 후보(긴 구간) 표시 ---
+  const minLen = Math.max(24, Math.round(S*0.035));
+  const gap = Math.max(2, Math.round(S/700));
+  const buf = new Int32Array(S+1);
+  const raw = [new Uint8Array(N), new Uint8Array(N)]; // [가로 계열, 세로 계열]
+  [0,1].forEach(f=>{
+    for(const deg of angleSets[f]) sweepRuns(ink, W, H, deg, f===1, minLen, gap, buf, (b,n)=>{ for(let k=0;k<n;k++) raw[f][b[k]] = 1; });
+  });
+
+  // --- 3) 두께 재기: 픽셀마다 세로/가로로 이어진 잉크 길이 ---
+  const vRun = new Uint16Array(N), hRun = new Uint16Array(N);
+  for(let y=0;y<H;y++){
+    let x=0;
+    while(x<W){
+      if(!ink[y*W+x]){ x++; continue; }
+      let e=x; while(e<W && ink[y*W+e]) e++;
+      const len = Math.min(65535, e-x); for(let k=x;k<e;k++) hRun[y*W+k] = len;
+      x=e;
+    }
+  }
+  for(let x=0;x<W;x++){
+    let y=0;
+    while(y<H){
+      if(!ink[y*W+x]){ y++; continue; }
+      let e=y; while(e<H && ink[e*W+x]) e++;
+      const len = Math.min(65535, e-y); for(let k=y;k<e;k++) vRun[k*W+x] = len;
+      y=e;
+    }
+  }
+  // 선 두께 = 선 후보 픽셀의 수직 방향 두께 중앙값 → 이보다 확실히 두꺼운 곳은 선에 걸친 글자 획으로 보고 보호
+  const maxThick = [0,1].map(f=>{
+    const perp = f===0 ? vRun : hRun, hist = new Uint32Array(64);
+    let n=0;
+    for(let p=0;p<N;p+=3) if(raw[f][p]){ hist[Math.min(63, perp[p])]++; n++; }
+    if(!n) return 0;
+    let acc=0, med=1; for(; med<64; med++){ acc += hist[med]; if(acc*2 >= n) break; }
+    return Math.max(2, Math.min(Math.round(S/150), Math.round(med*1.5)+1));
+  });
+
+  // --- 4) 구간마다 다시 보며 선인지 판정 ---
+  //  · 얇은 픽셀(수직 두께가 선 두께 이하, 또는 다른 방향 선과의 교차점)이 구간의 65% 미만이면 선이 아님(글자 줄·색칠된 띠)
+  //  · 표 선은 길게 이어지거나(사진 긴 변의 12% 이상), 짧더라도 양 끝이 다른 방향 선과 만남(칸 경계).
+  //    짧고 끝이 허공에 떠 있는 구간은 손으로 그은 밑줄·취소선·체크 표시로 보고 남김 (연필처럼 무채색이어도)
+  //  · 색이 뚜렷하고(빨간 펜 등) 짧은 구간도 손 표시로 보고 남김 — 인쇄된 표 선은 무채색이거나 표 전체를 가로지름
+  //  · 선으로 인정되면 그 줄(선 두께 안쪽)은 글자가 걸친 곳까지 지우고, 걸친 글자 획은 아래 5)에서 다시 이어줌
+  //    단, 색칠된 면(파란 띠·칠해진 칸처럼 주변이 거의 다 잉크인 곳)에 걸친 부분은 지우지 않음
+  //    — 세로 선이 파란 띠를 지날 때 띠를 "가로 선과의 교차점"으로 보고 지워서 띠가 중간중간 깨졌었음
+  const remove = new Uint8Array(N), cross = new Uint8Array(N); // remove: 1=가로 선, 2=세로 선 / cross: 글자 획이 걸친 자리
+  const kf = Math.max(maxThick[0], maxThick[1])*2 + 1;
+  const filled = new Uint8Array(N);
+  {
+    // 잉크 밀도(가로 누적 → 세로 상자 합) — (2kf+1)² 칸 중 55% 이상이 잉크면 면
+    const rowAcc = new Uint16Array(N);
+    for(let y=0;y<H;y++){
+      let acc=0; const r=y*W;
+      for(let x=0;x<W+kf;x++){
+        if(x<W) acc += ink[r+x];
+        if(x-2*kf-1 >= 0) acc -= ink[r+x-2*kf-1];
+        const cx = x-kf; if(cx>=0 && cx<W) rowAcc[r+cx] = acc;
+      }
+    }
+    const need = (2*kf+1)*(2*kf+1)*0.55;
+    const col = new Float64Array(W);
+    for(let y=0;y<H+kf;y++){
+      if(y<H) for(let x=0;x<W;x++) col[x] += rowAcc[y*W+x];
+      if(y-2*kf-1 >= 0) for(let x=0;x<W;x++) col[x] -= rowAcc[(y-2*kf-1)*W+x];
+      const cy = y-kf; if(cy>=0 && cy<H) for(let x=0;x<W;x++) if(ink[cy*W+x] && col[x] >= need) filled[cy*W+x] = 1;
+    }
+  }
+  const longLen = Math.round(S*0.12);
+  let runsFound = 0, runsRejected = 0, runsPen = 0;
+  [0,1].forEach(f=>{
+    const perp = f===0 ? vRun : hRun, other = raw[1-f], mt = maxThick[f];
+    const jr = mt + gap + 2; // 끝점 주변 이만큼 안에 다른 방향 선이 있으면 "만난다"
+    const meets = p=>{
+      const x = p%W, y = (p/W)|0;
+      for(let yy=Math.max(0,y-jr); yy<=Math.min(H-1,y+jr); yy++)
+        for(let xx=Math.max(0,x-jr); xx<=Math.min(W-1,x+jr); xx++) if(other[yy*W+xx]) return true;
+      return false;
+    };
+    for(const deg of angleSets[f]) sweepRuns(ink, W, H, deg, f===1, minLen, gap, buf, (b,n)=>{
+      let thin = 0, chroma = 0;
+      for(let k=0;k<n;k++){
+        const p=b[k], i=p*4;
+        if(!filled[p] && (perp[p] <= mt || other[p])) thin++;
+        chroma += Math.max(d[i],d[i+1],d[i+2]) - Math.min(d[i],d[i+1],d[i+2]);
+      }
+      if(thin < n*0.65){ runsRejected++; return; }
+      if(chroma/n > 45 && n < S*0.15){ runsPen++; return; }
+      if(n < longLen && !(meets(b[0]) && meets(b[n-1]))){ runsPen++; return; }
+      runsFound++;
+      for(let k=0;k<n;k++){
+        const p=b[k];
+        if(filled[p]) continue; // 색칠된 면
+        remove[p] |= f+1;
+        if(perp[p] > mt && !other[p]) cross[p] = f+1;
+      }
+    });
+  });
+
+  // 기울어진 선을 정수 각도로 훑으면서 생긴 계단 모서리·가장자리 조각 — 지운 선에 붙어 있고, 선 방향으로 얇게 누운
+  // 잉크(가로 선이면 세로 두께 ≤ 선 두께, 가로 길이 > 선 두께)이면서 바깥쪽이 바로 종이인 가장자리 1px만 더 넓힘
+  // — 바깥쪽에 잉크가 이어지면 선에 걸터앉은 글자(숫자 0의 아래 곡선 등)라서 건드리지 않음
+  for(let it=0; it<2; it++){
+    const add = [];
+    for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+      const p=y*W+x;
+      if(!ink[p] || remove[p] || filled[p]) continue;
+      if(((remove[p-W] & 1) && !ink[p+W] || (remove[p+W] & 1) && !ink[p-W]) && vRun[p] <= maxThick[0] && hRun[p] > maxThick[0]) add.push(p, 1);
+      else if(((remove[p-1] & 2) && !ink[p+1] || (remove[p+1] & 2) && !ink[p-1]) && hRun[p] <= maxThick[1] && vRun[p] > maxThick[1]) add.push(p, 2);
+    }
+    if(!add.length) break;
+    for(let k=0;k<add.length;k+=2) remove[add[k]] |= add[k+1];
+  }
+
+  // --- 5) 선에 걸친 글자 획 이어주기 ---
+  // 지운 띠의 양쪽(가로 선이면 위·아래)에 모두 글자 획이 이어져 있으면, 그 사이를 양쪽 획 색으로 메움.
+  // 한쪽에만 붙어 있으면(선 위에 걸터앉은 숫자 등) 띠 중 글자 쪽 절반은 원래 픽셀대로 남겨 획 끝이 잘리지 않게 함
+  const restored = new Uint8Array(N), restoreCol = new Float32Array(N*3);
+  let reconnected = 0;
+  for(let p=0;p<N;p++){
+    const f = cross[p]; if(!f) continue;
+    const step = f===1 ? W : 1, x = p%W, y = (p/W)|0, lim = maxThick[f-1]*2+2;
+    let a = p, ka = 0; while(ka<=lim && remove[a]){ if(f===1 ? (y-ka-1<0) : (x-ka-1<0)){ a=-1; break; } a -= step; ka++; }
+    let b = p, kb = 0; while(kb<=lim && remove[b]){ if(f===1 ? (y+kb+1>=H) : (x+kb+1>=W)){ b=-1; break; } b += step; kb++; }
+    if(a<0 || b<0 || ka>lim || kb>lim) continue;
+    const inkA = ink[a] && !remove[a], inkB = ink[b] && !remove[b];
+    if(inkA && inkB){
+      const tt = ka/(ka+kb);
+      for(let c=0;c<3;c++) restoreCol[p*3+c] = d[a*4+c]*(1-tt) + d[b*4+c]*tt;
+    } else if(inkA ? ka*2 <= ka+kb : inkB ? kb*2 <= ka+kb : false){
+      for(let c=0;c<3;c++) restoreCol[p*3+c] = d[p*4+c];
+    } else continue;
+    restored[p] = 1; reconnected++;
+  }
+  // 이어준 자리가 선을 따라 길게 이어지면(글자 획 굵기보다 넓으면) 획이 아니라 선 옆에 붙은 다른 표시(취소선 등) 사이를 메운 것 → 취소
+  [0,1].forEach(f=>{
+    const wl = Math.round(maxThick[f]*1.5)+2, outer = f===0 ? H : W, inner = f===0 ? W : H;
+    for(let o=0;o<outer;o++){
+      let s0 = -1;
+      for(let i=0;i<=inner;i++){
+        const p = i<inner ? (f===0 ? o*W+i : i*W+o) : -1;
+        if(p>=0 && restored[p] && cross[p]===f+1){ if(s0<0) s0=i; continue; }
+        if(s0>=0 && i-s0 > wl) for(let k=s0;k<i;k++){ const q = f===0 ? o*W+k : k*W+o; restored[q]=0; reconnected--; }
+        s0 = -1;
+      }
+    }
+  });
+
+  // 선 가장자리의 흐린 테두리(안티에일리어싱)도 1px 함께 — 잉크로 판정된 픽셀(남기기로 한 글자 획)과 이어준 획 옆은 건드리지 않음
+  const erase = new Uint8Array(N);
   let removed = 0;
-  for(let p=0; p<W*H; p++){
-    if(lineMask[p]){
-      const i=p*4;
-      d[i]=255; d[i+1]=255; d[i+2]=255;
-      removed++;
-    }
+  const src = p=> remove[p] && !restored[p];
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const p=y*W+x;
+    if(restored[p]) continue;
+    if(remove[p]){ erase[p]=1; removed++; continue; }
+    if(ink[p] || !(x>0 && src(p-1) || x<W-1 && src(p+1) || y>0 && src(p-W) || y<H-1 && src(p+W))) continue;
+    if(x>0 && restored[p-1] || x<W-1 && restored[p+1] || y>0 && restored[p-W] || y<H-1 && restored[p+W]) continue;
+    if(bgF[p] - lum[p] > 4){ erase[p]=1; removed++; }
   }
-  ctx.putImageData(imgData,0,0);
+
+  removeTableLines.debug = { W, H, docQuad, angleSets, maxThick, filled, minLen, gap, runsFound, runsRejected, runsPen, removed, reconnected, ink, raw, remove, erase, restored, inside: { mask: inside, w: bw, h: bh } };
   if(removed===0){
     return { canvas, warning: '📐 지울 만한 표 선을 찾지 못해서 원본을 그대로 사용했어요.' };
   }
+
+  // --- 6) 지운 자리 채우기: 주변의 종이 픽셀(잉크·흐린 획·지운 자리 제외) 평균색 ---
+  // 가까운 곳에 종이 픽셀이 없으면(선이 빽빽한 곳) 범위를 넓혀 성글게 다시 찾음
+  const isPaper = p=> !erase[p] && bgF[p] - lum[p] < inkThr(bgF[p])*0.5;
+  const fill = new Float32Array(N*3); // 지울 픽셀 자리에만 씀
+  const rf0 = Math.max(3, Math.max(maxThick[0], maxThick[1]) + 2);
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const p=y*W+x;
+    if(!erase[p]) continue;
+    let r=0,g=0,b=0,n=0;
+    for(let rf=rf0, step=1; n===0 && rf<=rf0*16; rf*=4, step*=3){
+      for(let yy=Math.max(0,y-rf); yy<=Math.min(H-1,y+rf); yy+=step){
+        for(let xx=Math.max(0,x-rf); xx<=Math.min(W-1,x+rf); xx+=step){
+          const q=yy*W+xx;
+          if(!isPaper(q)) continue;
+          r+=d[q*4]; g+=d[q*4+1]; b+=d[q*4+2]; n++;
+        }
+      }
+    }
+    if(n){ fill[p*3]=r/n; fill[p*3+1]=g/n; fill[p*3+2]=b/n; }
+    else { fill[p*3]=fill[p*3+1]=fill[p*3+2]=bgF[p]; }
+  }
+  for(let p=0;p<N;p++){
+    if(restored[p]){ d[p*4]=restoreCol[p*3]; d[p*4+1]=restoreCol[p*3+1]; d[p*4+2]=restoreCol[p*3+2]; continue; }
+    if(!erase[p]) continue;
+    d[p*4]=fill[p*3]; d[p*4+1]=fill[p*3+1]; d[p*4+2]=fill[p*3+2];
+  }
+  ctx.putImageData(img,0,0);
   return canvas;
 }
 
@@ -4242,7 +4503,7 @@ const PROCESSORS = {
 // 항상 이 순서로 적용 (체크 안 한 건 건너뜀)
 // signatureExtract는 사용자가 "원본 이미지" 좌표 기준으로 영역을 골랐기 때문에, 다른 단계가 크기를 바꾸기 전인
 // 맨 처음에 실행해야 좌표가 어긋나지 않음. 그다음 배경과 함께 찍힌 사진이면 자동크롭으로 문서만 추리고,
-// 기울어졌으면 반듯하게 편 다음, 스캔 효과(그림자 제거) → 노이즈 제거 → 표 선 제거(반듯해야 직선 인식이 잘 됨) → 여백 정리 순으로 진행.
+// 기울어졌으면 반듯하게 편 다음, 스캔 효과(그림자 제거) → 노이즈 제거 → 표 선 제거(기울어진 선도 찾지만, 반듯할수록 정확함) → 여백 정리 순으로 진행.
 // 스캔 효과를 표 선 제거보다 먼저 하는 이유: 그림자 경계가 어두운 선으로 잡혀 표 선으로 오인되는 걸 막기 위해.
 // 원근 보정 단계에서 채운 빈 칸·가장자리도 스캔 효과에서 함께 하얗게 정리되어 이음매가 남지 않음
 const PROCESS_ORDER = ['signatureExtract','autoCrop','deskew','scanEffect','denoise','removeLines','trimMargin','grayscale','contrast','sharpen','stampExtract'];
