@@ -190,6 +190,25 @@ PHOTO_JS = r"""
 OCR_PDF = 'DocFlow_시연용_문서.pdf'
 OCR_ANSWER = 'DocFlow_시연용_문서_정답텍스트.txt'
 OCR_PRESET = ['autoCrop', 'scanEffect', 'trimMargin', 'denoise', 'removeLines', 'ocrText']
+# 한글·영문이 섞인 가상 문서(테스트가 직접 그림 — 실제 기관·인물과 무관) — 영문·이메일·웹 주소가 읽히는지 확인용
+MIXED_LINES = [
+    ('title', '가나대학교 RISE 사업단 성과 보고 (2026년 2분기)'),
+    ('h', '1. 사업 개요'),
+    ('b', '2026년도 RISE 사업과 LINC 3.0 후속 과제를 함께 운영합니다.'),
+    ('b', '기관 영문명: Gana National University Industry-Academic Cooperation Foundation'),
+    ('b', '담당자 이메일: kim.gana@ganauniv.ac.kr'),
+    ('b', '사업단 누리집: https://rise.ganauniv.ac.kr/notice'),
+    ('b', '문의 메일: help@docflow.kr (평일 09:00~18:00)'),
+    ('h', '2. 추진 실적'),
+    ('b', '문서 이미지 처리 도구 DocFlow로 증빙 서류 120건을 정리했습니다.'),
+    ('b', '협력 기관: Hanbit Education Consulting, K-Edu Lab'),
+    ('b', '하반기에는 AI 기반 학습 분석(Learning Analytics) 시범 운영을 추진합니다.'),
+    ('b', '보고서 원문은 www.ganauniv.ac.kr/rise/report 에서 내려받을 수 있습니다.'),
+]
+MIXED_EN = ['RISE', 'LINC', 'GanaNationalUniversity', 'Industry-AcademicCooperationFoundation', 'kim.gana@ganauniv.ac.kr',
+            'https://rise.ganauniv.ac.kr/notice', 'help@docflow.kr', 'DocFlow', 'HanbitEducationConsulting', 'K-EduLab',
+            'AI', 'LearningAnalytics', 'www.ganauniv.ac.kr/rise/report']
+PAGE_EN = ['DocFlow', 'SAMPLE']   # 시연 문서의 영문(공백 빼고 비교)
 
 def ocr_references():
     """정답 텍스트를 쪽별로 나누고, 직인·결재 도장 안 글자를 뺀 것도 만듦 → {page: {'all': ..., 'nostamp': ...}}"""
@@ -210,11 +229,11 @@ def ocr_references():
         return '\n'.join(out)
     return {p: {'all': '\n'.join(ls), 'nostamp': nostamp(ls)} for p, ls in pages.items()}
 
-# 페이지 안에서: 시연 PDF → 깨끗한 이미지(200dpi) + 사진처럼 합성한 이미지
+# 페이지 안에서: 시연 PDF → 깨끗한 이미지(200dpi) + 사진처럼 합성한 이미지, 한영 혼합 문서도 같은 두 가지로
 OCR_MAKE_JS = r"""
-  const [pdfUrl] = ARGS;
-  const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
+  const [pdfUrl, mixed] = ARGS;
   const out = {};
+  const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
   for(let n=1; n<=pdf.numPages; n++){
     const page = await pdf.getPage(n), vp = page.getViewport({ scale: 200/72 });
     const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
@@ -223,6 +242,16 @@ OCR_MAKE_JS = r"""
     out['page'+n+'_clean'] = c.toDataURL('image/png');
     out['page'+n+'_photo'] = synthPhoto(c, n);
   }
+  // 한영 혼합 문서(본문 30px ≈ 200dpi의 10.5pt)
+  const c = document.createElement('canvas'); c.width = 1654; c.height = 1300;
+  const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0,0,c.width,c.height); x.fillStyle = '#111';
+  let y = 150;
+  for(const [k, t] of mixed){
+    x.font = (k==='title' ? 'bold 44px' : k==='h' ? 'bold 34px' : '30px') + " 'Malgun Gothic','Noto Sans KR',sans-serif";
+    x.fillText(t, 140, y); y += k==='title' ? 110 : 72;
+  }
+  out['mixed_clean'] = c.toDataURL('image/png');
+  out['mixed_photo'] = synthPhoto(c, 5);
   return out;
 
   // 사진처럼: 비스듬한 각도(원근) + 책상 배경 + 누런 조명 + 손 그림자 + 어둡고 잡티 + 카톡 압축(긴 변 1400px, JPEG)
@@ -262,7 +291,7 @@ OCR_MAKE_JS = r"""
 
 # 페이지 안에서: 이미지 하나를 ① 원본 그대로 ② OCR 최적화 처리 후 로 읽고, 정답과 비교
 OCR_RUN_JS = r"""
-  const [url, name, refs, preset] = ARGS;
+  const [url, name, refs, en, preset] = ARGS;
   const img = new Image(); img.src = url; await img.decode();
   const raw = cloneCanvasFromImage(img);
   const a = await ocrRecognize(raw, { prepare: false });           // ① 원본 그대로 (DocFlow 처리·OCR용 정리 없이)
@@ -281,10 +310,17 @@ OCR_RUN_JS = r"""
   const score = text=>{ const h = strip(text), o = {};
     for(const [k, ref] of Object.entries(refs || {})){ const rr = strip(ref); o[k] = { acc: Math.max(0, 1 - lev(rr, h)/rr.length), recall: recall(rr, h) }; }
     return o; };
+  // 엉뚱한 영어: 결과의 영문 덩어리(2자 이상) 중 정답에 없는 것 / 영문: 확인할 영문·이메일·주소 중 그대로 읽힌 것
+  const refTok = new Set(((refs && refs.all) || '').match(/[A-Za-z]{2,}/g)?.map(s=>s.toLowerCase()) || []);
+  const spur = text=> refs ? (text.match(/[A-Za-z]{2,}/g) || []).filter(t=> !refTok.has(t.toLowerCase())) : null;
+  const enHit = text=>{ const h = strip(text); return en.filter(e=> h.includes(e)); };
+  const pack = (o, extra)=> ({ text: o ? o.text : '', conf: o ? o.meanConf : 0, ms: o ? o.ms : 0, score: score(o && o.text),
+    spur: o ? spur(o.text) : null, en: o ? enHit(o.text) : [], low: o ? o.lowConfList : [], ...extra });
   return {
-    raw:  { text: a.text, conf: a.meanConf, ms: a.ms, score: score(a.text) },
-    proc: { text: b ? b.text : '', conf: b ? b.meanConf : 0, ms: b ? b.ms : 0, procMs, score: score(b && b.text), warning: r.warning },
-    images: { input: url, processed: T.png(r.canvas), ocr_input: b ? T.png(b.ocrCanvas) : null },
+    raw:  pack(a),
+    proc: pack(b, { procMs, warning: r.warning }),
+    enN: en.length,
+    images: { processed: T.png(r.canvas), ocr_input: b ? T.png(b.ocrCanvas) : null },
   };
 """
 
@@ -295,21 +331,29 @@ def run_ocr_tests(fresh_page, out_dir):
         return 0, None
     od = out_dir / 'ocr'; od.mkdir(parents=True, exist_ok=True)
     refs = ocr_references()
+    mixed_ref = '\n'.join(t for _, t in MIXED_LINES)
     pg = fresh_page()
-    imgs = pg.evaluate('async (ARGS) => {' + OCR_MAKE_JS + '}', [PRIVATE_URL + urllib.parse.quote(OCR_PDF)])
+    imgs = pg.evaluate('async (ARGS) => {' + OCR_MAKE_JS + '}', [PRIVATE_URL + urllib.parse.quote(OCR_PDF), [list(x) for x in MIXED_LINES]])
     pg.close()
-    cases = []
+    cases = []   # (이름, 주소, 정답{nostamp, all} 또는 None, 확인할 영문 목록)
     for key, url in imgs.items():
         (od / f'{key}.{"jpg" if url.startswith("data:image/jpeg") else "png"}').write_bytes(base64.b64decode(url.split(',', 1)[1]))
-        page = int(key[4])
-        cases.append((key, url, {'nostamp': refs[page]['nostamp'], 'all': refs[page]['all']}))
+        if key.startswith('page'):
+            page = int(key[4])
+            cases.append((key, url, {'nostamp': refs[page]['nostamp'], 'all': refs[page]['all']}, PAGE_EN))
+        else:
+            cases.append((key, url, {'nostamp': mixed_ref, 'all': mixed_ref}, MIXED_EN))
     if (PRIVATE / 'photo01.jpg').is_file():
-        cases.append(('photo01', PRIVATE_URL + 'photo01.jpg', None))   # 실제 사진 — 정답 없음(참고용)
+        cases.append(('photo01', PRIVATE_URL + 'photo01.jpg', None, []))   # 실제 사진 — 정답 없음(참고용)
+    exp05 = PRIVATE / 'photo05_expected.json'   # 실제 영문·이메일은 공개하면 안 돼서 private에 따로 둠
+    if (PRIVATE / 'photo05.jpg').is_file() and exp05.is_file():
+        cases.append(('photo05', PRIVATE_URL + 'photo05.jpg', None, json.loads(exp05.read_text(encoding='utf-8'))['en']))
     rows, fails = [], 0
-    for key, url, ref in cases:
+    pct = lambda x: f'{x*100:.1f}%'
+    for key, url, ref, en in cases:
         pg = fresh_page()
         t0 = time.time()
-        r = pg.evaluate('async (ARGS) => {' + OCR_RUN_JS + '}', [url, key + ('.jpg' if 'photo' in key else '.png'), ref, OCR_PRESET])
+        r = pg.evaluate('async (ARGS) => {' + OCR_RUN_JS + '}', [url, key + ('.jpg' if 'photo' in key else '.png'), ref, en, OCR_PRESET])
         pg.close()
         for k in ('processed', 'ocr_input'):
             v = r['images'].get(k)
@@ -317,32 +361,33 @@ def run_ocr_tests(fresh_page, out_dir):
         (od / f'{key}_text_raw.txt').write_text(r['raw']['text'], encoding='utf-8')
         (od / f'{key}_text_processed.txt').write_text(r['proc']['text'], encoding='utf-8')
         rows.append((key, r))
-        pct = lambda x: f'{x*100:.1f}%'
+        enTxt = f" · 영문 {len(r['raw']['en'])}/{r['enN']} → {len(r['proc']['en'])}/{r['enN']}" if r['enN'] else ''
         if ref:
             ra, pa = r['raw']['score']['nostamp'], r['proc']['score']['nostamp']
             ok = pa['acc'] >= ra['acc'] - 0.01
             fails += 0 if ok else 1
             print(f"  {'PASS' if ok else 'FAIL'}  {key}  원본 그대로 {pct(ra['acc'])} → OCR 최적화 후 {pct(pa['acc'])}"
-                  f"  (재현율 {pct(ra['recall'])} → {pct(pa['recall'])}, 인식 {r['proc']['ms']/1000:.1f}s, 전체 처리 {r['proc']['procMs']/1000:.1f}s, {time.time()-t0:.0f}s)")
+                  f"  (엉뚱한 영어 {len(r['raw']['spur'])} → {len(r['proc']['spur'])}{enTxt}, 인식 {r['proc']['ms']/1000:.1f}s, 전체 처리 {r['proc']['procMs']/1000:.1f}s)")
         else:
-            print(f"  INFO  {key}  평균 신뢰도 원본 그대로 {r['raw']['conf']}% → OCR 최적화 후 {r['proc']['conf']}%"
+            print(f"  INFO  {key}  평균 신뢰도 원본 그대로 {r['raw']['conf']}% → OCR 최적화 후 {r['proc']['conf']}%{enTxt}"
                   f"  (인식 {r['proc']['ms']/1000:.1f}s, 전체 처리 {r['proc']['procMs']/1000:.1f}s)")
     # 요약표
     def cell(r, which, k, f):
         sc = r[which]['score'].get(k) if r[which]['score'] else None
         return f'{sc[f]*100:.1f}%' if sc else '-'
-    md = ['| 이미지 | 원본 그대로 정확도 | OCR 최적화 후 정확도 | (직인 포함) 원본 → 최적화 | 재현율 원본 → 최적화 | 평균 신뢰도 원본 → 최적화 | 인식 시간 | 전체 처리 시간 |',
+    def n_spur(r, w): return '-' if r[w]['spur'] is None else str(len(r[w]['spur']))
+    def n_en(r, w): return '-' if not r['enN'] else f"{len(r[w]['en'])}/{r['enN']}"
+    md = ['| 이미지 | 정확도 원본 → OCR 최적화 | (직인 포함) | 엉뚱한 영어 | 영문·이메일 | 평균 신뢰도 | 인식 시간 | 전체 처리 시간 |',
           '|---|---|---|---|---|---|---|---|']
     for key, r in rows:
-        md.append(f"| {key} | {cell(r,'raw','nostamp','acc')} | {cell(r,'proc','nostamp','acc')} | "
-                  f"{cell(r,'raw','all','acc')} → {cell(r,'proc','all','acc')} | {cell(r,'raw','nostamp','recall')} → {cell(r,'proc','nostamp','recall')} | "
+        md.append(f"| {key} | {cell(r,'raw','nostamp','acc')} → **{cell(r,'proc','nostamp','acc')}** | {cell(r,'raw','all','acc')} → {cell(r,'proc','all','acc')} | "
+                  f"{n_spur(r,'raw')} → {n_spur(r,'proc')} | {n_en(r,'raw')} → {n_en(r,'proc')} | "
                   f"{r['raw']['conf']}% → {r['proc']['conf']}% | {r['proc']['ms']/1000:.1f}s | {r['proc']['procMs']/1000:.1f}s |")
     table = '\n'.join(md)
-    (od / 'summary.md').write_text('# 글자 읽기 정확도 비교\n\n정확도 = 1 − 글자 편집거리 ÷ 정답 글자 수 (공백 제외). 기본은 직인·결재 도장 안 글자 제외.\n\n' + table + '\n', encoding='utf-8')
+    (od / 'summary.md').write_text('# 글자 읽기 정확도 비교\n\n정확도 = 1 − 글자 편집거리 ÷ 정답 글자 수 (공백 제외). 기본은 직인·결재 도장 안 글자 제외.\n'
+                                   '엉뚱한 영어 = 결과의 영문 덩어리(2자 이상) 중 정답에 없는 것. 영문·이메일 = 확인할 영문·이메일·주소 중 그대로 읽힌 것.\n\n' + table + '\n', encoding='utf-8')
     (od / 'summary.json').write_text(json.dumps({k: {w: {kk: vv for kk, vv in r[w].items() if kk != 'text'} for w in ('raw', 'proc')} for k, r in rows}, ensure_ascii=False, indent=1), encoding='utf-8')
     return fails, table
-
-
 
 def main():
     sys.stdout.reconfigure(encoding='utf-8')  # Windows 콘솔(cp949)에서 한글·이모지 안내 문구 출력 오류 방지

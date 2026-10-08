@@ -1415,7 +1415,9 @@ function cloneCanvasFromImage(img){
 }
 
 // 여백 자동 제거 — 그냥 어두운 픽셀 하나만 있어도 "콘텐츠"로 치면 남은 잡티 한두 개에도 여백 감지가 틀어지므로,
-// 한 줄(행/열)에 일정 개수 이상 어두운 픽셀이 몰려있어야 그 줄부터 콘텐츠가 시작한다고 판단함
+// 한 줄(행/열)에 일정 개수 이상 어두운 픽셀이 몰려있어야 그 줄부터 콘텐츠가 시작한다고 판단함.
+// 그다음 바깥쪽으로, 어두운 픽셀이 있는 줄이 (빈 줄이 짧은 변의 2.5% 넘게 이어지기 전까지) 계속되면 넓힘 —
+// 글자가 드문 줄(한 줄만 길게 뻗은 오른쪽 끝, 맨 위 작은 머리말의 윗부분)까지 내용인데 여백으로 잘려 글자가 반쯤 잘렸었음
 function autoTrimMargins(canvas){
   const ctx = canvas.getContext('2d');
   const { width, height } = canvas;
@@ -1437,6 +1439,17 @@ function autoTrimMargins(canvas){
   while(right>left && countDarkInCol(right) < minDarkPerLine) right--;
 
   if(right<=left || bottom<=top) return canvas; // 콘텐츠를 못 찾으면 원본 유지
+  const gapStop = Math.max(3, Math.round(Math.min(width,height) * 0.025));
+  const grow = (pos, dir, count, limit)=>{
+    let last = pos, empty = 0;
+    for(let q = pos + dir; q >= 0 && q < limit; q += dir){
+      if(count(q) > 0){ last = q; empty = 0; }
+      else if(++empty > gapStop) break;
+    }
+    return last;
+  };
+  top = grow(top, -1, countDarkInRow, height); bottom = grow(bottom, 1, countDarkInRow, height);
+  left = grow(left, -1, countDarkInCol, width); right = grow(right, 1, countDarkInCol, width);
   const pad = 10;
   const minX=Math.max(0,left-pad), minY=Math.max(0,top-pad);
   const maxX=Math.min(width-1,right+pad), maxY=Math.min(height-1,bottom+pad);
@@ -3868,13 +3881,14 @@ function scanEffect(canvas){
     return base*(1-sh[0]) + alt*sh[0];
   };
 
+  let bwStampMask = null; // 흑백 직인 영역 — 3차 정리에서 건드리지 않게
   if(scanMode === 'bw'){
     // 흑백 — "깨끗한 회색조": 배경은 흰색, 글자는 진하게 하되 글자 가장자리의 중간 톤은 남김.
     // (검정/흰색 둘로만 나누면 획이 두꺼워지고 붙어서 팩스처럼 뭉개짐 — 회색조는 원래 획 굵기가 그대로 유지되고,
     //  OCR도 자체 이진화를 하므로 이쪽이 더 유리함)
     // 직인 영역 찾기 — 빨간 픽셀 덩어리 중 정사각형에 가깝고 빽빽한 것(문서 짧은 변의 4~30% 크기)만 직인으로 봄.
     // 빨간 글씨(숫자·강조 문구)는 작거나 가로세로로 길게 늘어서 있어서 직인으로 잡히지 않음 → 일반 밝기대로 진하게 남음
-    const stampMask = findStampRegions(norm, W, H);
+    const stampMask = bwStampMask = findStampRegions(norm, W, H);
     const WHITE = Math.max(222, Math.min(240, 255 - 3*sigma)), BLACK = 60;
     const lut = new Uint8ClampedArray(256);
     for(let t=0; t<256; t++){
@@ -3945,14 +3959,16 @@ function scanEffect(canvas){
       d[i] = Math.min(255, d[i]*255/br); d[i+1] = Math.min(255, d[i+1]*255/bg_); d[i+2] = Math.min(255, d[i+2]*255/bb);
     }
   }
-  // --- 3차 정리(흑백만): 연하게 칠해진 칸의 얼룩 펴기 ---
-  // 연한 하늘색 머리글처럼 넓게 이어진 연한 칸은 "완만한 명암"으로 보정돼 흰색 기준선 바로 근처에 걸리고,
-  // 흑백에서 흰 점·연회색 점이 섞인 얼룩이 됐음(원본보다 나빠지고, 열 이름을 OCR이 잘못 읽을 수 있음).
-  // 글자 가장자리가 아닌 곳에서 연회색 점(205~254)이 점점이 섞인 곳만 찾아 바탕을 고른 흰색으로 폄.
-  //  · 글자(150 미만)와 그 2px 안(글자 가장자리의 중간 톤)은 그대로 — 글자 굵기·모양 유지
-  //  · 표 선·진한 회색(205 미만)은 그대로
-  //  · 고르게 회색이 깔린 곳(연회색 점이 75% 이상으로 빽빽하고 평균이 235 미만 = 인쇄된 회색 칸)과
-  //    위의 음영 칸 지도에 잡힌 곳은 그대로. 빽빽해도 흰색에 가까운(평균 235 이상) 얼룩은 폄
+  // --- 3차 정리(흑백만): 연하게 칠해진 칸을 칸 단위로 고르게 ---
+  // 넓게 이어진 연한 칸(하늘색 머리글, 연회색 항목 칸)은 가장자리만 "음영 칸"으로 회색이 남고 가운데는 "완만한 명암"으로
+  // 흰색이 돼, 칸 안이 흰 점·회색 점 얼룩(사진 01 머리글)이나 둥근 흰 얼룩(시연 문서 지출결의서 항목 칸)으로 깨졌음.
+  // 픽셀마다가 아니라 칸마다 정함: 표 선·글자로 둘러싸인 바탕 영역 하나를 한 칸으로 보고
+  //  · 회색(248 미만)이 25% 이상이고 그 회색의 중앙값이 236 미만(인쇄된 연회색) → 칸 전체를 그 회색 하나로
+  //  · 회색이 조금(3% 이상) 남은 칸이 바로 위아래(또는 좌우)의 같은 폭(높이) 회색 칸과 줄이 맞으면 같은 회색으로
+  //    (가운데가 거의 다 흰색으로 빠져 25%에 못 미친 칸 — 같은 열의 항목 칸 중 몇 개만 흰색이 되지 않게)
+  //  · 아니면(흰 종이에 연한 점이 섞인 정도) → 칸 안의 연한 점(205 이상)을 모두 흰색으로
+  //  · 글자(150 미만)와 그 2px 안(글자 가장자리 중간 톤)은 그대로 — 회색 칸이면 글자 둘레의 흰 테두리만 칸 회색으로 맞춤
+  //  · 직인(연회색으로 남긴 것)은 건드리지 않음. 사진 가장자리에 닿거나 너무 큰(30% 이상) 영역은 종이 바탕이라 회색으로 칠하지 않음
   if(scanMode === 'bw'){
     const N = W*H;
     const nearInk = new Uint8Array(N), tmpM = new Uint8Array(N);
@@ -3964,35 +3980,64 @@ function scanEffect(canvas){
       const p=y*W+x; if(!tmpM[p]) continue;
       for(let k=Math.max(0,y-2); k<=Math.min(H-1,y+2); k++) nearInk[k*W+x] = 1;
     }
-    const speck = new Float32Array(N), speckV = new Float32Array(N);
-    for(let p=0;p<N;p++){ const v=d[p*4]; if(v >= 205 && v < 255 && !nearInk[p]){ speck[p] = 1; speckV[p] = v; } }
-    // (2r+1)² 상자 합 (가로 누적 → 세로 누적) — 연회색 점 밀도·평균 밝기용
-    const r = Math.max(4, Math.round(Math.max(W,H)/340)), area = (2*r+1)*(2*r+1);
-    const boxSum = src=>{
-      const rowS = new Float32Array(N), out = new Float32Array(N), col = new Float64Array(W);
-      for(let y=0;y<H;y++){
-        let acc=0; const row=y*W;
-        for(let x=0;x<W+r;x++){
-          if(x<W) acc += src[row+x];
-          if(x-2*r-1 >= 0) acc -= src[row+x-2*r-1];
-          const cx = x-r; if(cx>=0 && cx<W) rowS[row+cx] = acc;
+    const isBg = p=> !nearInk[p] && !(bwStampMask && bwStampMask[p]) && d[p*4] >= 150;
+    const label = new Int32Array(N).fill(-1), stack = new Int32Array(N), level = [], info = [];
+    let nc = 0;
+    for(let s0=0; s0<N; s0++){
+      if(label[s0] !== -1 || !isBg(s0)) continue;
+      let sp = 0, n = 0, grayN = 0, edge = false, bx0 = W, by0 = H, bx1 = 0, by1 = 0; stack[sp++] = s0; label[s0] = nc;
+      const hist = new Uint32Array(256);
+      while(sp){
+        const p = stack[--sp], x = p%W, y = (p/W)|0, v = d[p*4];
+        n++; if(v < 248){ grayN++; hist[v]++; }
+        if(x===0 || y===0 || x===W-1 || y===H-1) edge = true;
+        if(x<bx0) bx0=x; if(x>bx1) bx1=x; if(y<by0) by0=y; if(y>by1) by1=y;
+        if(x>0 && label[p-1]===-1 && isBg(p-1)){ label[p-1]=nc; stack[sp++]=p-1; }
+        if(x<W-1 && label[p+1]===-1 && isBg(p+1)){ label[p+1]=nc; stack[sp++]=p+1; }
+        if(y>0 && label[p-W]===-1 && isBg(p-W)){ label[p-W]=nc; stack[sp++]=p-W; }
+        if(y<H-1 && label[p+W]===-1 && isBg(p+W)){ label[p+W]=nc; stack[sp++]=p+W; }
+      }
+      let med = 255;
+      if(grayN){ let acc = 0; for(let v=0; v<256; v++){ acc += hist[v]; if(acc*2 >= grayN){ med = v; break; } } }
+      // 회색 칸이면 그 칸의 회색 값, 아니면 -1(흰색으로)
+      const ok = !edge && n >= 300 && n < N*0.3 && med < 236;
+      level[nc] = (ok && grayN >= n*0.25) ? med : -1;
+      info[nc] = { ok: ok && grayN >= n*0.03, x0: bx0, y0: by0, x1: bx1, y1: by1 };
+      nc++;
+    }
+    // 이웃 회색 칸과 줄이 맞는 칸 맞추기 (같은 열이면 좌우 끝이, 같은 행이면 위아래 끝이 비슷하고 사이 틈이 좁음)
+    const tol = Math.max(8, Math.round(Math.max(W,H)/200)), gapMax = Math.max(20, Math.round(Math.max(W,H)/100));
+    const grayCells = info.map((c, i)=> i).filter(i=> level[i] >= 0);
+    for(let pass=0; pass<3; pass++){
+      let changed = 0;
+      for(let i=0; i<nc; i++){
+        if(level[i] >= 0 || !info[i].ok) continue;
+        const a = info[i];
+        for(const g of grayCells){
+          const b = info[g];
+          const sameCol = Math.abs(a.x0-b.x0) <= tol && Math.abs(a.x1-b.x1) <= tol && Math.max(b.y0 - a.y1, a.y0 - b.y1) <= gapMax;
+          const sameRow = Math.abs(a.y0-b.y0) <= tol && Math.abs(a.y1-b.y1) <= tol && Math.max(b.x0 - a.x1, a.x0 - b.x1) <= gapMax;
+          if(sameCol || sameRow){ level[i] = level[g]; grayCells.push(i); changed++; break; }
         }
       }
-      for(let y=0;y<H+r;y++){
-        if(y<H) for(let x=0;x<W;x++) col[x] += rowS[y*W+x];
-        if(y-2*r-1 >= 0) for(let x=0;x<W;x++) col[x] -= rowS[(y-2*r-1)*W+x];
-        const cy = y-r; if(cy>=0 && cy<H) for(let x=0;x<W;x++) out[cy*W+x] = col[x];
-      }
-      return out;
-    };
-    const cnt = boxSum(speck), sumV = boxSum(speckV);
+      if(!changed) break;
+    }
+    for(let p=0;p<N;p++){
+      const c = label[p];
+      if(c === -1) continue;
+      const v = d[p*4], lv = level[c];
+      const o = lv >= 0 ? lv : (v >= 205 ? 255 : v);
+      d[p*4] = d[p*4+1] = d[p*4+2] = o;
+    }
+    // 회색 칸 안 글자 둘레(2px)의 흰 테두리: 칸 회색보다 밝으면 칸 회색으로 — 가까운 칸을 이웃에서 찾음
     for(let y=0;y<H;y++) for(let x=0;x<W;x++){
       const p=y*W+x;
-      if(!speck[p]) continue;
-      const dens = cnt[p]/area;
-      if(dens < 0.03 || (dens > 0.75 && sumV[p]/cnt[p] < 235)) continue;
-      const sh = shadeAt(x, y); if(sh && sh[0] > 0.1) continue;
-      d[p*4] = d[p*4+1] = d[p*4+2] = 255;
+      if(!nearInk[p] || d[p*4] < 150) continue;
+      let c = -1;
+      for(let r=1; r<=3 && c<0; r++){
+        for(const q of [p-r, p+r, p-r*W, p+r*W]){ if(q>=0 && q<N && label[q] !== -1){ c = label[q]; break; } }
+      }
+      if(c >= 0 && level[c] >= 0 && d[p*4] > level[c]) d[p*4] = d[p*4+1] = d[p*4+2] = level[c];
     }
     // 어두운 띠 위의 밝은 글씨(사진 01 파란 띠의 흰 글씨): 흑백에서 띠와 글자가 거의 같은 회색이 돼 안 읽혔음
     // → 띠는 어둡게 두고 글자만 거의 흰색으로 대비를 늘림
@@ -4006,7 +4051,9 @@ function scanEffect(canvas){
 
 // 노이즈 제거 — 주변 8칸과 동떨어진 "고립된 점"(스캔 잡티·먼지·소금-후추 노이즈)만 3x3 중앙값으로 바꿈.
 // 예전엔 모든 픽셀을 3x3 중앙값으로 바꿔서, 1~2px 두께의 작은 글자 획까지 잡티처럼 뭉개졌음.
-// 글자 획 픽셀은 같은 획의 이웃 픽셀도 비슷하게 어두우므로 "고립"이 아니어서 그대로 남음
+// 글자 획 픽셀은 같은 획의 이웃 픽셀도 비슷하게 어두우므로 "고립"이 아니어서 그대로 남음.
+// 단, 글자 바로 옆(몇 px 안)의 어두운 점은 남김 — 마침표·쉼표·@ 둘레 같은 작은 문장부호가 잡티로 지워져
+// 이메일·웹 주소의 점이 사라졌었음(kim.gana@ganauniv.ac.kr → ac kr). 잡티는 글자에서 떨어진 것만 지움
 function denoiseMedian(canvas){
   const ctx = canvas.getContext('2d');
   const { width, height } = canvas;
@@ -4020,6 +4067,15 @@ function denoiseMedian(canvas){
   const T = 40;           // 중앙값과 이만큼 이상 차이 나야 잡티 후보
   const vals = new Float32Array(9), cv = new Uint8Array(9);
   const sort9 = a=>{ for(let i=1;i<9;i++){ const v=a[i]; let j=i-1; while(j>=0 && a[j]>v){ a[j+1]=a[j]; j--; } a[j+1]=v; } };
+  // (x,y) 둘레(바로 붙은 3×3은 빼고 R px 안)에 이 점만큼 어두운 픽셀(=글자 획)이 있는지
+  const R = Math.max(5, Math.round(Math.max(width,height)/300));
+  const nearDarkInk = (x, y, v)=>{
+    for(let yy=Math.max(0,y-R); yy<=Math.min(height-1,y+R); yy++) for(let xx=Math.max(0,x-R); xx<=Math.min(width-1,x+R); xx++){
+      if(Math.abs(xx-x) <= 1 && Math.abs(yy-y) <= 1) continue;
+      if(lum[yy*width+xx] < v + 40) return true;
+    }
+    return false;
+  };
   for(let y=1;y<height-1;y++){
     for(let x=1;x<width-1;x++){
       const p = y*width+x, v = lum[p];
@@ -4032,6 +4088,7 @@ function denoiseMedian(canvas){
       if(similar > 1) continue;          // 비슷한 이웃이 2개 이상이면 획·선의 일부 → 건드리지 않음
       sort9(vals);
       if(Math.abs(v - vals[4]) <= T) continue;
+      if(v < vals[4] && nearDarkInk(x, y, v)) continue; // 글자 옆의 작은 문장부호
       for(let c=0;c<3;c++){
         k=0;
         for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++) cv[k++] = sd[(p+dy*width+dx)*4+c];
@@ -4993,7 +5050,8 @@ function enhanceInvertedText(d, W, H){
 }
 
 // OCR에 넣을 이미지 만들기 (사용자에게 보이는 결과물은 건드리지 않음)
-//  ① 자르기(rect: 칸 하나) + 여백  ② 크기 맞추기 — 칸은 글자가 작으면 키우고, 쪽 전체는 너무 크면 줄여서 속도 확보
+//  ① 자르기(rect: 칸 하나) + 여백  ② 크기 맞추기 — 칸은 글자가 작으면 키우고, 쪽 전체는 긴 변 2000~2400px로
+//     (사진은 처리 후 작아져 이메일의 점·@가 뭉개졌음 — 2000px로 키우면 사진 05 이메일을 하나 더 읽음. 시간은 거의 같음)
 //  ③ 직인만 흰색으로: 컬러면 findStampRegions로 찾은 직인 안의 붉은 픽셀만(빨간 숫자·글씨는 그대로),
 //     흑백 스캔 결과면 직인이 이미 연회색(약 205)이라 아주 연한 회색(200 이상)을 흰색으로
 //  ④ 회색조(완전 이진화는 하지 않음 — Tesseract가 자체 이진화를 함)  ⑤ 반전 글자 영역은 뒤집어 흰 바탕 검은 글씨로
@@ -5006,8 +5064,9 @@ function prepareOcrImage(src, rect){
   } : { x:0, y:0, w:src.width, h:src.height };
   let scale;
   if(rect) scale = Math.min(4, Math.max(1, 48 / Math.max(1, r.h)));
-  else { const L = Math.max(r.w, r.h); scale = L > 2400 ? 2400/L : L < 1000 ? 1000/L : 1; }
-  const pad = rect ? Math.round(12*Math.max(1, scale)) : 0;
+  else { const L = Math.max(r.w, r.h); scale = L > 2400 ? 2400/L : L < 2000 ? 2000/L : 1; }
+  // 흰 여백 — Tesseract는 이미지 가장자리에 붙은 글자에 약함(여백 정리 후 맨 위 작은 머리말 "SAMPLE"이 깨졌었음)
+  const pad = rect ? Math.round(12*Math.max(1, scale)) : Math.round(Math.max(r.w, r.h)*scale*0.02);
   const W = Math.max(1, Math.round(r.w*scale) + 2*pad), H = Math.max(1, Math.round(r.h*scale) + 2*pad);
   const out = document.createElement('canvas'); out.width = W; out.height = H;
   const ctx = out.getContext('2d');
@@ -5041,11 +5100,58 @@ function prepareOcrImage(src, rect){
   return { canvas: out, scale, ox: r.x - pad/scale, oy: r.y - pad/scale };
 }
 
+// 한글 사이에 낀 짧은 영문 덩어리 — 한국어+영어로 읽으면 흐린 한글 단어가 엉뚱한 영어 대문자로 바뀌곤 했음
+// ("계획을" → "AUR", "금액을" → "SHS", "시연용" → "AEE"). 한국어만으로 읽으면 이런 일은 없지만 영문(RISE·이메일·웹 주소)을
+// 하나도 못 읽어서, 한국어+영어로 읽은 뒤 이런 덩어리만 영문 글자를 금지하고 다시 읽어 더 확신 높은 한글이 나오면 바꿈.
+// 시연 문서·한영 혼합 문서 비교(NOTES.md): 정확도는 한국어+영어보다 같거나 높고, 엉뚱한 영어는 줄고, 영문 인식은 그대로.
+// 이메일·주소·숫자가 섞인 것과 5자 이상 단어는 진짜 영문일 가능성이 커서 손대지 않음
+const isStrayLatin = t=> /^[A-Za-z]{2,4}$/.test(t.replace(/^[(\[]|[)\],.:]$/g, ''));
+const hasHangul = t=> /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(t || '');
+const besideHangul = (ws, i)=> hasHangul(ws[i-1] && ws[i-1].text) || hasHangul(ws[i+1] && ws[i+1].text);
+async function rereadStrayLatin(worker, cv, rawLines, text){
+  const cands = [];
+  for(const li of rawLines){
+    const ws = (li.words || []).filter(w=> (w.text || '').trim());
+    ws.forEach((w, i)=>{ if(isStrayLatin(w.text.trim()) && besideHangul(ws, i)) cands.push({ w, li }); });
+  }
+  if(!cands.length) return text;
+  // 후보 단어만 잘라 한 장에 세로로 늘어놓고 한 번에 읽음(단어마다 따로 읽으면 느림)
+  const pad = 8, gap = 20;
+  const hs = cands.map(c=> c.w.bbox.y1 - c.w.bbox.y0 + 2*pad), ws = cands.map(c=> c.w.bbox.x1 - c.w.bbox.x0 + 2*pad);
+  const strip = document.createElement('canvas');
+  strip.width = Math.max(...ws) + 20; strip.height = hs.reduce((a,b)=> a+b+gap, gap);
+  const sx = strip.getContext('2d'); sx.fillStyle = '#fff'; sx.fillRect(0,0,strip.width,strip.height);
+  const slots = []; let y = gap;
+  cands.forEach((c, i)=>{ sx.drawImage(cv, c.w.bbox.x0-pad, c.w.bbox.y0-pad, ws[i], hs[i], 10, y, ws[i], hs[i]); slots.push([y, y+hs[i]]); y += hs[i] + gap; });
+  const LATIN = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+  await worker.setParameters({ tessedit_pageseg_mode: '6', tessedit_char_blacklist: LATIN });
+  let kd;
+  try{ ({ data: kd } = await worker.recognize(strip, {}, { blocks: true })); }
+  finally{ await worker.setParameters({ tessedit_char_blacklist: '' }); }
+  const agg = cands.map(()=>({ t: [], cs: 0, n: 0 }));
+  for(const bl of kd.blocks || []) for(const pa of bl.paragraphs || []) for(const li of pa.lines || []) for(const w of li.words || []){
+    const cy = (w.bbox.y0 + w.bbox.y1)/2, i = slots.findIndex(([a,b])=> cy >= a && cy <= b);
+    if(i >= 0 && (w.text || '').trim()){ agg[i].t.push(w.text.trim()); agg[i].cs += w.confidence; agg[i].n++; }
+  }
+  cands.forEach((c, i)=>{
+    const a = agg[i]; if(!a.n) return;
+    const t = a.t.join(''), conf = a.cs/a.n;
+    if(!hasHangul(t) || /[A-Za-z0-9]/.test(t) || conf <= c.w.confidence + 15) return;
+    // 줄 글자와 쪽 글자에서도 같은 자리를 바꿈 (Tesseract가 만든 줄 간격·띄어쓰기는 그대로)
+    const old = c.w.text.trim(), oldLine = c.li.text || '';
+    const newLine = oldLine.replace(old, t);
+    if(oldLine && text.includes(oldLine)) text = text.replace(oldLine, newLine);
+    c.li.text = newLine; c.w.text = t; c.w.confidence = conf;
+  });
+  return text;
+}
+
 // 글자 읽기 — 이미지 전체든 잘라낸 칸 하나든 같은 함수
 //  canvas: 처리 결과 등 원래 이미지 / opts.rect: {x,y,w,h}면 그 칸만 / opts.mode: 'page' | 'block' | 'line'
 //  opts.onProgress({stage:'load'|'recognize', progress 0~1}) / opts.prepare: false면 OCR용 정리 없이 그대로(테스트 비교용)
 // 결과(좌표는 모두 넘겨준 canvas 기준):
-//  { text, meanConf, lowConfWords, ms, lines:[{text, conf, bbox:{x0,y0,x1,y1}}], words:[{text, conf, bbox}], ocrCanvas }
+//  { text, meanConf, lowConfWords, lowConfList, ms, lines:[{text, conf, bbox:{x0,y0,x1,y1}}], words:[{text, conf, bbox, suspect?}], ocrCanvas }
+//  suspect: 한글 사이에 낀 짧은 영문 덩어리(엉뚱한 영어일 수 있음) — 확신 낮은 단어로 셈
 function ocrRecognize(canvas, opts = {}){
   const run = async ()=>{
     const t0 = performance.now();
@@ -5071,23 +5177,33 @@ function ocrRecognize(canvas, opts = {}){
       // 글자가 엉뚱하게 나왔음(지출결의서 쪽 정확도 26% → 끄면 70%)
       await worker.setParameters({ tessedit_pageseg_mode: OCR_PSM[mode] || '4', textord_tabfind_vertical_text: '0' });
       const { data } = await worker.recognize(prep.canvas, {}, { text: true, blocks: true });
+      const rawLines = [];
+      for(const bl of data.blocks || []) for(const pa of bl.paragraphs || []) for(const li of pa.lines || []) rawLines.push(li);
+      let text = data.text || '';
+      text = await rereadStrayLatin(worker, prep.canvas, rawLines, text);
+      // "₩3,250,000"이 "\3,250,000"으로 읽힘 — 숫자 앞의 역슬래시는 원화 기호로
+      const won = t=> t.replace(/\\(?=\s?\d)/g, '₩');
       const box = b=>({ x0: prep.ox + b.x0/prep.scale, y0: prep.oy + b.y0/prep.scale, x1: prep.ox + b.x1/prep.scale, y1: prep.oy + b.y1/prep.scale });
       const lines = [], words = [];
-      for(const bl of data.blocks || []) for(const pa of bl.paragraphs || []) for(const li of pa.lines || []){
-        const t = (li.text || '').trim();
+      for(const li of rawLines){
+        const t = won((li.text || '').trim());
         if(t) lines.push({ text: t, conf: Math.round(li.confidence), bbox: box(li.bbox) });
-        for(const w of li.words || []){
-          const wt = (w.text || '').trim();
-          if(wt) words.push({ text: wt, conf: Math.round(w.confidence), bbox: box(w.bbox) });
-        }
+        const ws = (li.words || []).filter(w=> (w.text || '').trim());
+        ws.forEach((w, i)=>{
+          const wt = won(w.text.trim()), conf = Math.round(w.confidence);
+          // 한글 사이에 낀 짧은 영문 덩어리(다시 읽어도 영문으로 남은 것)는 확신이 아주 높지 않으면 "의심" — 원본과 대조하도록
+          const suspect = isStrayLatin(wt) && conf < 85 && besideHangul(ws, i);
+          words.push({ text: wt, conf, bbox: box(w.bbox), ...(suspect ? { suspect: true } : {}) });
+        });
       }
       // 평균 신뢰도는 글자 수로 가중 — 한두 글자짜리 잡음이 평균을 흔들지 않게
       let cs = 0, cn = 0;
       for(const w of words){ cs += w.conf * w.text.length; cn += w.text.length; }
+      const low = words.filter(w=> w.conf < OCR_LOW_CONF || w.suspect);
       return {
-        text: (data.text || '').replace(/\n{3,}/g, '\n\n').trim(),
+        text: won(text).replace(/\n{3,}/g, '\n\n').trim(),
         meanConf: cn ? Math.round(cs/cn) : 0,
-        lowConfWords: words.filter(w=> w.conf < OCR_LOW_CONF).length,
+        lowConfWords: low.length, lowConfList: low.map(w=> w.text),
         lines, words, ms: performance.now() - t0, ocrCanvas: prep.canvas,
       };
     } finally {
@@ -5252,10 +5368,14 @@ function showOcrPanel(pages){
   const panel = document.getElementById('ocrPanel');
   if(!pages.length){ panel.classList.remove('show'); return; }
   document.getElementById('ocrTextArea').value = formatOcrPages(pages);
-  let cs = 0, cn = 0, low = 0;
-  for(const p of pages){ for(const w of p.words){ cs += w.conf*w.text.length; cn += w.text.length; } low += p.lowConfWords; }
+  let cs = 0, cn = 0, low = 0; const ex = [];
+  for(const p of pages){
+    for(const w of p.words){ cs += w.conf*w.text.length; cn += w.text.length; }
+    low += p.lowConfWords;
+    for(const t of p.lowConfList || []) if(ex.length < 5 && t.length >= 2 && !ex.includes(t)) ex.push(t);
+  }
   document.getElementById('ocrMeta').textContent = cn ? `평균 신뢰도 ${Math.round(cs/cn)}%` : '읽은 글자가 없어요';
-  document.getElementById('ocrHint').textContent = low ? `확신 낮은 단어 ${low}개 — 원본과 대조해 주세요` : '';
+  document.getElementById('ocrHint').textContent = low ? `확신 낮은 단어 ${low}개${ex.length ? ` (예: ${ex.join(', ')})` : ''} — 원본과 대조해 주세요` : '';
   panel.classList.add('show');
 }
 document.getElementById('ocrCopyBtn').addEventListener('click', async ()=>{
