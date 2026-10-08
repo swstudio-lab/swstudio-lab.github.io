@@ -1,2 +1,5 @@
 # DocFlow 테스트용 실제 업무 사진·시연 문서·테스트 결과 — 개인정보·직인이 담겨 있어 절대 올리지 않음
 works/docflow/tests/private/
+
+# 파이썬 캐시
+__pycache__/

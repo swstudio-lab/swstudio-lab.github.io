@@ -3,20 +3,29 @@
 실행:  python works/docflow/tests/run_tests.py            (전체)
        python works/docflow/tests/run_tests.py synthetic  (합성 이미지 테스트만)
        python works/docflow/tests/run_tests.py photo      (실제 사진 테스트만)
+       python works/docflow/tests/run_tests.py ocr        (글자 읽기 정확도 비교만 — 몇 분 걸림)
 준비:  pip install playwright  →  python -m playwright install chromium
 
 · 합성 이미지 테스트: 사진 없이 브라우저에서 직접 그린 이미지로 검사 — 항상 실행
 · 실제 사진 테스트: tests/private/ 에 사진이 있을 때만 실행 (없으면 SKIP)
   결과 이미지는 tests/private/results/<시각>/ 에 저장 — 문서 내용이 담겨 있어 private 안에 둠(.gitignore)
   자동 판정은 기본 수치(오류 없음·선분 수 등)만 하고, 글자 보존 같은 화질은 저장된 이미지를 눈으로 확인
+· 글자 읽기 정확도: private/ 의 시연용 PDF와 정답 텍스트로 테스트 이미지(깨끗한 것·사진처럼 합성한 것)를 만들어
+  "원본 그대로" vs "OCR 최적화 처리 후"를 글자 단위로 비교. 결과는 private/results/<시각>/ocr/
+  (판정 기준: OCR 최적화 처리 후 정확도가 원본 그대로보다 낮아지지 않을 것)
+
+페이지는 실제 사이트와 같은 경로 구조로 띄움: http://docflow.test/works/docflow/index.html, /assets/... = 저장소 루트
 """
-import base64, json, pathlib, sys, time
+import base64, json, pathlib, re, sys, time, urllib.parse
 from playwright.sync_api import sync_playwright
 
 TESTS = pathlib.Path(__file__).resolve().parent
 DOCFLOW = TESTS.parent
+REPO = DOCFLOW.parent.parent
 PRIVATE = TESTS / 'private'
 BASE = 'http://docflow.test'
+PAGE = BASE + '/works/docflow/index.html'
+PRIVATE_URL = '/works/docflow/tests/private/'   # 페이지 안에서 private 파일을 불러올 때의 경로
 
 # 페이지에 한 번 넣어두는 공용 도우미
 HELPERS = r"""
@@ -167,7 +176,7 @@ PHOTO = [
 ]
 PHOTO_JS = r"""
   const [file, checks, opts] = ARGS;
-  await T.load('/private/'+file, file);
+  await T.load('/works/docflow/tests/private/'+file, file);
   // 표 선 제거가 있으면 그 단계의 선분 수를 기록
   let segV = -1, segH = -1; const orig = PROCESSORS.removeLines;
   PROCESSORS.removeLines = async (c, s)=>{ const r = await orig(c, s); const D = removeTableLines.debug; if(D){ segV=D.segments.v.length; segH=D.segments.h.length; } return r; };
@@ -176,6 +185,163 @@ PHOTO_JS = r"""
   return { ok: !!r.canvas, segV, segH, ms: r.ms, warning: r.warning, size: r.canvas ? r.canvas.width+'x'+r.canvas.height : '-',
            images: r.canvas ? { result: T.png(r.canvas) } : {} };
 """
+
+# ---------------- 글자 읽기(OCR) 정확도 비교 ----------------
+OCR_PDF = 'DocFlow_시연용_문서.pdf'
+OCR_ANSWER = 'DocFlow_시연용_문서_정답텍스트.txt'
+OCR_PRESET = ['autoCrop', 'scanEffect', 'trimMargin', 'denoise', 'removeLines', 'ocrText']
+
+def ocr_references():
+    """정답 텍스트를 쪽별로 나누고, 직인·결재 도장 안 글자를 뺀 것도 만듦 → {page: {'all': ..., 'nostamp': ...}}"""
+    lines = (PRIVATE / OCR_ANSWER).read_text(encoding='utf-8').splitlines()
+    starts = [i for i, l in enumerate(lines) if '시연용 가상 문서 · SAMPLE' in l]   # 쪽마다 맨 위 머리말
+    p2 = starts[1] if len(starts) > 1 else len(lines)
+    pages = {1: lines[:p2], 2: lines[p2:]}
+    # 2쪽의 결재 도장(홍길동인·김가나인·이다라인)과 직인(산학협력단인) 안 글자 — OCR 이미지에서 직인을 빼므로 채점에서 제외
+    drop_lines = {'동인', '김가', '나인', '이다', '라인', '력 산', '인 협'}
+    def nostamp(ls):
+        out = []
+        for l in ls:
+            t = l.strip()
+            if t in drop_lines: continue
+            t = re.sub(r'^재\s+홍길$', '재', t)
+            t = re.sub(r'산학협력단장\s+단 학$', '산학협력단장', t)
+            out.append(t)
+        return '\n'.join(out)
+    return {p: {'all': '\n'.join(ls), 'nostamp': nostamp(ls)} for p, ls in pages.items()}
+
+# 페이지 안에서: 시연 PDF → 깨끗한 이미지(200dpi) + 사진처럼 합성한 이미지
+OCR_MAKE_JS = r"""
+  const [pdfUrl] = ARGS;
+  const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
+  const out = {};
+  for(let n=1; n<=pdf.numPages; n++){
+    const page = await pdf.getPage(n), vp = page.getViewport({ scale: 200/72 });
+    const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0,0,c.width,c.height);
+    await page.render({ canvasContext: x, viewport: vp }).promise;
+    out['page'+n+'_clean'] = c.toDataURL('image/png');
+    out['page'+n+'_photo'] = synthPhoto(c, n);
+  }
+  return out;
+
+  // 사진처럼: 비스듬한 각도(원근) + 책상 배경 + 누런 조명 + 손 그림자 + 어둡고 잡티 + 카톡 압축(긴 변 1400px, JPEG)
+  function synthPhoto(src, seed){
+    let s = seed*9973+7; const rnd = ()=>{ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; };
+    const W = 1500, H = 2000, sw = src.width, sh = src.height;
+    const sd = src.getContext('2d').getImageData(0,0,sw,sh).data;
+    const quad = [{x:190,y:170},{x:1330,y:250},{x:1405,y:1860},{x:110,y:1790}];   // 종이 네 모서리(사진 속)
+    const Hm = computeHomography(quad, [{x:0,y:0},{x:sw,y:0},{x:sw,y:sh},{x:0,y:sh}]); // 사진 좌표 → 원본 좌표
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const ctx = c.getContext('2d'), im = ctx.createImageData(W,H), d = im.data;
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+      const den = Hm[6]*x + Hm[7]*y + 1, u = (Hm[0]*x + Hm[1]*y + Hm[2])/den, v = (Hm[3]*x + Hm[4]*y + Hm[5])/den;
+      let r, g, b;
+      if(u >= 0 && v >= 0 && u < sw-1 && v < sh-1){
+        const x0=u|0, y0=v|0, tx=u-x0, ty=v-y0, i00=(y0*sw+x0)*4, i10=i00+4, i01=i00+sw*4, i11=i01+4;
+        const bl = k=> sd[i00+k]*(1-tx)*(1-ty) + sd[i10+k]*tx*(1-ty) + sd[i01+k]*(1-tx)*ty + sd[i11+k]*tx*ty;
+        r = bl(0); g = bl(1); b = bl(2);
+      } else { const t = 150 + 12*Math.sin(y/9 + Math.sin(x/40)*2); r = t+18; g = t+6; b = t-12; } // 나뭇결 책상
+      // 누런 조명: 왼쪽 위는 따뜻하고 밝게, 오른쪽 아래로 갈수록 어둡게
+      const lt = 0.95 - 0.28*((x/W)*0.6 + (y/H)*0.4);
+      r *= lt*1.0; g *= lt*0.92; b *= lt*0.72;
+      // 손 그림자: 오른쪽 아래에서 들어온 흐린 덩어리
+      const dx = (x-1150)/420, dy = (y-1500)/300, dd = Math.sqrt(dx*dx+dy*dy);
+      const sh2 = dd < 1 ? 0.55 : dd < 1.6 ? 0.55 + 0.45*((dd-1)/0.6) : 1;
+      r *= sh2; g *= sh2; b *= sh2;
+      const nz = (rnd()+rnd()+rnd()-1.5)*14;   // 어두운 곳에서 찍은 잡티
+      const i = (y*W+x)*4; d[i]=r+nz; d[i+1]=g+nz; d[i+2]=b+nz; d[i+3]=255;
+    }
+    ctx.putImageData(im,0,0);
+    // 살짝 흐리게(초점) + 카톡처럼 긴 변 1400px로 줄이고 JPEG 압축
+    const k = document.createElement('canvas'); k.width = Math.round(W*0.7); k.height = Math.round(H*0.7);
+    const kx = k.getContext('2d'); kx.filter = 'blur(0.6px)'; kx.drawImage(c, 0, 0, k.width, k.height);
+    return k.toDataURL('image/jpeg', 0.72);
+  }
+"""
+
+# 페이지 안에서: 이미지 하나를 ① 원본 그대로 ② OCR 최적화 처리 후 로 읽고, 정답과 비교
+OCR_RUN_JS = r"""
+  const [url, name, refs, preset] = ARGS;
+  const img = new Image(); img.src = url; await img.decode();
+  const raw = cloneCanvasFromImage(img);
+  const a = await ocrRecognize(raw, { prepare: false });           // ① 원본 그대로 (DocFlow 처리·OCR용 정리 없이)
+  await T.load(url, name);                                         // ② OCR 최적화 프리셋으로 처리(글자 읽기 포함)
+  const t0 = performance.now();
+  const r = await T.process(preset, { scanMode: 'bw' });
+  const procMs = performance.now() - t0;
+  const b = lastOcrPages[0];
+  // 공백을 뺀 글자 단위 비교: 정확도 = 1 − 편집거리/정답 글자 수, 재현율 = 순서 무관하게 정답 글자가 몇 % 나왔는지
+  // 공백 제거 + 모양이 같은 문자 맞춤: Tesseract는 가운뎃점(·)을 한글 자모 "ㆍ"로 내놓음
+  const strip = t=> (t||'').replace(/\s+/g, '').replace(/[ㆍ∙•]/g, '·');
+  const lev = (x, y)=>{ let prev = new Int32Array(y.length+1).map((_,j)=>j), cur = new Int32Array(y.length+1);
+    for(let i=1;i<=x.length;i++){ cur[0]=i; for(let j=1;j<=y.length;j++) cur[j] = Math.min(prev[j]+1, cur[j-1]+1, prev[j-1] + (x[i-1]===y[j-1]?0:1)); [prev,cur]=[cur,prev]; }
+    return prev[y.length]; };
+  const recall = (ref, hyp)=>{ const m = new Map(); for(const ch of hyp) m.set(ch, (m.get(ch)||0)+1); let k=0; for(const ch of ref){ const v=m.get(ch)||0; if(v){ k++; m.set(ch,v-1); } } return k/ref.length; };
+  const score = text=>{ const h = strip(text), o = {};
+    for(const [k, ref] of Object.entries(refs || {})){ const rr = strip(ref); o[k] = { acc: Math.max(0, 1 - lev(rr, h)/rr.length), recall: recall(rr, h) }; }
+    return o; };
+  return {
+    raw:  { text: a.text, conf: a.meanConf, ms: a.ms, score: score(a.text) },
+    proc: { text: b ? b.text : '', conf: b ? b.meanConf : 0, ms: b ? b.ms : 0, procMs, score: score(b && b.text), warning: r.warning },
+    images: { input: url, processed: T.png(r.canvas), ocr_input: b ? T.png(b.ocrCanvas) : null },
+  };
+"""
+
+def run_ocr_tests(fresh_page, out_dir):
+    """결과 표(마크다운)를 돌려줌 — 실패 수와 함께"""
+    if not ((PRIVATE / OCR_PDF).is_file() and (PRIVATE / OCR_ANSWER).is_file()):
+        print('  SKIP  tests/private/ 에 시연용 PDF·정답 텍스트가 없어서 건너뜀')
+        return 0, None
+    od = out_dir / 'ocr'; od.mkdir(parents=True, exist_ok=True)
+    refs = ocr_references()
+    pg = fresh_page()
+    imgs = pg.evaluate('async (ARGS) => {' + OCR_MAKE_JS + '}', [PRIVATE_URL + urllib.parse.quote(OCR_PDF)])
+    pg.close()
+    cases = []
+    for key, url in imgs.items():
+        (od / f'{key}.{"jpg" if url.startswith("data:image/jpeg") else "png"}').write_bytes(base64.b64decode(url.split(',', 1)[1]))
+        page = int(key[4])
+        cases.append((key, url, {'nostamp': refs[page]['nostamp'], 'all': refs[page]['all']}))
+    if (PRIVATE / 'photo01.jpg').is_file():
+        cases.append(('photo01', PRIVATE_URL + 'photo01.jpg', None))   # 실제 사진 — 정답 없음(참고용)
+    rows, fails = [], 0
+    for key, url, ref in cases:
+        pg = fresh_page()
+        t0 = time.time()
+        r = pg.evaluate('async (ARGS) => {' + OCR_RUN_JS + '}', [url, key + ('.jpg' if 'photo' in key else '.png'), ref, OCR_PRESET])
+        pg.close()
+        for k in ('processed', 'ocr_input'):
+            v = r['images'].get(k)
+            if v: (od / f'{key}_{k}.png').write_bytes(base64.b64decode(v.split(',', 1)[1]))
+        (od / f'{key}_text_raw.txt').write_text(r['raw']['text'], encoding='utf-8')
+        (od / f'{key}_text_processed.txt').write_text(r['proc']['text'], encoding='utf-8')
+        rows.append((key, r))
+        pct = lambda x: f'{x*100:.1f}%'
+        if ref:
+            ra, pa = r['raw']['score']['nostamp'], r['proc']['score']['nostamp']
+            ok = pa['acc'] >= ra['acc'] - 0.01
+            fails += 0 if ok else 1
+            print(f"  {'PASS' if ok else 'FAIL'}  {key}  원본 그대로 {pct(ra['acc'])} → OCR 최적화 후 {pct(pa['acc'])}"
+                  f"  (재현율 {pct(ra['recall'])} → {pct(pa['recall'])}, 인식 {r['proc']['ms']/1000:.1f}s, 전체 처리 {r['proc']['procMs']/1000:.1f}s, {time.time()-t0:.0f}s)")
+        else:
+            print(f"  INFO  {key}  평균 신뢰도 원본 그대로 {r['raw']['conf']}% → OCR 최적화 후 {r['proc']['conf']}%"
+                  f"  (인식 {r['proc']['ms']/1000:.1f}s, 전체 처리 {r['proc']['procMs']/1000:.1f}s)")
+    # 요약표
+    def cell(r, which, k, f):
+        sc = r[which]['score'].get(k) if r[which]['score'] else None
+        return f'{sc[f]*100:.1f}%' if sc else '-'
+    md = ['| 이미지 | 원본 그대로 정확도 | OCR 최적화 후 정확도 | (직인 포함) 원본 → 최적화 | 재현율 원본 → 최적화 | 평균 신뢰도 원본 → 최적화 | 인식 시간 | 전체 처리 시간 |',
+          '|---|---|---|---|---|---|---|---|']
+    for key, r in rows:
+        md.append(f"| {key} | {cell(r,'raw','nostamp','acc')} | {cell(r,'proc','nostamp','acc')} | "
+                  f"{cell(r,'raw','all','acc')} → {cell(r,'proc','all','acc')} | {cell(r,'raw','nostamp','recall')} → {cell(r,'proc','nostamp','recall')} | "
+                  f"{r['raw']['conf']}% → {r['proc']['conf']}% | {r['proc']['ms']/1000:.1f}s | {r['proc']['procMs']/1000:.1f}s |")
+    table = '\n'.join(md)
+    (od / 'summary.md').write_text('# 글자 읽기 정확도 비교\n\n정확도 = 1 − 글자 편집거리 ÷ 정답 글자 수 (공백 제외). 기본은 직인·결재 도장 안 글자 제외.\n\n' + table + '\n', encoding='utf-8')
+    (od / 'summary.json').write_text(json.dumps({k: {w: {kk: vv for kk, vv in r[w].items() if kk != 'text'} for w in ('raw', 'proc')} for k, r in rows}, ensure_ascii=False, indent=1), encoding='utf-8')
+    return fails, table
+
 
 
 def main():
@@ -186,13 +352,13 @@ def main():
     fails = 0
 
     def route(r):
-        url = r.request.url
-        if url == BASE + '/index.html':
-            return r.fulfill(path=str(DOCFLOW / 'index.html'), content_type='text/html; charset=utf-8')
-        if url.startswith(BASE + '/private/'):
-            f = PRIVATE / url[len(BASE + '/private/'):]
-            return r.fulfill(path=str(f)) if f.is_file() else r.fulfill(status=404)
-        return r.continue_()
+        # 저장소 루트를 사이트 루트로 — index.html의 ../../assets/ (pdf.js·OCR 엔진 등)도 실제 사이트처럼 불러옴
+        path = urllib.parse.unquote(urllib.parse.urlsplit(r.request.url).path)
+        f = (REPO / path.lstrip('/')).resolve()
+        if REPO in f.parents and f.is_file():
+            ctype = {'.html': 'text/html; charset=utf-8', '.js': 'application/javascript', '.gz': 'application/gzip'}.get(f.suffix)
+            return r.fulfill(path=str(f), content_type=ctype) if ctype else r.fulfill(path=str(f))
+        return r.fulfill(status=404)
 
     def save(prefix, images):
         if not images:
@@ -207,7 +373,7 @@ def main():
         def fresh_page():
             pg = browser.new_page()
             pg.route(BASE + '/**', route)
-            pg.goto(BASE + '/index.html')
+            pg.goto(PAGE)
             pg.evaluate(HELPERS)
             return pg
 
@@ -249,6 +415,13 @@ def main():
                     print(f"  {'PASS' if ok else 'FAIL'}  {label}\n        {info}{extra}")
                 if out_dir.exists():
                     print(f'  결과 이미지: {out_dir}')
+        if which in ('all', 'ocr'):
+            print('■ 글자 읽기(OCR) 정확도 비교')
+            f_ocr, table = run_ocr_tests(fresh_page, out_dir)
+            fails += f_ocr
+            if table:
+                print('\n' + table)
+                print(f'  결과: {out_dir / "ocr"}')
         browser.close()
 
     print(f"\n{'모두 통과' if not fails else f'실패 {fails}건'}")
