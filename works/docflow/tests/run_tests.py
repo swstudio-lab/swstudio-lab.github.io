@@ -224,22 +224,38 @@ SYNTHETIC = {
   return { ok: !fail.length, info: fail.join(' / ') || `칸 자르기 없으면 넘침 ${crossing(noClip)}개 → 자르면 0개, 항목마다 네모 하나 (이름 ${Math.round(n.y0)}~${Math.round(n.y1)}, 이메일 오른쪽 끝 ${Math.round(e.x1)} < 칸 선 800)` };
 """,
 
-'프리셋 — OCR·문서 보관 구성과 "포함됨" 표시': r"""
-  const card = n=>[...document.querySelectorAll('.preset-card')].find(el=>el.textContent.includes(n));
-  const row = n=>[...document.querySelectorAll('.check-row')].find(el=>el.querySelector('.check-name').textContent===n);
+'프리셋 — 처리 항목 7개로 정리한 뒤에도 프리셋마다 실행 단계가 이전과 같음': r'''
+  // 기준: 정리 전(2026-10-12) 프리셋이 실제로 실행하던 단계(처리 순서대로)
+  const BEFORE = {
+    '도장 추출하기': ['denoise','trimMargin','sharpen','stampExtract'],
+    '정보 가리기':   ['autoCrop','scanEffect','denoise','ocrText','redact'],
+    '서명 추출하기': ['signatureExtract','denoise','contrast'],
+    'OCR 최적화':    ['autoCrop','scanEffect','denoise','removeLines','trimMargin','ocrText'],
+    '문서 보관':     ['autoCrop','scanEffect','denoise'],
+  };
+  const REMOVED = ['배경 제거','흑백 변환','명암 보정','선명도 향상','기울기 자동 보정','노이즈 제거','여백 자동 제거','명암','흑백'];
+  const card = n=>[...document.querySelectorAll('.preset-card')].find(el=>el.querySelector('.preset-name').textContent===n);
   const fail = [];
-  card('OCR 최적화').click();
-  if(!checked.has('autoCrop')) fail.push('OCR: 원근 보정 빠짐');
-  if(checked.has('deskew') || checked.has('grayscale')) fail.push('OCR: 기울기/흑백 변환이 체크됨');
-  if(!row('기울기 자동 보정').classList.contains('disabled')) fail.push('원근 보정 켜짐인데 기울기 보정이 흐리지 않음');
-  row('기울기 자동 보정').click(); if(checked.has('deskew')) fail.push('포함된 기울기 보정이 클릭으로 체크됨');
-  if(!row('흑백 변환').classList.contains('disabled')) fail.push('스캔 효과(흑백)인데 흑백 변환이 흐리지 않음');
-  row('문서 자동 크롭 · 원근 보정').click(); // 원근 보정 끄기
-  if(row('기울기 자동 보정').classList.contains('disabled')) fail.push('원근 보정을 꺼도 기울기 보정이 흐림');
-  card('문서 보관').click();
-  if(checked.has('deskew')) fail.push('문서 보관: 기울기 보정이 체크됨');
-  return { ok: !fail.length, info: fail.join(' / ') || 'OCR·문서 보관 구성, 포함됨 표시·클릭 차단 정상' };
-""",
+  const rows = [...document.querySelectorAll('.check-row .check-name')].map(e=> e.textContent);
+  if(rows.length !== 7) fail.push(`처리 항목 ${rows.length}개 (기대 7)`);
+  const groups = [...document.getElementById('sectionsWrap').children].map(g=> g.firstElementChild.textContent);
+  if(groups.join('/') !== '문서 정리/추출') fail.push('묶음: ' + groups.join('/'));
+  for(const r of REMOVED) if(document.getElementById('sectionsWrap').textContent.includes(r)) fail.push('화면에 남은 이름: ' + r);
+  for(const [name, steps] of Object.entries(BEFORE)){
+    card(name).click();
+    const now = snapshotPageSettings().checks;
+    if(now.join(',') !== steps.join(',')) fail.push(`${name}: ${now.join(',')} (이전 ${steps.join(',')})`);
+    // 진행 문구에 화면에서 뺀 항목 이름이 나오지 않음
+    for(const k of now){ const t = stepLabel(k, now); if(REMOVED.some(r=> t.includes(r))) fail.push(`${name} 진행 문구: ${t}`); }
+  }
+  // 직접 고르기: 스캔 효과만 켜면 잡티 제거가 함께, 정보 가리기를 켜면 글자 읽기를 끌 수 없음
+  card('직접 선택하기').click(); checked = new Set(['scanEffect']); presetExtras = new Set(); renderSections();
+  if(snapshotPageSettings().checks.join(',') !== 'scanEffect,denoise') fail.push('스캔 효과에 잡티 제거가 안 포함됨');
+  checked.add('redact'); renderSections();
+  const ocrRow = [...document.querySelectorAll('.check-row')].find(r=> r.querySelector('.check-name').textContent === '글자 읽기 (OCR)');
+  ocrRow.click(); if(!checked.has('ocrText')) fail.push('정보 가리기를 켰는데 글자 읽기를 끌 수 있음');
+  return { ok: !fail.length, info: fail.join(' / ') || `항목 7개·묶음 2개, 프리셋 ${Object.keys(BEFORE).length}개 실행 단계 이전과 같음, 진행 문구에 뺀 항목 이름 없음` };
+''',
 }
 
 # ---------------- 실제 사진 테스트 ----------------

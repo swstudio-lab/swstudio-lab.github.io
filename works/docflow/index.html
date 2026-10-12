@@ -683,37 +683,39 @@ function saveBlobFile(blob, filename){
   });
 })();
 
+// 화면에 보이는 처리 항목(7개). 작은 보정 단계는 항목 안에 포함해 함께 실행(INCLUDES) — 함수·처리 순서는 그대로
+//  (2026-10-12 정리: 배경 제거(준비중)·흑백 변환(스캔 효과 흑백과 중복)·명암 보정·선명도 향상(보고서 삽입 카드가 없어짐)·
+//   기울기 자동 보정(원근 보정에 포함)은 화면에서 뺌. 노이즈 제거는 스캔 효과에, 여백 정리는 도장 추출·OCR 최적화 안에)
 const SECTIONS = [
-  { title:'이미지 보정', items:[
-    {id:'deskew', name:'기울기 자동 보정', desc:'기울어진 문서를 똑바로 맞춰요. ("문서 자동 크롭 · 원근 보정"을 켜면 그 안에서 함께 맞춰져요)', ready:true},
-    {id:'trimMargin', name:'여백 자동 제거', desc:'문서 바깥의 불필요한 여백을 잘라내요.', ready:true},
-    {id:'denoise', name:'노이즈 제거', desc:'스캔할 때 생기는 잡티·얼룩을 부드럽게 줄여요.', ready:true},
-    {id:'scanEffect', name:'스캔 효과 (그림자 제거)', desc:'그림자와 누런·푸르스름한 조명색을 지워 배경을 하얗게, 글자와 표 선은 또렷하게 만들어요. 스캐너로 스캔한 것처럼 보여요.', ready:true},
-    {id:'autoCrop', name:'문서 자동 크롭 · 원근 보정', desc:'사진 속 종이의 테두리를 찾아서, 비스듬히 찍혔으면 반듯한 직사각형으로 펴고 배경을 잘라내요. 글자 방향을 보고 똑바로 세워줘요. (모서리를 확실하게 못 찾으면 펴지 않아요)', ready:true},
-  ]},
   { title:'문서 정리', items:[
+    {id:'autoCrop', name:'문서 자동 크롭 · 원근 보정', desc:'사진 속 종이의 테두리를 찾아서, 비스듬히 찍혔으면 반듯한 직사각형으로 펴고 배경을 잘라내요. 테두리가 없는 스캔본이 기울어졌으면 기울기만 바로잡아요. 글자 방향을 보고 똑바로 세워줘요. (모서리를 확실하게 못 찾으면 펴지 않아요)', ready:true},
+    {id:'scanEffect', name:'스캔 효과 (그림자·잡티 제거)', desc:'그림자와 누런·푸르스름한 조명색을 지워 배경을 하얗게, 글자와 표 선은 또렷하게 만들고 잡티·얼룩도 줄여요. 스캐너로 스캔한 것처럼 보여요.', ready:true},
     {id:'removeLines', name:'표 선 제거', desc:'표의 테두리 선을 지워요. 사진이 기울어져 있어도 돼요. 글자·색칠된 칸·손으로 그은 밑줄이나 체크 표시는 남겨요.', ready:true},
-    {id:'removeBg', name:'배경 제거', desc:'문서 주변의 복잡한 배경을 지워요.', ready:false},
-    {id:'grayscale', name:'흑백 변환', desc:'컬러 이미지를 흑백으로 바꿔요.', ready:true},
-    {id:'contrast', name:'명암 보정', desc:'밝고 어두운 부분의 대비를 자동으로 맞춰요.', ready:true},
-    {id:'sharpen', name:'선명도 향상', desc:'살짝 흐릿한 이미지를 또렷하게 만들어요.', ready:true},
     {id:'ocrText', name:'글자 읽기 (OCR)', desc:'처리한 결과에서 한글·영문을 읽어 텍스트로 꺼내요. 문서는 기기 밖으로 나가지 않아요. (처음 한 번 약 8MB를 내려받고, 다음부터는 바로 시작해요)', ready:true},
-    {id:'redact', name:'정보 가리기 (검토 후 저장)', desc:'주민등록번호·전화번호·계좌번호·이메일을 찾아 가릴 후보로 골라 두고, 직접 확인·수정한 뒤 검게 칠해 저장해요. 글자 읽기가 함께 실행돼요. 모든 처리는 기기 안에서만 해요.', ready:true},
+    {id:'redact', name:'정보 가리기 (검토 후 저장)', desc:'주민등록번호·전화번호·계좌번호·이메일·이름 후보를 찾아 가릴 후보로 골라 두고, 직접 확인·수정한 뒤 검게 칠해 저장해요. 글자 읽기가 함께 실행돼요. 모든 처리는 기기 안에서만 해요.', ready:true},
   ]},
-  { title:'객체 추출', items:[
-    {id:'stampExtract', name:'도장 추출', desc:'빨간 도장만 배경 투명하게 오려내요. (본인 소유·사용 권한이 있는 도장만 사용해주세요)', ready:true},
-    {id:'signatureExtract', name:'서명 추출', desc:'선택한 영역의 서명만 배경 투명하게 오려내요. (본인 소유·사용 권한이 있는 서명만 사용해주세요)', ready:true},
+  { title:'추출', items:[
+    {id:'stampExtract', name:'도장 추출', desc:'여백을 정리하고 잡티를 줄여 선명하게 한 뒤, 빨간 도장만 배경 투명하게 오려내요. (본인 소유·사용 권한이 있는 도장만 사용해주세요)', ready:true},
+    {id:'signatureExtract', name:'서명 추출', desc:'선택한 영역의 서명만 배경 투명하게 오려내고, 잡티를 줄여 진하기를 맞춰요. (본인 소유·사용 권한이 있는 서명만 사용해주세요)', ready:true},
   ]},
 ];
+// 항목 안에 포함된 단계 — 항목을 켜면 PROCESS_ORDER의 제자리에서 함께 실행(진행 표시는 "항목 이름 — 하는 일")
+const INCLUDES = {
+  scanEffect: ['denoise'],
+  stampExtract: ['trimMargin', 'denoise', 'sharpen'],
+  signatureExtract: ['denoise', 'contrast'],
+};
+const STEP_ACTIONS = { denoise:'잡티 줄이는 중…', trimMargin:'여백 정리하는 중…', sharpen:'선명하게 만드는 중…', contrast:'진하기 맞추는 중…' };
 
+// extra: 프리셋 전용 숨은 단계 — 항목에는 없지만 그 프리셋 결과에 필요한 것(OCR 최적화의 여백 정리).
+//  다른 프리셋을 고르면 바뀜(항목을 직접 켜고 꺼도 유지)
 const PRESETS = [
-  {id:'stamp', name:'도장 추출하기', emoji:'🔴', checks:['trimMargin','denoise','sharpen','stampExtract'], format:'png', ready:true},
+  {id:'stamp', name:'도장 추출하기', emoji:'🔴', checks:['stampExtract'], format:'png', ready:true},
   // 정보 가리기: 컬러 스캔(직인·도장 색 유지 — 증빙으로 내는 문서), 기본 저장은 PDF
-  {id:'redact', name:'정보 가리기', emoji:'🕶️', checks:['autoCrop','scanEffect','denoise','ocrText','redact'], format:'pdf', scanMode:'color', ready:true},
-  {id:'signature', name:'서명 추출하기', emoji:'✍️', checks:['denoise','signatureExtract','contrast'], format:'png', ready:true},
-  // 기울기 자동 보정은 원근 보정에, 흑백 변환은 스캔 효과(흑백)에 포함되므로 프리셋에 넣지 않음 (INCLUDED_BY 참고)
-  {id:'ocr', name:'OCR 최적화', emoji:'🔍', checks:['autoCrop','scanEffect','trimMargin','denoise','removeLines','ocrText'], format:'png', scanMode:'bw', ready:true},
-  {id:'archive', name:'문서 보관', emoji:'📁', checks:['autoCrop','scanEffect','denoise'], format:'pdf', scanMode:'color', ready:true},
+  {id:'redact', name:'정보 가리기', emoji:'🕶️', checks:['autoCrop','scanEffect','ocrText','redact'], format:'pdf', scanMode:'color', ready:true},
+  {id:'signature', name:'서명 추출하기', emoji:'✍️', checks:['signatureExtract'], format:'png', ready:true},
+  {id:'ocr', name:'OCR 최적화', emoji:'🔍', checks:['autoCrop','scanEffect','removeLines','ocrText'], extra:['trimMargin'], format:'png', scanMode:'bw', ready:true},
+  {id:'archive', name:'문서 보관', emoji:'📁', checks:['autoCrop','scanEffect'], format:'pdf', scanMode:'color', ready:true},
   {id:'custom', name:'직접 선택하기', emoji:'🎛️', checks:[], format:null, ready:true},
 ];
 
@@ -724,14 +726,6 @@ const FORMATS = [
   {id:'pdf', name:'PDF'},
 ];
 
-// 다른 항목에 이미 포함된 항목 — 같이 돌리면 같은 일을 두 번 하게 됨. 포함한 항목이 켜져 있으면 흐리게 표시하고 체크 못 하게 함
-//  · 기울기 자동 보정: 원근 보정이 펼 때 미세 기울기를 맞추고, 펴지 않는 경우(종이 테두리 없는 스캔본 등)에도 기울기를 맞춤
-//  · 흑백 변환: 스캔 효과의 흑백 모드가 이미 회색조로 만듦
-const INCLUDED_BY = {
-  deskew: ()=> checked.has('autoCrop') ? '원근 보정에 포함됨' : null,
-  grayscale: ()=> checked.has('scanEffect') && scanMode === 'bw' ? '스캔 효과(흑백)에 포함됨' : null,
-};
-const includedIn = id=> INCLUDED_BY[id] ? INCLUDED_BY[id]() : null;
 // 다른 항목이 켜져 있으면 반드시 함께 실행되는 항목 — 체크된 채로 흐리게 표시하고 끌 수 없게 함
 //  · 글자 읽기: 정보 가리기가 읽은 글자에서 가릴 정보를 찾음
 const REQUIRED_BY = {
@@ -748,6 +742,7 @@ const ITEM_MAP = Object.fromEntries(ALL_ITEMS.map(i=>[i.id,i]));
 let checked = new Set();
 let selectedFormat = 'png';
 let selectedPreset = null;
+let presetExtras = new Set(); // 고른 프리셋의 숨은 단계(PRESETS의 extra)
 let originalImage = null;
 let resultCanvas = null;
 let signatureSelection = null; // 원본 이미지 좌표계 기준 {x,y,w,h} — 서명 추출 시 사용
@@ -806,6 +801,7 @@ function renderPresets(){
     if(p.ready){
       el.onclick = ()=>{
         selectedPreset = p.id;
+        presetExtras = new Set(p.extra || []);
         if(p.checks.length){
           checked = new Set(p.checks.filter(id=>ITEM_MAP[id]?.ready));
         }
@@ -823,7 +819,6 @@ function renderSections(){
   const wrap = document.getElementById('sectionsWrap');
   wrap.innerHTML = '';
   // 다른 항목에 포함된 항목은 체크를 풀어 둠 (포함한 항목을 끄면 다시 고를 수 있음)
-  for(const id of Object.keys(INCLUDED_BY)) if(includedIn(id)) checked.delete(id);
   for(const id of Object.keys(REQUIRED_BY)) if(requiredBy(id)) checked.add(id);
   SECTIONS.forEach(sec=>{
     const group = document.createElement('div');
@@ -832,10 +827,10 @@ function renderSections(){
     list.className = 'check-group';
     sec.items.forEach(item=>{
       const row = document.createElement('div');
-      const included = includedIn(item.id), required = requiredBy(item.id);
-      row.className = 'check-row' + (!item.ready || included || required ? ' disabled' : '');
+      const required = requiredBy(item.id);
+      row.className = 'check-row' + (!item.ready || required ? ' disabled' : '');
       const on = checked.has(item.id);
-      const tag = !item.ready ? '준비중' : included || required;
+      const tag = !item.ready ? '준비중' : required;
       row.innerHTML = `
         <div class="box ${on?'on':''}"></div>
         <div style="flex:1;">
@@ -844,7 +839,7 @@ function renderSections(){
         </div>
         ${tag ? `<div class="check-soon">${tag}</div>` : ''}
       `;
-      if(item.ready && !included && !required){
+      if(item.ready && !required){
         row.onclick = ()=>{
           selectedPreset = null; // 수동으로 건드리면 프리셋 선택 해제
           if(checked.has(item.id)) checked.delete(item.id);
@@ -5930,8 +5925,7 @@ const PROCESS_ORDER = ['signatureExtract','autoCrop','deskew','scanEffect','deno
 // 처리 중 단계별 진행 문구 — 휴대폰에서 오래 걸리는 단계도 멈춘 것처럼 보이지 않게
 const STEP_LABELS = {
   signatureExtract:'서명 오려내는 중…', autoCrop:'문서 테두리를 찾아 반듯하게 펴는 중…', deskew:'기울기 맞추는 중…',
-  scanEffect:'그림자 지우고 배경 하얗게 만드는 중…', denoise:'잡티 줄이는 중…', removeLines:'표 선 찾는 중…',
-  trimMargin:'여백 정리하는 중…', grayscale:'흑백으로 바꾸는 중…', contrast:'명암 맞추는 중…', sharpen:'선명하게 만드는 중…',
+  scanEffect:'그림자 지우고 배경 하얗게 만드는 중…', removeLines:'표 선 찾는 중…', grayscale:'흑백으로 바꾸는 중…',
   stampExtract:'도장 오려내는 중…', ocrText:'글자 읽기 준비 중…', redact:'가릴 정보 찾는 중…',
 };
 // 화면이 실제로 한 번 그려질 때까지 기다림 (requestAnimationFrame 다음 → 그리기가 끝난 뒤)
@@ -5942,10 +5936,24 @@ const nextPaint = ()=> new Promise(r=> requestAnimationFrame(()=> setTimeout(r, 
    나중에 여러 쪽 처리(PDF 전체 쪽, 사진 여러 장)에서 쪽마다 이 함수를 반복해서 부르면 됨.
    쪽 설정(체크 항목·스캔 색상·모서리 조정·회전 등)은 쪽마다 따로 기억할 수 있게 하나의 객체로 다룸
 --------------------------------------------------------- */
+// 실제로 실행할 단계(처리 순서대로) = 켠 항목 + 항목 안에 포함된 단계 + 프리셋 숨은 단계
+function effectiveSteps(){
+  const on = new Set([...checked, ...presetExtras]);
+  for(const id of [...on]) for(const sub of INCLUDES[id] || []) on.add(sub);
+  return PROCESS_ORDER.filter(key=> on.has(key));
+}
+// 진행 문구: 항목 안에 포함된 단계는 "항목 이름 — 하는 일"(화면에서 뺀 항목 이름이 나오지 않게)
+function stepLabel(key, checks){
+  if(STEP_ACTIONS[key]){
+    const parent = Object.keys(INCLUDES).find(id=> checks.includes(id) && INCLUDES[id].includes(key));
+    return (parent ? ITEM_MAP[parent].name.replace(/\s*\(.*\)$/, '') + ' — ' : '') + STEP_ACTIONS[key];
+  }
+  return STEP_LABELS[key] || '처리하는 중…';
+}
 // 지금 화면의 사용자 설정을 "쪽 설정" 하나로 묶음(복사본 — 나중에 화면 설정이 바뀌어도 이 쪽 설정은 그대로)
 function snapshotPageSettings(){
   return {
-    checks: PROCESS_ORDER.filter(key=> checked.has(key) && !includedIn(key)),
+    checks: effectiveSteps(),
     scanMode, outsideMode,
     corner: { ...cornerState, corners: cornerState.corners ? cornerState.corners.map(p=>({ x:p.x, y:p.y })) : null },
     signatureSelection: signatureSelection ? { ...signatureSelection } : null,
@@ -5973,7 +5981,7 @@ async function processPage(image, ps, { page = 1, onStatus } = {}){
     const status = text=> onStatus ? onStatus(text, stepNo, ps.checks.length) : null;
     for(const key of ps.checks){
       stepNo++;
-      await status(STEP_LABELS[key] || '처리하는 중…');
+      await status(stepLabel(key, ps.checks));
       if(key === 'redact'){
         // 글자를 못 읽었으면 자동 검출 없이 형광펜으로만 가릴 수 있음
         // 표 선: 처리 중에 찾은 것(표 선 제거·OCR용 이미지)을 쓰고, 없으면 지금 결과에서 찾음 — 가림 상자를 칸 안으로 자름
