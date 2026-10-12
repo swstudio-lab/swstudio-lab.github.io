@@ -138,6 +138,27 @@ SYNTHETIC = {
   return { ok, info: res.map(s=>`${s.deg}° → ${s.after.toFixed(1)}° ${s.size} 안내=${s.warn||'없음'}`).join(' / ') };
 """,
 
+'글자 읽기 후처리 — 주소의 빠진 점·₩·혼자 떨어진 기호': r"""
+  // 실제 OCR 결과에서 나온 모양을 가상 주소로 바꾼 예시 [OCR 결과, 기대 결과]
+  const cases = [
+    ['문의 메일: help@docflowkr (평일 09:00~18:00)', '문의 메일: help@docflow.kr (평일 09:00~18:00)'],
+    ['담당자 이메일. kim gana@ganaunivac kr', '담당자 이메일. kim gana@ganauniv.ac.kr'],
+    ['사업단 누리집: httpsrise ganaunivac kr/notice', '사업단 누리집: https://rise.ganauniv.ac.kr/notice'],
+    ['보고서 원문은 wwwganaunivackr/rise/report 에서', '보고서 원문은 www.ganauniv.ac.kr/rise/report 에서'],
+    ['누리집 http://www .ganauniv.ac.kr', '누리집 http://www.ganauniv.ac.kr'],
+    ['누리집 httpi//www.ganauniv.ac.kr', '누리집 http://www.ganauniv.ac.kr'],
+    ['전자우편 | kim@mail.ganauniv.ackr |   -', '전자우편  kim@mail.ganauniv.ac.kr    -'],
+    ['문의: abc@navercom, 누리집 www.example.net 참고', '문의: abc@naver.com, 누리집 www.example.net 참고'],
+    ['kim@mail.ganauniv.ac.kr Seoul 지역', 'kim@mail.ganauniv.ac.kr Seoul 지역'],     // 주소 뒤 일반 단어는 안 붙임
+    ['14 、_ 가상정보화과   2,345,000', '14  가상정보화과   2,345,000'],
+    ['。 16 __ 가상기록관   135,000', '16  가상기록관   135,000'],
+    ['1. 사업 개요는 다음과 같습니다. 끝.', '1. 사업 개요는 다음과 같습니다. 끝.'],      // 붙어 있는 문장 부호는 그대로
+    ['일금 삼백이십오만원정 (' + String.fromCharCode(92) + '3,250,000)', '일금 삼백이십오만원정 (₩3,250,000)'],   // 역슬래시+숫자
+    ['총액 한도 - 09:00 ~ 18:00 교육·연구 주 소 : 서울', '총액 한도 - 09:00 ~ 18:00 교육·연구 주 소 : 서울'],
+  ];
+  const bad = cases.map(([a, want])=> [a, cleanOcrLine(a, []), want]).filter(([a, got, want])=> got !== want);
+  return { ok: !bad.length, info: bad.length ? bad.map(([a, got, want])=> `"${a}" → "${got}" (기대 "${want}")`).join(' / ') : `${cases.length}개 예시 모두 기대대로` };
+""",
 '프리셋 — OCR·문서 보관 구성과 "포함됨" 표시': r"""
   const card = n=>[...document.querySelectorAll('.preset-card')].find(el=>el.textContent.includes(n));
   const row = n=>[...document.querySelectorAll('.check-row')].find(el=>el.querySelector('.check-name').textContent===n);
