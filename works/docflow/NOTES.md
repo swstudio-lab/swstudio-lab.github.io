@@ -127,6 +127,61 @@
   ("m=il"처럼 a를 =로)도 그대로 남음.
   쪽 전체 읽기에서 표 칸 사이가 공백 여러 개로 나옴(줄 단위 배치 유지).
 
+## 서명 글꼴 (2026-10-12)
+
+### 외부로 나가는 것 — 글꼴 파일만
+- **서명 글꼴은 외부(구글 폰트, jsDelivr)에서 글꼴 파일만 받아오고, 입력한 이름이나 문서는 전송하지 않는다.**
+  서명은 이 기기의 브라우저 안(캔버스)에서 그려진다.
+  - 구글 폰트 한글 글꼴은 약 90개 조각(각 수백 글자 묶음)으로 나뉘어 있어서, 이름에 쓰인 글자가 든 조각만 받는다.
+    외부에 남는 것은 "어떤 조각 파일을 받았는지"뿐이고 이름 자체는 아니다.
+  - KCC안중근체는 jsDelivr에서 통짜 파일 하나를 받는다(도장 기능과 같은 파일).
+- 서명용 글꼴 CSS는 **서명 탭을 처음 열 때만** 불러온다(`loadSignatureFonts()`). 예전엔 페이지 맨 위 `<link>`에 서명 글꼴
+  3종이 들어 있어서 서명을 쓰지 않는 방문자도 글꼴 목록 CSS(약 170KB)를 받았음.
+- assets/vendor/에 넣지 않은 이유: 한글 글꼴은 하나가 통째로 1.5~4MB이고, 이름은 아무 글자나 올 수 있어서 필요한 글자만
+  미리 잘라 둘 수 없음. CDN의 조각 방식이 훨씬 가벼움. (도장의 KCC안중근체와 같은 방식)
+
+### 처음 받는 양 (실제 측정, 다음부터는 브라우저 캐시)
+| 경우 | 처음 받는 양 |
+|---|---|
+| 한글 이름 "홍길동", 한글 글꼴 6종 | 약 0.9MB (글꼴 목록 CSS 약 0.3MB + 글꼴 조각, KCC안중근체 별도) |
+| 영문 이름 "Gildong Hong", 영문 글꼴 7종 | 약 0.2MB (글꼴당 17~42KB) |
+- 한글 글꼴을 하나 더 넣을 때마다 0.1~0.2MB씩 늘어남 → 한글은 6종 정도가 적당.
+
+### 글꼴 목록과 라이선스 (모두 무료 상업용)
+라이선스는 글꼴 파일 안의 라이선스 항목(name 표)과 배포 패키지의 LICENSE 파일로 확인함.
+
+| 글꼴 | 용도 | 저작권자 | 라이선스 | 불러오는 곳 |
+|---|---|---|---|---|
+| 나눔손글씨 붓 (Nanum Brush Script) | 한글 — 붓으로 흘려 쓴 서명 | NHN Corporation (디자인 산돌커뮤니케이션) | SIL OFL 1.1 ※ | 구글 폰트 |
+| 동해 독도 (East Sea Dokdo) | 한글 — 굵은 붓펜 | YoonDesign Inc. | SIL OFL 1.1 | 구글 폰트 |
+| 독도 (Dokdo) | 한글 — 거친 붓 | FONTRIX | SIL OFL 1.1 | 구글 폰트 |
+| 연성 (Yeon Sung) | 한글 — 단정한 붓글씨 | The Yeon Sung Project Authors | SIL OFL 1.1 | 구글 폰트 |
+| KCC안중근체 | 한글 — 힘 있는 붓글씨(도장에도 사용) | 한국저작권위원회 | 공개 무료 상업용 웹폰트(한국저작권위원회 배포) | jsDelivr(눈누) |
+| 나눔손글씨 펜 (Nanum Pen Script) | 한글 — 가벼운 펜 서명 | NHN Corporation | SIL OFL 1.1 | 구글 폰트 |
+| Herr Von Muellerhoff | 영문 — 빠르게 흘려 쓴 서명 | Alejandro Paul (Sudtipos) | SIL OFL 1.1 | 구글 폰트 |
+| Mrs Saint Delafield | 영문 — 가늘고 기울어진 서명 | Alejandro Paul (Sudtipos) | SIL OFL 1.1 | 구글 폰트 |
+| Mr Dafoe | 영문 — 굵은 마커 서명 | Alejandro Paul (Sudtipos) | SIL OFL 1.1 | 구글 폰트 |
+| Great Vibes | 영문 — 우아한 필기체 | The Great Vibes Pro Project Authors | SIL OFL 1.1 | 구글 폰트 |
+| Allura | 영문 — 단정한 필기체 | The Allura Project Authors | SIL OFL 1.1 | 구글 폰트 |
+| Alex Brush | 영문 — 붓 필기체 | The Alex Brush Project Authors | SIL OFL 1.1 | 구글 폰트 |
+| Sacramento | 영문 — 가는 모노라인 필기체 | Brian J. Bonislawsky (Astigmatic) | SIL OFL 1.1 | 구글 폰트 |
+
+- ※ 나눔손글씨 붓: 구글 폰트에서 받은 파일에는 라이선스 항목이 비어 있어서, 같은 글꼴을 배포하는 Fontsource 패키지
+  (`@fontsource/nanum-brush-script` 5.3.0)의 LICENSE 파일로 SIL OFL 1.1임을 확인함.
+- 감자꽃(Gamja Flower)은 귀여운 손글씨라 서명 느낌과 맞지 않아 뺐음.
+- OFL은 글꼴 파일 자체를 판매하는 것만 금지하고, 글꼴로 만든 결과물(서명 이미지)은 상업용으로 자유롭게 쓸 수 있음.
+
+### 화면·출력
+- 이름을 넣으면(입력이 멈춘 뒤 0.3초) 모든 글꼴 카드가 나란히 갱신됨. 한글이 있으면 한글 6종, 영문만이면 영문 7종
+  (영문 필기체에는 한글 글자가 없음). 이름 칸 최대 20자.
+- 꾸미기: 펜 색 검정(#1a1a1a)·파랑(#1d3a8a, 볼펜 남색), 기울기 없음·살짝(기본)·많이 — 글자 위쪽을 오른쪽으로 밀고
+  오른쪽이 살짝 올라가게. 직접 그리기 탭에도 펜 색(바꾸면 이미 그린 선도 그 색으로).
+- 출력: 글자 크기 400px로 그린 뒤 잉크 둘레만 잘라 투명 PNG(한글 3자 가로 약 600~900px, 4cm 폭으로 넣어도 약 380dpi).
+  예전 52px는 문서에 넣으면 흐려졌음.
+- 잉크 느낌(진하기를 살짝 다르게, `SIG_INK_TEXTURE`)은 만들어 두고 꺼 둠 — 비교 이미지는
+  `tests/private/results/signature_fonts/ink_compare.png`(각 줄 왼쪽 단색, 오른쪽 잉크 느낌).
+- 본인 서명으로만 쓰라는 안내를 다운로드 버튼 아래에 둠(추출 기능의 "본인 소유·사용 권한" 안내는 그대로).
+
 ## 표를 엑셀로 (예정)
 
 ### 칸 나누기는 `findTableLines()`의 선 위치를 쓴다

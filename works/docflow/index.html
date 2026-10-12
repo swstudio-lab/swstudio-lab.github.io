@@ -10,7 +10,8 @@
 <meta name="description" content="문서 이미지를 업로드하고 필요한 처리만 체크하면 한 번에 정리해주는 도구. 서버 업로드 없이 브라우저 안에서만 처리돼요.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Noto+Serif+KR:wght@700;900&family=Nanum+Pen+Script&family=Gamja+Flower&family=East+Sea+Dokdo&family=JetBrains+Mono&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Noto+Serif+KR:wght@700;900&family=JetBrains+Mono&display=swap" rel="stylesheet">
+<!-- 서명용 글꼴(한글 5종·영문 7종)은 서명 탭을 처음 열 때만 불러옴 — loadSignatureFonts() -->
 <style>
 /* KCC안중근체 — 한국저작권위원회 공개 무료 상업용 웹폰트 (붓글씨체, 도장 타원형/원형에 사용) */
 @font-face {
@@ -82,10 +83,20 @@
   }
   .font-option.selected{border-color:var(--gold);background:rgba(224,169,74,0.08);}
 
+  /* 서명 고르기 카드 — 잉크가 잘 보이게 흰 바탕 */
+  .sig-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+  @media (max-width:560px){ .sig-grid{grid-template-columns:minmax(0,1fr);} }
+  .sig-card{background:#fff;border:2px solid var(--line);border-radius:12px;padding:10px 10px 8px;cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:118px;}
+  .sig-card canvas{max-width:100%;max-height:92px;display:block;}
+  .sig-card.selected{border-color:var(--gold);box-shadow:0 0 0 2px rgba(224,169,74,0.45);}
+  .sig-card-label{font-size:11.5px;color:#666;}
+  .sig-card-msg{font-size:11.5px;color:#999;}
   .sig-draw-canvas{
     width:100%;aspect-ratio:5/2;background:#fff;border-radius:12px;touch-action:none;display:block;cursor:crosshair;
   }
   .draw-toolbar{display:flex;gap:8px;margin-top:10px;}
+  .draw-toolbar .btn-ghost{white-space:nowrap;flex-shrink:0;} /* 휴대폰에서 "지우기"가 세로로 꺾였음 */
 
   /* 프리셋 */
   .preset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;}
@@ -405,25 +416,26 @@
       <div id="sigFontPanel">
         <div class="section">
           <div class="section-title">1. 이름 입력</div>
-          <input type="text" id="sigNameInput" maxlength="8" placeholder="예: 홍길동" class="gen-input">
+          <input type="text" id="sigNameInput" maxlength="20" placeholder="예: 홍길동 또는 Gildong Hong" class="gen-input">
+          <div class="gen-hint">한글이 들어 있으면 한글 서명 글꼴로, 영문만 있으면 영문 필기체로 보여줘요.</div>
         </div>
         <div class="section">
-          <div class="section-title">2. 글씨체 선택</div>
-          <div class="font-option-row" id="sigFontRow"></div>
+          <div class="section-title">2. 꾸미기</div>
+          <div class="sub-option-row" id="sigColorRow"></div>
+          <div class="sub-option-row" id="sigSlantRow"></div>
         </div>
-        <button class="btn-primary" id="sigFontGenBtn">서명 만들기</button>
-        <div class="preview-wrap" id="sigFontPreviewWrap">
-          <div class="preview-box">
-            <div class="preview-label">미리보기</div>
-            <canvas id="sigFontCanvas"></canvas>
-          </div>
-          <button class="btn-primary" id="sigFontDownloadBtn" style="margin-top:14px;">⬇ 다운로드</button>
+        <div class="section">
+          <div class="section-title">3. 마음에 드는 서명을 고르세요</div>
+          <div class="sig-grid" id="sigGrid"><div class="gen-hint">이름을 입력하면 여러 글꼴로 만든 서명이 여기에 나란히 나와요.</div></div>
+          <button class="btn-primary" id="sigFontDownloadBtn" style="margin-top:14px;" disabled>⬇ 고른 서명 다운로드 (투명 PNG)</button>
+          <div class="gen-hint">본인 서명으로만 사용해주세요. 다른 사람의 서명을 만들어 쓰면 법적 문제가 될 수 있어요.</div>
         </div>
       </div>
 
       <div id="sigDrawPanel" style="display:none;">
         <div class="section">
           <div class="section-title">마우스나 손가락으로 직접 서명을 그려주세요</div>
+          <div class="sub-option-row" id="sigDrawColorRow" style="margin-bottom:10px;"></div>
           <canvas id="sigDrawCanvas" class="sig-draw-canvas"></canvas>
           <div class="draw-toolbar">
             <button class="btn-ghost" id="sigClearBtn">지우기</button>
@@ -5502,6 +5514,7 @@ document.getElementById('genTabRow').addEventListener('click', e=>{
   const gen = btn.dataset.gen;
   document.getElementById('genStamp').style.display = gen==='stamp' ? '' : 'none';
   document.getElementById('genSignature').style.display = gen==='signature' ? '' : 'none';
+  if(gen==='signature') loadSignatureFonts(); // 서명 글꼴 CSS는 이때 처음 받음
 });
 
 document.getElementById('sigSubtabRow').addEventListener('click', e=>{
@@ -5799,59 +5812,173 @@ document.getElementById('stampAppendInCheck').addEventListener('change', e=>{
 });
 
 /* ---------------------------------------------------------
-   서명 생성 — 폰트 렌더링
+   서명 생성 — 글꼴로 만들기
+   이름을 넣으면 모든 서명 글꼴로 만든 서명을 나란히 보여주고 하나를 고름.
+   글꼴은 외부(구글 폰트, jsDelivr)에서 글꼴 파일만 받아오고, 입력한 이름은 어디에도 보내지 않음(그리기는 이 기기 안에서).
 --------------------------------------------------------- */
-const SIG_FONTS = [
-  { id:'Nanum Pen Script', label:'나눔손글씨 펜' },
-  { id:'Gamja Flower', label:'감자꽃' },
+// 한글: 흘림·붓 느낌 위주 / 영문: 서명용 필기체. 라이선스는 NOTES.md "서명 글꼴" 참고 (모두 무료 상업용)
+const SIG_FONTS_KO = [
+  { id:'Nanum Brush Script', label:'나눔손글씨 붓' },
   { id:'East Sea Dokdo', label:'동해 독도' },
+  { id:'Dokdo', label:'독도' },
+  { id:'Yeon Sung', label:'연성' },
+  { id:'KCCAhnjunggeun', label:'KCC안중근체' },   // 도장에서도 쓰는 글꼴 — 위 @font-face(jsDelivr)로 불러옴
+  { id:'Nanum Pen Script', label:'나눔손글씨 펜' },
 ];
-let sigFont = SIG_FONTS[0].id;
+const SIG_FONTS_EN = [
+  { id:'Herr Von Muellerhoff', label:'Herr Von Muellerhoff' },
+  { id:'Mrs Saint Delafield', label:'Mrs Saint Delafield' },
+  { id:'Mr Dafoe', label:'Mr Dafoe' },
+  { id:'Great Vibes', label:'Great Vibes' },
+  { id:'Allura', label:'Allura' },
+  { id:'Alex Brush', label:'Alex Brush' },
+  { id:'Sacramento', label:'Sacramento' },
+];
+const SIG_COLORS = [ { id:'black', name:'검정', color:'#1a1a1a' }, { id:'blue', name:'파랑', color:'#1d3a8a' } ]; // 파랑 = 볼펜 남색
+// 기울기: 글자 윗부분을 오른쪽으로 밀어 비스듬하게(글자 높이 대비 이동 비율)
+const SIG_SLANTS = [ { id:'none', name:'없음', skew:0 }, { id:'slight', name:'살짝', skew:0.18 }, { id:'strong', name:'많이', skew:0.36 } ];
+const SIG_FONT_PX = 400;          // 출력 글자 크기 — 한글 3자 가로 약 600~900px, 문서에 4cm 폭으로 넣어도 약 380dpi 이상(예전 52px는 흐려졌음)
+const SIG_INK_TEXTURE = false;    // 잉크 느낌(진하기를 살짝 다르게) — 비교 후 결정
+let sigColor = 'black', sigSlant = 'slight', sigDrawColor = 'black', sigPick = null;
+const sigResults = {};            // 글꼴 → 마지막으로 만든 서명 캔버스
+let sigRenderToken = 0;
+const sigColorHex = id=> (SIG_COLORS.find(c=> c.id === id) || SIG_COLORS[0]).color;
 
-function renderSigFontRow(){
-  const box = document.getElementById('sigFontRow');
-  box.innerHTML = '';
-  SIG_FONTS.forEach(f=>{
-    const el = document.createElement('div');
-    el.className = 'font-option' + (sigFont===f.id ? ' selected' : '');
-    el.style.fontFamily = `'${f.id}'`;
-    el.textContent = f.label;
-    el.onclick = ()=>{ sigFont = f.id; renderSigFontRow(); };
-    box.appendChild(el);
-  });
+// 서명용 구글 폰트 CSS — 서명 탭을 처음 열 때 한 번만 (이전엔 모든 방문자가 페이지를 열 때 받았음)
+let sigFontsCss = null;
+function loadSignatureFonts(){
+  if(!sigFontsCss){
+    sigFontsCss = new Promise(resolve=>{
+      const fams = [...SIG_FONTS_KO, ...SIG_FONTS_EN].map(f=> f.id).filter(id=> id !== 'KCCAhnjunggeun');
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://fonts.googleapis.com/css2?' + fams.map(f=> 'family=' + f.replace(/ /g, '+')).join('&') + '&display=swap';
+      link.onload = ()=> resolve(true);
+      link.onerror = ()=> resolve(false);
+      document.head.appendChild(link);
+    });
+  }
+  return sigFontsCss;
 }
 
-function renderSignatureFontCanvas(name, fontFamily){
-  const w = 520, h = 220;
-  const canvas = document.createElement('canvas');
-  canvas.width = w; canvas.height = h;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0,0,w,h);
-  ctx.fillStyle = '#1a1a1a';
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = `52px '${fontFamily}'`;
-  ctx.save();
-  ctx.translate(w/2, h/2);
-  ctx.rotate(-0.025);
-  ctx.fillText(name, 0, 0);
-  ctx.restore();
+// 잉크 둘레만 남기고 자름(pad: 여백 px)
+function cropToInk(canvas, pad){
+  const { width: W, height: H } = canvas, d = canvas.getContext('2d').getImageData(0,0,W,H).data;
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++) if(d[(y*W+x)*4+3] > 8){ if(x<x0) x0=x; if(x>x1) x1=x; if(y<y0) y0=y; if(y>y1) y1=y; }
+  if(x1 < 0) return canvas;
+  x0 = Math.max(0, x0-pad); y0 = Math.max(0, y0-pad); x1 = Math.min(W-1, x1+pad); y1 = Math.min(H-1, y1+pad);
+  const out = document.createElement('canvas'); out.width = x1-x0+1; out.height = y1-y0+1;
+  out.getContext('2d').drawImage(canvas, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+  return out;
+}
+
+// 잉크 느낌 — 볼펜 잉크가 고르게 묻지 않은 것처럼 진하기를 넓게·잘게 살짝 다르게(불투명도 82~100%)
+function applySigInkTexture(canvas, seed){
+  const { width: W, height: H } = canvas, ctx = canvas.getContext('2d'), im = ctx.getImageData(0,0,W,H), d = im.data;
+  let st = seed || 7; const rnd = ()=>{ st = (st*1103515245 + 12345) & 0x7fffffff; return st/0x7fffffff; };
+  const cell = 48, gw = Math.ceil(W/cell)+2, gh = Math.ceil(H/cell)+2, g = new Float32Array(gw*gh);
+  for(let i=0;i<g.length;i++) g[i] = rnd();
+  const smooth = (x, y)=>{ const fx = x/cell, fy = y/cell, x0 = fx|0, y0 = fy|0, tx = fx-x0, ty = fy-y0, i = y0*gw+x0;
+    return g[i]*(1-tx)*(1-ty) + g[i+1]*tx*(1-ty) + g[i+gw]*(1-tx)*ty + g[i+gw+1]*tx*ty; };
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const i = (y*W+x)*4; if(!d[i+3]) continue;
+    d[i+3] = d[i+3] * (0.82 + 0.13*smooth(x, y) + 0.05*rnd());
+  }
+  ctx.putImageData(im, 0, 0);
   return canvas;
 }
 
-document.getElementById('sigFontGenBtn').addEventListener('click', async ()=>{
+// 서명 하나 그리기 → 잉크 둘레만 자른 고해상도 투명 캔버스
+function renderSignature(name, family, colorHex, skew){
+  const fontCss = `${SIG_FONT_PX}px '${family}'`;
+  const m = document.createElement('canvas').getContext('2d'); m.font = fontCss;
+  const tw = m.measureText(name).width;
+  const W = Math.ceil(tw + SIG_FONT_PX*(2 + skew*2)), H = Math.ceil(SIG_FONT_PX*2.8);
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  x.fillStyle = colorHex; x.font = fontCss; x.textAlign = 'center'; x.textBaseline = 'middle';
+  // 오른쪽으로 기울이기(위쪽을 오른쪽으로 밂) + 오른쪽이 살짝 올라가게 — 손으로 쓴 서명처럼
+  x.setTransform(1, -0.03, -skew, 1, W/2, H/2);
+  x.fillText(name, 0, 0);
+  x.setTransform(1, 0, 0, 1, 0, 0);
+  if(SIG_INK_TEXTURE) applySigInkTexture(c, name.length*31 + family.length);
+  return cropToInk(c, Math.round(SIG_FONT_PX*0.12));
+}
+
+function renderSigOptionRows(){
+  const mk = (boxId, label, items, cur, onPick)=>{
+    const box = document.getElementById(boxId);
+    box.innerHTML = `<div class="sub-option-label">${label}</div>`;
+    items.forEach(it=>{
+      const b = document.createElement('button');
+      b.className = 'format-btn sub-option-btn' + (cur === it.id ? ' selected' : '');
+      b.innerHTML = it.color ? `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${it.color};margin-right:6px;vertical-align:-1px;border:1px solid #888;"></span>${it.name}` : it.name;
+      b.onclick = e=>{ e.stopPropagation(); onPick(it.id); };
+      box.appendChild(b);
+    });
+  };
+  mk('sigColorRow', '펜 색', SIG_COLORS, sigColor, id=>{ sigColor = id; renderSigOptionRows(); updateSigGrid(); });
+  mk('sigSlantRow', '기울기', SIG_SLANTS, sigSlant, id=>{ sigSlant = id; renderSigOptionRows(); updateSigGrid(); });
+  mk('sigDrawColorRow', '펜 색', SIG_COLORS, sigDrawColor, id=>{ sigDrawColor = id; renderSigOptionRows(); if(window.recolorSigDraw) window.recolorSigDraw(); });
+}
+
+// 이름이 바뀌거나 꾸미기를 바꾸면 모든 글꼴 카드를 다시 그림
+async function updateSigGrid(){
   const name = document.getElementById('sigNameInput').value.trim();
-  if(!name){ alert('이름을 입력해주세요.'); return; }
-  const btn = document.getElementById('sigFontGenBtn');
-  btn.disabled = true; btn.textContent = '만드는 중...';
-  await ensureFontLoaded(sigFont, name, 52);
-  const canvas = renderSignatureFontCanvas(name, sigFont);
-  btn.disabled = false; btn.textContent = '서명 만들기';
-  const previewEl = document.getElementById('sigFontCanvas');
-  previewEl.width = canvas.width; previewEl.height = canvas.height;
-  previewEl.getContext('2d').drawImage(canvas,0,0);
-  document.getElementById('sigFontPreviewWrap').classList.add('show');
-  document.getElementById('sigFontPreviewWrap').scrollIntoView({behavior:'smooth', block:'nearest'});
-  document.getElementById('sigFontDownloadBtn').onclick = ()=> downloadCroppedCanvas(canvas, 'DocFlow_서명.png', 16);
+  const grid = document.getElementById('sigGrid'), dl = document.getElementById('sigFontDownloadBtn');
+  const token = ++sigRenderToken;
+  if(!name){
+    grid.innerHTML = '<div class="gen-hint">이름을 입력하면 여러 글꼴로 만든 서명이 여기에 나란히 나와요.</div>';
+    dl.disabled = true; return;
+  }
+  // 한글이 들어 있으면 한글 글꼴(영문 필기체에는 한글 글자가 없음), 영문만이면 영문 필기체
+  const fonts = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(name) ? SIG_FONTS_KO : SIG_FONTS_EN;
+  if(!fonts.some(f=> f.id === sigPick)) sigPick = fonts[0].id;
+  if(grid.dataset.set !== fonts[0].id){ // 글꼴 묶음이 바뀌면 카드 틀을 새로
+    grid.dataset.set = fonts[0].id;
+    grid.innerHTML = '';
+    fonts.forEach(f=>{
+      const card = document.createElement('div');
+      card.className = 'sig-card'; card.dataset.font = f.id;
+      card.innerHTML = `<div class="sig-card-msg">불러오는 중…</div><div class="sig-card-label">${f.label}</div>`;
+      card.onclick = ()=>{ sigPick = f.id; grid.querySelectorAll('.sig-card').forEach(el=> el.classList.toggle('selected', el.dataset.font === sigPick)); };
+      grid.appendChild(card);
+    });
+  }
+  grid.querySelectorAll('.sig-card').forEach(el=> el.classList.toggle('selected', el.dataset.font === sigPick));
+  await loadSignatureFonts();
+  const skew = (SIG_SLANTS.find(t=> t.id === sigSlant) || SIG_SLANTS[1]).skew, color = sigColorHex(sigColor);
+  let any = false;
+  await Promise.all(fonts.map(async f=>{
+    await ensureFontLoaded(f.id, name, SIG_FONT_PX);
+    if(token !== sigRenderToken) return; // 그사이 이름이 또 바뀜
+    const card = grid.querySelector(`.sig-card[data-font="${f.id}"]`);
+    const slot = card.firstElementChild;
+    if(!document.fonts.check(`${SIG_FONT_PX}px "${f.id}"`, name)){
+      delete sigResults[f.id];
+      slot.replaceWith(Object.assign(document.createElement('div'), { className:'sig-card-msg', textContent:'글꼴을 불러오지 못했어요 (인터넷 연결 확인)' }));
+      return;
+    }
+    const cv = renderSignature(name, f.id, color, skew);
+    sigResults[f.id] = cv;
+    const view = document.createElement('canvas');
+    view.width = cv.width; view.height = cv.height; view.getContext('2d').drawImage(cv, 0, 0);
+    slot.replaceWith(view);
+    any = true;
+  }));
+  if(token === sigRenderToken) dl.disabled = !any;
+}
+
+let sigInputTimer = null;
+document.getElementById('sigNameInput').addEventListener('input', ()=>{
+  clearTimeout(sigInputTimer);
+  sigInputTimer = setTimeout(updateSigGrid, 300); // 입력이 멈춘 뒤 0.3초
+});
+document.getElementById('sigFontDownloadBtn').addEventListener('click', ()=>{
+  const cv = sigResults[sigPick];
+  if(!cv){ alert('서명을 먼저 골라주세요.'); return; }
+  downloadCroppedCanvas(cv, 'DocFlow_서명.png', 16);
 });
 
 /* ---------------------------------------------------------
@@ -5890,7 +6017,7 @@ function initSignatureDraw(){
     if(!drawing) return;
     e.preventDefault();
     const p = pos(e);
-    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = sigColorHex(sigDrawColor); ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.beginPath(); ctx.moveTo(lastX,lastY); ctx.lineTo(p.x,p.y); ctx.stroke();
     lastX = p.x; lastY = p.y; hasInk = true;
   }
@@ -5903,6 +6030,14 @@ function initSignatureDraw(){
   canvas.addEventListener('touchmove', move, { passive:false });
   canvas.addEventListener('touchend', end);
 
+  // 펜 색을 바꾸면 이미 그린 선도 그 색으로 (투명 바탕 위 잉크만 새 색으로 칠함)
+  window.recolorSigDraw = ()=>{
+    if(!hasInk) return;
+    ctx.save(); ctx.setTransform(1,0,0,1,0,0);
+    ctx.globalCompositeOperation = 'source-in';
+    ctx.fillStyle = sigColorHex(sigDrawColor); ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+  };
   document.getElementById('sigClearBtn').onclick = ()=>{
     ctx.clearRect(0,0,canvas.width,canvas.height);
     hasInk = false;
@@ -5919,7 +6054,7 @@ renderSections();
 renderFormats();
 renderStampShapeRow();
 renderStampStyleRow();
-renderSigFontRow();
+renderSigOptionRows();
 initSignatureDraw();
 </script>
 <script src="../../assets/analytics-config.js"></script>
