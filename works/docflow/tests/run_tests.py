@@ -515,9 +515,9 @@ REDACT_MAKE_JS = r"""
 
 # 페이지 안에서: 처리(글자 읽기까지) → 자동 검출 → 기대값과 맞추기 → 가리기 적용 → 다시 읽기·검정 픽셀·PDF 확인
 REDACT_RUN_JS = r"""
-  const [url, name, expect, preset] = ARGS;
+  const [url, name, expect, preset, scan] = ARGS;
   await T.load(url, name);
-  const r = await T.process(preset, { scanMode: 'color' });
+  const r = await T.process(preset, { scanMode: scan || 'color' });
   const ocr = lastOcrPages[0];
   if(!ocr) return { ok: false, info: '글자 읽기 결과 없음 ' + (r.warning || '') };
   const items = detectSensitive(ocr);
@@ -569,7 +569,9 @@ REDACT_RUN_JS = r"""
   //  가로지르는 선이 있으면 넘친 것(사진 05에서 이름 상자가 울퉁불퉁하고 위 칸 쪽으로 삐져나왔었음)
   const perItem = new Map(); for(const b of rects) perItem.set(b.id, (perItem.get(b.id) || 0) + 1);
   const notOne = items.filter(it=> (perItem.get(it.id) || 0) !== new Set(it.words.map(wi=> ocr.words[wi].line)).size).map(it=> it.kind);
-  const tl = findTableLines(r.canvas).segments, overflow = [];
+  // (표 선을 지운 결과면 결과에서는 못 찾으므로 처리할 때 기억해 둔 선으로 — OCR 최적화 + 정보 가리기)
+  const fresh = findTableLines(r.canvas).segments;
+  const tl = fresh.h.length + fresh.v.length >= 3 || !L ? fresh : L, overflow = [];
   const crosses = (b, s, horiz)=>{
     const [a0, a1, lo, hi] = horiz ? [Math.min(s.x1, s.x2), Math.max(s.x1, s.x2), b.x0, b.x1] : [Math.min(s.y1, s.y2), Math.max(s.y1, s.y2), b.y0, b.y1];
     const a = Math.max(a0, lo), z = Math.min(a1, hi); if(z - a < 3) return false;
@@ -714,7 +716,8 @@ def run_redact_tests(fresh_page, out_dir, remake=False):
             print(f'  가상 문서 그림: tests/fixtures/{name}.png, {name}_photo.jpg')
     od = out_dir / 'redact'
     total = {}   # 종류 → [찾은 수, 기대 수]
-    cases = [(f'/works/docflow/tests/fixtures/{f}', f, doc['expect'], False)
+    # (주소, 파일, 기대값, 실제 값 가림, 처리 항목, 스캔 색상, 놓쳐도 되는 종류)
+    cases = [(f'/works/docflow/tests/fixtures/{f}', f, doc['expect'], False, REDACT_PRESET, 'color', ())
              for name, doc in REDACT_DOCS.items() for f in (f'{name}.png', f'{name}_photo.jpg')]
     # 실제 사진 05 — 표 안의 연락처·이메일(기대값은 private에만). 결과에 실제 값이 찍히지 않게 가려서 출력
     exp05 = PRIVATE / 'photo05_expected.json'
@@ -722,19 +725,23 @@ def run_redact_tests(fresh_page, out_dir, remake=False):
         e = json.loads(exp05.read_text(encoding='utf-8'))
         cases.append((PRIVATE_URL + 'photo05.jpg', 'photo05.jpg',
                        [('phone', v) for v in e.get('phones', [])] + [('email', v) for v in e['en'] if '@' in v]
-                       + [('name', v) for v in e.get('names', [])], True))
+                       + [('name', v) for v in e.get('names', [])], True, REDACT_PRESET, 'color', ()))
+        # OCR 최적화 + 정보 가리기(흑백, 표 선을 지운 뒤 여백 정리) — 칸 자르기는 지우기 전에 기억한 선으로. 이 경로에서는
+        # 항목 이름 "성 명"을 "성 멍"으로 읽어 이름 후보를 놓치기도 해서 이름은 놓쳐도 됨
+        cases.append((PRIVATE_URL + 'photo05.jpg', 'photo05.jpg (OCR 최적화 + 정보 가리기)', cases[-1][2], True,
+                      ['autoCrop', 'scanEffect', 'trimMargin', 'denoise', 'removeLines', 'ocrText', 'redact'], 'bw', ('name',)))
     else:
         print('  SKIP  photo05.jpg — tests/private/ 에 사진·기대값이 없어서 건너뜀')
     # 실제 사진 01 — 개인정보가 없는 예산 표(손글씨 취소선 칸 있음). 아무것도 잡히면 안 됨("Zzms@o0"를 이메일로 잡았었음)
     for f in ('photo01.jpg', 'photo01_original.jpg'):
         if (PRIVATE / f).is_file():
-            cases.append((PRIVATE_URL + f, f, [], True))
+            cases.append((PRIVATE_URL + f, f, [], True, REDACT_PRESET, 'color', ()))
     mask = lambda v: (v[:3] + '…') if v else v
-    for url, file, expect, private in cases:
+    for url, file, expect, private, preset, scan, optional in cases:
             pg = fresh_page()
             t0 = time.time()
             try:
-                r = pg.evaluate('async (ARGS) => {' + REDACT_RUN_JS + '}', [url, file, [list(x) for x in expect], REDACT_PRESET])
+                r = pg.evaluate('async (ARGS) => {' + REDACT_RUN_JS + '}', [url, file.split(' ')[0], [list(x) for x in expect], preset, scan])
             except Exception as e:
                 r = {'ok': False, 'info': f'오류: {e}'}
             pg.close()
@@ -743,9 +750,10 @@ def run_redact_tests(fresh_page, out_dir, remake=False):
                 print(f"  FAIL  {file}  {r.get('info')}")
                 continue
             od.mkdir(parents=True, exist_ok=True)
+            stem = re.sub(r'[^\w.-]+', '_', pathlib.Path(file.split(' ')[0]).stem + ('_ocrpreset' if ' ' in file else ''))
             for k, v in r['images'].items():
-                (od / f'{pathlib.Path(file).stem}_{k}.png').write_bytes(base64.b64decode(v.split(',', 1)[1]))
-            (od / f'{pathlib.Path(file).stem}_text.txt').write_text(r['text'] + '\n\n── 일부만 가리기 ──\n' + r['partText'], encoding='utf-8')
+                (od / f'{stem}_{k}.png').write_bytes(base64.b64decode(v.split(',', 1)[1]))
+            (od / f'{stem}_text.txt').write_text(r['text'] + '\n\n── 일부만 가리기 ──\n' + r['partText'], encoding='utf-8')
             by = {}
             for f in r['found']:
                 a = by.setdefault(f['kind'], [0, 0]); a[1] += 1; a[0] += f['hit']
@@ -753,7 +761,7 @@ def run_redact_tests(fresh_page, out_dir, remake=False):
             hit = sum(f['hit'] for f in r['found'])
             # 판정: 깨끗한 가상 문서와 사진 05는 모두 찾고 잘못 잡은 것 없어야 함. 가상 사진 합성은 기록만
             strict = not file.endswith('_photo.jpg')
-            ok_detect = (hit == len(r['found']) and not r['wrong']) if strict else True
+            ok_detect = (all(f['hit'] for f in r['found'] if f['kind'] not in optional) and not r['wrong']) if strict else True
             ok_save = not r['leaked'] and not r['addrLeft'] and not r['emailShape'] and not r['notOne'] and not r['overflow'] and r['notBlack'] == 0 and not r['pdfInfo'] and not r['pdfText']
             ok = ok_detect and ok_save
             fails += 0 if ok else 1

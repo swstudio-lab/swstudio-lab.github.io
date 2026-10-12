@@ -1567,6 +1567,7 @@ function autoTrimMargins(canvas){
   const out=document.createElement('canvas');
   out.width=newW; out.height=newH;
   out.getContext('2d', CTX_READ).drawImage(canvas, minX,minY,newW,newH, 0,0,newW,newH);
+  out.trimOffset = { x: minX, y: minY }; // 잘라 낸 위치 — 앞 단계에서 찾은 표 선 좌표를 옮기는 데 씀(정보 가리기 칸 자르기)
   return out;
 }
 
@@ -5646,7 +5647,13 @@ function detectSensitive(ocr){
       if(!t || !r.startsWith(t)) break;
       words.push(j); rest = r.slice(t.length);
     }
-    const text = at >= 0 && words.length > 1 && words[0] === wi ? ln.slice(at).split(/\s/)[0] : words.map(i=> ocr.words[i].text).join(' ');
+    // 점을 못 되살려 줄 글자에서도 떨어져 있는 뒷조각("…@m=il" | "ganauniv.ac.kr" — "="에서 주소 잇기가 멈춤)도 함께:
+    // 도메인이 kr·com·net·org로 끝나지 않았으면, 바로 뒤(글자 높이 2배 안)의 도메인 모양 단어
+    const last = words[words.length - 1], nx = ocr.words[last + 1], lw = ocr.words[last];
+    if(nx && nx.line === w.line && !/\.(?:kr|com|net|org)$/i.test(words.map(i=> ocr.words[i].text).join(''))
+       && /^\.?(?:[A-Za-z0-9-]+\.)*(?:kr|com|net|org)$/i.test(nx.text) && nx.bbox.x0 - lw.bbox.x1 < (lw.bbox.y1 - lw.bbox.y0) * 2) words.push(last + 1);
+    const token = at >= 0 ? ln.slice(at).split(/\s/)[0] : '';
+    const text = words.length > 1 && words[0] === wi && token.endsWith(ocr.words[words[words.length - 1]].text) ? token : words.map(i=> ocr.words[i].text).join(' ');
     // @ 뒤(도메인)에 영문자가 3자 이상일 때만 — 손글씨 취소선 칸이 "Zzms@o0"처럼 읽혀 이메일로 잡혔었음(사진 01)
     if((text.split('@')[1] || '').replace(/[^A-Za-z]/g, '').length < 3) return;
     const fixed = (ocr.addrFixes || []).some(x=> text.includes(x.to));
@@ -5906,6 +5913,11 @@ const tableLineSegs = found=> found && found.segments
   ? { h: found.segments.h.map(({ x1, y1, x2, y2, thick })=> ({ x1, y1, x2, y2, thick })), v: found.segments.v.map(({ x1, y1, x2, y2, thick })=> ({ x1, y1, x2, y2, thick })) }
   : null;
 
+const shiftTableLines = (L, dx, dy)=> {
+  const mv = s=> ({ ...s, x1: s.x1 + dx, y1: s.y1 + dy, x2: s.x2 + dx, y2: s.y2 + dy });
+  return { h: L.h.map(mv), v: L.v.map(mv) };
+};
+
 // 항상 이 순서로 적용 (체크 안 한 건 건너뜀)
 // signatureExtract는 사용자가 "원본 이미지" 좌표 기준으로 영역을 골랐기 때문에, 다른 단계가 크기를 바꾸기 전인
 // 맨 처음에 실행해야 좌표가 어긋나지 않음. 그다음 배경과 함께 찍힌 사진이면 자동크롭으로 문서만 추리고,
@@ -5970,8 +5982,12 @@ async function processPage(image, ps, { page = 1, onStatus } = {}){
         continue;
       }
       const result = await PROCESSORS[key](canvas, status, ps);
-      // 모양·크기가 바뀌는 단계 뒤에는 앞에서 찾은 표 선 좌표가 맞지 않음
-      if(GEOMETRY_STEPS.has(key)) pageTableLines = null;
+      // 모양·크기가 바뀌는 단계 뒤에는 앞에서 찾은 표 선 좌표가 맞지 않음. 여백 정리는 잘라 내기만 하므로 그만큼 옮겨서 계속 씀
+      //  (OCR 최적화 + 정보 가리기: 표 선을 지운 뒤 여백 정리를 해서, 결과에는 선이 없고 지우기 전에 찾은 선만 남아 있음)
+      const off = result && result.trimOffset;
+      if(key === 'trimMargin' && result === canvas){ /* 잘라 낸 것 없음 — 그대로 */ }
+      else if(key === 'trimMargin' && off && pageTableLines) pageTableLines = shiftTableLines(pageTableLines, -off.x, -off.y);
+      else if(GEOMETRY_STEPS.has(key)) pageTableLines = null;
       if(result instanceof HTMLCanvasElement){ canvas = result; continue; }
       canvas = result.canvas;
       if(result.warning) warnings.push(result.warning);
