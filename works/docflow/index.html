@@ -469,6 +469,10 @@
      "다운로드 알림은 뜨는데 파일이 없는" 상황이 생김 → 감지해서 외부 브라우저로 열도록 안내
    - 인앱에서 저장을 누르면 다운로드를 시도하지 않고, 결과 이미지를 크게 띄워 "길게 눌러 저장"으로 안내
 --------------------------------------------------------- */
+// 픽셀을 자주 읽는(getImageData) 처리용 캔버스 옵션 — GPU 대신 CPU 메모리에 두어 읽어 올 때마다 GPU에서 복사하는
+// 비용을 없앰(Console의 "willReadFrequently" 경고 5번). 캔버스를 처음 만들 때 정해지므로 처리용 캔버스는 만드는 곳부터 넣음.
+// 화면에 그리기만 하는 캔버스(결과 미리보기·모서리 화면·돋보기·서명 카드·직접 그리기)는 그대로 GPU를 씀
+const CTX_READ = { willReadFrequently: true };
 const INAPP = (function detectInAppBrowser(){
   const ua = navigator.userAgent || '';
   const android = /Android/i.test(ua), ios = /iPhone|iPad|iPod/i.test(ua);
@@ -670,7 +674,7 @@ const WATERMARK_ENABLED = true;
 // 추출된 도장/서명 이미지 위에 옅은 대각선 반복 워터마크를 얹음 (타인 도장·서명 무단 도용 방지 목적)
 function applyWatermark(canvas, text){
   if(!WATERMARK_ENABLED) return canvas;
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', CTX_READ);
   const { width: w, height: h } = canvas;
   ctx.save();
   ctx.globalAlpha = 0.16;
@@ -847,7 +851,7 @@ function shrinkLargeImage(img){
   if(long <= MAX_INPUT_SIDE) return null;
   const s = MAX_INPUT_SIDE / long;
   const w = Math.round(W*s), h = Math.round(H*s);
-  const src = cloneCanvasFromImage(img).getContext('2d').getImageData(0,0,W,H).data;
+  const src = cloneCanvasFromImage(img).getContext('2d', CTX_READ).getImageData(0,0,W,H).data;
   // 1차원 면적 가중치: 출력 칸 i가 덮는 원본 구간 [i/s, (i+1)/s)
   const weights = (inN, outN)=>{
     const r = inN/outN, list = [];
@@ -872,7 +876,7 @@ function shrinkLargeImage(img){
     }
   }
   const c = document.createElement('canvas'); c.width = w; c.height = h;
-  const ctx = c.getContext('2d'), out = ctx.createImageData(w, h), od = out.data;
+  const ctx = c.getContext('2d', CTX_READ), out = ctx.createImageData(w, h), od = out.data;
   for(let y=0;y<h;y++){
     const ws = wy[y];
     for(let x=0;x<w;x++){
@@ -1130,7 +1134,7 @@ function renderCornerDebug(det){
   if(q){ x.strokeStyle = '#ff3cff'; x.lineWidth = 3; x.beginPath(); q.forEach((p,i)=>{ const X=ox+p.x*sc, Y=oy+p.y*sc; i?x.lineTo(X,Y):x.moveTo(X,Y); }); x.closePath(); x.stroke();
     x.fillStyle = '#3f3'; q.forEach(p=>{ x.beginPath(); x.arc(ox+p.x*sc, oy+p.y*sc, 5, 0, Math.PI*2); x.fill(); }); }
   // 처리 결과와 같은 픽셀인지 비교할 수 있게 원본 픽셀 요약값(지문)도 표시
-  const d = c.getContext('2d').getImageData(0,0,W,H).data; let h1 = 0;
+  const d = c.getContext('2d', CTX_READ).getImageData(0,0,W,H).data; let h1 = 0;
   for(let i=0;i<d.length;i+=4*997) h1 = (h1*31 + d[i] + d[i+1]*3 + d[i+2]*7) >>> 0;
   document.getElementById('cornerDebugText').textContent = [
     `${(document.querySelector('.top div[style*="font-size:10px"]')||{}).textContent||''}`,
@@ -1422,7 +1426,7 @@ function drawLoupe(pt, clientX, clientY){
 function cloneCanvasFromImage(img){
   const c = document.createElement('canvas');
   c.width = img.width; c.height = img.height;
-  c.getContext('2d').drawImage(img, 0, 0);
+  c.getContext('2d', CTX_READ).drawImage(img, 0, 0);
   return c;
 }
 
@@ -1431,7 +1435,7 @@ function cloneCanvasFromImage(img){
 // 그다음 바깥쪽으로, 어두운 픽셀이 있는 줄이 (빈 줄이 짧은 변의 2.5% 넘게 이어지기 전까지) 계속되면 넓힘 —
 // 글자가 드문 줄(한 줄만 길게 뻗은 오른쪽 끝, 맨 위 작은 머리말의 윗부분)까지 내용인데 여백으로 잘려 글자가 반쯤 잘렸었음
 function autoTrimMargins(canvas){
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', CTX_READ);
   const { width, height } = canvas;
   const d = ctx.getImageData(0,0,width,height).data;
   const threshold = 245;
@@ -1468,7 +1472,7 @@ function autoTrimMargins(canvas){
   const newW=maxX-minX+1, newH=maxY-minY+1;
   const out=document.createElement('canvas');
   out.width=newW; out.height=newH;
-  out.getContext('2d').drawImage(canvas, minX,minY,newW,newH, 0,0,newW,newH);
+  out.getContext('2d', CTX_READ).drawImage(canvas, minX,minY,newW,newH, 0,0,newW,newH);
   return out;
 }
 
@@ -1495,7 +1499,7 @@ function downscaleForAnalysis(canvas, maxDim){
   const { width: W, height: H } = canvas;
   const scale = Math.min(1, maxDim/Math.max(W,H));
   const w = Math.max(1, Math.round(W*scale)), h = Math.max(1, Math.round(H*scale));
-  const src = canvas.getContext('2d').getImageData(0,0,W,H).data;
+  const src = canvas.getContext('2d', CTX_READ).getImageData(0,0,W,H).data;
   if(w === W && h === H) return { data: src, w, h, scale };
   const acc = new Float32Array(w*h*3), cnt = new Float32Array(w*h);
   const colIdx = new Int32Array(W);
@@ -1581,7 +1585,7 @@ function boxCropDocument(canvas){
   const newW = oMaxX-oMinX+1, newH = oMaxY-oMinY+1;
   const out = document.createElement('canvas');
   out.width = newW; out.height = newH;
-  const octx = out.getContext('2d');
+  const octx = out.getContext('2d', CTX_READ);
   octx.drawImage(canvas, oMinX,oMinY,newW,newH, 0,0,newW,newH);
 
   // 문서가 기울어진 채로 찍힌 사진이면, 축에 맞춰(axis-aligned) 자른 사각형의 모서리에 배경이 삼각형으로 남음.
@@ -2537,10 +2541,10 @@ function warpPerspective(canvas, corners, maxSide = 2400, minSide = 2000){
   const [a,b,c,d,e,f,g,h] = m;
 
   const { width: W, height: H } = canvas;
-  const sd = canvas.getContext('2d').getImageData(0,0,W,H).data;
+  const sd = canvas.getContext('2d', CTX_READ).getImageData(0,0,W,H).data;
   const out = document.createElement('canvas');
   out.width=outW; out.height=outH;
-  const octx = out.getContext('2d');
+  const octx = out.getContext('2d', CTX_READ);
   const outData = octx.createImageData(outW,outH);
   const od = outData.data;
   const outside = new Uint8Array(outW*outH);
@@ -2688,7 +2692,7 @@ function computeInkMask(canvas, maxDim){
 // 채우기 — 빈 칸 옆 종이색을 이어받아 채우고, 주변 종이와 같은 수준의 잔잡음을 얹어 이음매가 안 보이게 함
 function fillOutsideRegion(canvas, outside){
   const { width: W, height: H } = canvas;
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', CTX_READ);
   const img = ctx.getImageData(0,0,W,H), d = img.data;
   // 사진 가장자리 1~2px은 렌즈 주변부 어두움·압축 잡티가 있어서 같이 다시 채움
   const hole = dilateMask(outside, W, H, 2);
@@ -3004,10 +3008,10 @@ function dewarpTextLines(canvas, minLines = 6, minPerBin = 3, measureOnly = fals
   if(maxShift > h*0.05) return { canvas, maxShift: maxShiftFull }; // 비정상적으로 큰 이동 — 줄 인식이 틀렸을 가능성
 
   // 원본 해상도에서 세로로만 다시 표본 추출 (열 구간 사이는 선형 보간)
-  const src = canvas.getContext('2d').getImageData(0,0,W,H).data;
+  const src = canvas.getContext('2d', CTX_READ).getImageData(0,0,W,H).data;
   const out = document.createElement('canvas');
   out.width=W; out.height=H;
-  const octx = out.getContext('2d');
+  const octx = out.getContext('2d', CTX_READ);
   const od = octx.createImageData(W,H), o = od.data;
   for(let x=0;x<W;x++){
     const fx = Math.max(0, Math.min(nb-1, x*scale/bw - 0.5)), b0=Math.floor(fx), b1i=Math.min(nb-1,b0+1), tx=fx-b0;
@@ -3029,7 +3033,7 @@ function dewarpTextLines(canvas, minLines = 6, minPerBin = 3, measureOnly = fals
 // 이미 또렷한 구역은 거의 건드리지 않음. (흐려서 잃은 정보를 되살리는 것은 아니고, 읽기 좋게 윤곽을 세우는 처리)
 function sharpenBlurryRegions(canvas, maxAmt = 1.2){
   const { width: W, height: H } = canvas;
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', CTX_READ);
   const img = ctx.getImageData(0,0,W,H), d = img.data;
   const n = W*H;
   const lum = new Float32Array(n);
@@ -3110,7 +3114,7 @@ function cropOutsideRegion(canvas, outside){
 
   const out = document.createElement('canvas');
   out.width = rx1-rx0; out.height = ry1-ry0;
-  out.getContext('2d').drawImage(canvas, rx0, ry0, out.width, out.height, 0, 0, out.width, out.height);
+  out.getContext('2d', CTX_READ).drawImage(canvas, rx0, ry0, out.width, out.height, 0, 0, out.width, out.height);
   return out;
 }
 
@@ -3126,7 +3130,7 @@ function rotateCanvas(canvas, deg){
   const swap = deg === 90 || deg === 270;
   out.width = swap ? canvas.height : canvas.width;
   out.height = swap ? canvas.width : canvas.height;
-  const ctx = out.getContext('2d');
+  const ctx = out.getContext('2d', CTX_READ);
   // 중심 기준(w/2)으로 돌리면 크기가 홀수일 때 0.5px 어긋나 전체가 살짝 뭉개지므로, 모서리 기준으로 정수 이동 → 픽셀만 자리바꿈
   if(deg === 90){ ctx.translate(out.width, 0); ctx.rotate(Math.PI/2); }
   else if(deg === 180){ ctx.translate(out.width, out.height); ctx.rotate(Math.PI); }
@@ -3520,7 +3524,7 @@ function rotateSmallAngle(canvas, deg){
   const newW = Math.round(W*Math.abs(cos) + H*Math.abs(sin)), newH = Math.round(W*Math.abs(sin) + H*Math.abs(cos));
   const out = document.createElement('canvas');
   out.width = newW; out.height = newH;
-  const ctx = out.getContext('2d');
+  const ctx = out.getContext('2d', CTX_READ);
   ctx.translate(newW/2, newH/2);
   ctx.rotate(-rad);
   ctx.drawImage(canvas, -W/2, -H/2);
@@ -3553,7 +3557,7 @@ function deskewDocument(canvas){
   const newH = Math.round(W*sinA + H*cosA);
   const out = document.createElement('canvas');
   out.width=newW; out.height=newH;
-  const octx = out.getContext('2d');
+  const octx = out.getContext('2d', CTX_READ);
   octx.fillStyle = '#fff';
   octx.fillRect(0,0,newW,newH);
   octx.translate(newW/2, newH/2);
@@ -3614,7 +3618,7 @@ function findStampRegions(norm, W, H){
 //    색이 없고(무채색), 5% 이상 어둡고, 종이 가장자리에 닿거나 넓게(전체의 6% 이상) 퍼진 영역. 손·휴대폰 그림자는 종이 밖에서 들어오고,
 //    회색 칸은 표 안에 갇혀 있다는 차이를 이용함. 잡티가 많은 사진은 잡티 크기를 재서 다듬고 기준을 맞춤
 function scanEffect(canvas){
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', CTX_READ);
   const { width: W, height: H } = canvas;
   const img = ctx.getImageData(0,0,W,H), d = img.data;
 
@@ -3942,7 +3946,7 @@ function scanEffect(canvas){
   // 확실히 색칠된 곳(노란 칸·파란 머리글 등, 채도 큼)과 음영 칸은 건드리지 않음
   {
     const tmp = document.createElement('canvas'); tmp.width = W; tmp.height = H;
-    tmp.getContext('2d').putImageData(img, 0, 0);
+    tmp.getContext('2d', CTX_READ).putImageData(img, 0, 0);
     const s2 = downscaleForAnalysis(tmp, 1200), w2 = s2.w, h2 = s2.h, k2 = s2.scale, n2 = w2*h2;
     // 글자 획·표 선(원본 기준 약 10px 굵기까지)만 지우는 작은 반경 — 반경이 크면 폭 넓은 얼룩까지 "굵은 획"으로 보고 지워버려서
     // 정작 얼룩이 배경으로 잡히지 않음. 굵은 글씨 획은 충분히 어두워서(180 미만) 아래에서 제외됨
@@ -4067,7 +4071,7 @@ function scanEffect(canvas){
 // 단, 글자 바로 옆(몇 px 안)의 어두운 점은 남김 — 마침표·쉼표·@ 둘레 같은 작은 문장부호가 잡티로 지워져
 // 이메일·웹 주소의 점이 사라졌었음(kim.gana@ganauniv.ac.kr → ac kr). 잡티는 글자에서 떨어진 것만 지움
 function denoiseMedian(canvas){
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', CTX_READ);
   const { width, height } = canvas;
   const src = ctx.getImageData(0,0,width,height);
   const dst = ctx.createImageData(width,height);
@@ -4130,7 +4134,7 @@ function denoiseMedian(canvas){
 function findTableLines(canvas){
   const { width: W, height: H } = canvas;
   const N = W*H, S = Math.max(W, H);
-  const img = canvas.getContext('2d').getImageData(0,0,W,H), d = img.data;
+  const img = canvas.getContext('2d', CTX_READ).getImageData(0,0,W,H), d = img.data;
 
   // --- 종이 밝기(글자·선을 지운 배경) — 축소본에서 모폴로지 닫힘으로 ---
   const sm = downscaleForAnalysis(canvas, 1000);
@@ -4636,13 +4640,13 @@ function removeTableLines(canvas, found){
     if(!erase[p]) continue;
     d[p*4]=fill[p*3]; d[p*4+1]=fill[p*3+1]; d[p*4+2]=fill[p*3+2];
   }
-  canvas.getContext('2d').putImageData(img,0,0);
+  canvas.getContext('2d', CTX_READ).putImageData(img,0,0);
   return canvas;
 }
 
 // 흑백 변환
 function toGrayscale(canvas){
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', CTX_READ);
   const { width, height } = canvas;
   const imgData = ctx.getImageData(0,0,width,height);
   const d = imgData.data;
@@ -4656,7 +4660,7 @@ function toGrayscale(canvas){
 
 // 명암 보정 — 가장 밝은/어두운 값을 0~255로 늘려서 대비를 살림
 function autoContrast(canvas){
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', CTX_READ);
   const { width, height } = canvas;
   const imgData = ctx.getImageData(0,0,width,height);
   const d = imgData.data;
@@ -4675,7 +4679,7 @@ function autoContrast(canvas){
 
 // 선명도 향상 — 샤픈 컨볼루션 커널
 function sharpen(canvas){
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', CTX_READ);
   const { width, height } = canvas;
   const src = ctx.getImageData(0,0,width,height);
   const dst = ctx.createImageData(width,height);
@@ -4745,7 +4749,7 @@ function findLargestRedComponent(w0, h0, isRed){
 // 확대(보간) 과정에서 생기는 색 번짐 때문에 도장이 아닌 곳까지 "빨갛다"고 잘못 인식하는 문제가 있었음.
 // 그래서 순서를 뒤집음: 원본(확대 전) 상태에서 정확하게 빨간 영역만 찾고, 그 작은 영역만 나중에 확대함
 function extractStamp(canvas){
-  const ctx0 = canvas.getContext('2d');
+  const ctx0 = canvas.getContext('2d', CTX_READ);
   const { width: w0, height: h0 } = canvas;
   const d0 = ctx0.getImageData(0,0,w0,h0).data;
   const isRedAt = (x,y)=>{
@@ -4766,7 +4770,7 @@ function extractStamp(canvas){
   const cropW = rMaxX-rMinX+1, cropH = rMaxY-rMinY+1;
   const rawCrop = document.createElement('canvas');
   rawCrop.width = cropW; rawCrop.height = cropH;
-  rawCrop.getContext('2d').drawImage(canvas, rMinX, rMinY, cropW, cropH, 0, 0, cropW, cropH);
+  rawCrop.getContext('2d', CTX_READ).drawImage(canvas, rMinX, rMinY, cropW, cropH, 0, 0, cropW, cropH);
 
   // 3) 이제서야, 이미 작게 잘라낸 도장 영역만 부드럽게 확대 (문서 전체를 확대하지 않으니 색 번짐이 다른 곳으로 안 퍼짐)
   const SCALE = cropW < 200 ? 3 : 1;
@@ -4774,14 +4778,14 @@ function extractStamp(canvas){
   if(SCALE > 1){
     const up = document.createElement('canvas');
     up.width = cropW * SCALE; up.height = cropH * SCALE;
-    const upCtx = up.getContext('2d');
+    const upCtx = up.getContext('2d', CTX_READ);
     upCtx.imageSmoothingEnabled = true;
     upCtx.imageSmoothingQuality = 'high';
     upCtx.drawImage(rawCrop, 0, 0, up.width, up.height);
     work = up;
   }
 
-  const ctx = work.getContext('2d');
+  const ctx = work.getContext('2d', CTX_READ);
   const { width, height } = work;
   const imgData = ctx.getImageData(0,0,width,height);
   const d = imgData.data;
@@ -4827,7 +4831,7 @@ function extractStamp(canvas){
   const newW=fMaxX-fMinX+1, newH=fMaxY-fMinY+1;
   const out=document.createElement('canvas');
   out.width=newW; out.height=newH;
-  out.getContext('2d').drawImage(work, fMinX,fMinY,newW,newH, 0,0,newW,newH);
+  out.getContext('2d', CTX_READ).drawImage(work, fMinX,fMinY,newW,newH, 0,0,newW,newH);
   applyWatermark(out, 'DocFlow SAMPLE');
   return { canvas: out, warning: null };
 }
@@ -4841,9 +4845,9 @@ function extractSignature(canvas){
   const { x, y, w, h } = signatureSelection;
   const crop = document.createElement('canvas');
   crop.width = w; crop.height = h;
-  crop.getContext('2d').drawImage(canvas, x, y, w, h, 0, 0, w, h);
+  crop.getContext('2d', CTX_READ).drawImage(canvas, x, y, w, h, 0, 0, w, h);
 
-  const ctx = crop.getContext('2d');
+  const ctx = crop.getContext('2d', CTX_READ);
   const imgData = ctx.getImageData(0,0,w,h);
   const d = imgData.data;
 
@@ -4892,7 +4896,7 @@ function extractSignature(canvas){
   const newW=fMaxX-fMinX+1, newH=fMaxY-fMinY+1;
   const out=document.createElement('canvas');
   out.width=newW; out.height=newH;
-  out.getContext('2d').drawImage(crop, fMinX,fMinY,newW,newH, 0,0,newW,newH);
+  out.getContext('2d', CTX_READ).drawImage(crop, fMinX,fMinY,newW,newH, 0,0,newW,newH);
   applyWatermark(out, 'DocFlow SAMPLE');
   return { canvas: out, warning: null };
 }
@@ -5125,7 +5129,7 @@ function prepareOcrImage(src, rect){
   const pad = rect ? Math.round(12*Math.max(1, scale)) : Math.round(Math.max(r.w, r.h)*scale*0.02);
   const W = Math.max(1, Math.round(r.w*scale) + 2*pad), H = Math.max(1, Math.round(r.h*scale) + 2*pad);
   const out = document.createElement('canvas'); out.width = W; out.height = H;
-  const ctx = out.getContext('2d');
+  const ctx = out.getContext('2d', CTX_READ);
   ctx.fillStyle = '#fff'; ctx.fillRect(0,0,W,H);
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(src, r.x, r.y, r.w, r.h, pad, pad, W-2*pad, H-2*pad);
@@ -5176,7 +5180,7 @@ async function rereadStrayLatin(worker, cv, rawLines, text){
   const hs = cands.map(c=> c.w.bbox.y1 - c.w.bbox.y0 + 2*pad), ws = cands.map(c=> c.w.bbox.x1 - c.w.bbox.x0 + 2*pad);
   const strip = document.createElement('canvas');
   strip.width = Math.max(...ws) + 20; strip.height = hs.reduce((a,b)=> a+b+gap, gap);
-  const sx = strip.getContext('2d'); sx.fillStyle = '#fff'; sx.fillRect(0,0,strip.width,strip.height);
+  const sx = strip.getContext('2d', CTX_READ); sx.fillStyle = '#fff'; sx.fillRect(0,0,strip.width,strip.height);
   const slots = []; let y = gap;
   cands.forEach((c, i)=>{ sx.drawImage(cv, c.w.bbox.x0-pad, c.w.bbox.y0-pad, ws[i], hs[i], 10, y, ws[i], hs[i]); slots.push([y, y+hs[i]]); y += hs[i] + gap; });
   const LATIN = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
@@ -5279,7 +5283,7 @@ function ocrRecognize(canvas, opts = {}){
       ? (()=>{ // 정리 없이: 칸이면 자르기만
           if(!opts.rect) return { canvas, scale: 1, ox: 0, oy: 0 };
           const c = document.createElement('canvas'); c.width = Math.ceil(opts.rect.w); c.height = Math.ceil(opts.rect.h);
-          c.getContext('2d').drawImage(canvas, opts.rect.x, opts.rect.y, c.width, c.height, 0, 0, c.width, c.height);
+          c.getContext('2d', CTX_READ).drawImage(canvas, opts.rect.x, opts.rect.y, c.width, c.height, 0, 0, c.width, c.height);
           return { canvas: c, scale: 1, ox: opts.rect.x, oy: opts.rect.y };
         })()
       : prepareOcrImage(canvas, opts.rect);
@@ -5599,7 +5603,7 @@ document.getElementById('sigSubtabRow').addEventListener('click', e=>{
    공용: 투명 배경 캔버스를 잉크가 있는 영역만 크롭해서 다운로드
 --------------------------------------------------------- */
 function downloadCroppedCanvas(canvas, filename, pad = 12){
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', CTX_READ);
   const { width: w, height: h } = canvas;
   const data = ctx.getImageData(0,0,w,h).data;
   let minX=w, minY=h, maxX=-1, maxY=-1;
@@ -5618,7 +5622,7 @@ function downloadCroppedCanvas(canvas, filename, pad = 12){
   const cw=maxX-minX+1, ch=maxY-minY+1;
   const out=document.createElement('canvas');
   out.width=cw; out.height=ch;
-  out.getContext('2d').drawImage(canvas, minX,minY,cw,ch, 0,0,cw,ch);
+  out.getContext('2d', CTX_READ).drawImage(canvas, minX,minY,cw,ch, 0,0,cw,ch);
   saveCanvasFile(out, filename, 'image/png');
 }
 
@@ -5721,7 +5725,7 @@ function buildStampChars(name, appendIn){
 function renderTextMask(chars, positions, fontSize, size, fontCss, thickenPx, organic){
   const c = document.createElement('canvas');
   c.width = size; c.height = size;
-  const ctx = c.getContext('2d');
+  const ctx = c.getContext('2d', CTX_READ);
   ctx.fillStyle = '#000';
   ctx.strokeStyle = '#000';
   ctx.lineJoin = 'round';
@@ -5749,7 +5753,7 @@ function renderTextMask(chars, positions, fontSize, size, fontCss, thickenPx, or
 
 // 곡선 획을 격자 단위로 끊어서 직각으로 재구성 — 도장을 조각칼로 판 듯한 각진 느낌을 만듦 (사각형 전용)
 function blockifyMask(maskCanvas, cell){
-  const ctx = maskCanvas.getContext('2d');
+  const ctx = maskCanvas.getContext('2d', CTX_READ);
   const w = maskCanvas.width, h = maskCanvas.height;
   const src = ctx.getImageData(0,0,w,h).data;
   const out = ctx.createImageData(w,h);
@@ -5776,7 +5780,7 @@ function colorizeMask(maskCanvas, color){
   const size = maskCanvas.width, h = maskCanvas.height;
   const c = document.createElement('canvas');
   c.width = size; c.height = h;
-  const ctx = c.getContext('2d');
+  const ctx = c.getContext('2d', CTX_READ);
   ctx.fillStyle = color;
   ctx.fillRect(0,0,size,h);
   ctx.globalCompositeOperation = 'destination-in';
@@ -5784,7 +5788,7 @@ function colorizeMask(maskCanvas, color){
   return c;
 }
 function applyInkTexture(canvas){
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', CTX_READ);
   const { width: w, height: h } = canvas;
   const imgData = ctx.getImageData(0,0,w,h);
   const d = imgData.data;
@@ -5804,7 +5808,7 @@ function renderStampCanvas(name, shape, style, appendIn){
   const size = 400;
   const canvas = document.createElement('canvas');
   canvas.width = size; canvas.height = size;
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', CTX_READ);
   const chars = buildStampChars(name, appendIn);
   const red = '#c23b2f';
   const cx = size/2, cy = size/2;
@@ -5930,19 +5934,19 @@ function loadSignatureFonts(){
 
 // 잉크 둘레만 남기고 자름(pad: 여백 px)
 function cropToInk(canvas, pad){
-  const { width: W, height: H } = canvas, d = canvas.getContext('2d').getImageData(0,0,W,H).data;
+  const { width: W, height: H } = canvas, d = canvas.getContext('2d', CTX_READ).getImageData(0,0,W,H).data;
   let x0 = W, y0 = H, x1 = -1, y1 = -1;
   for(let y=0;y<H;y++) for(let x=0;x<W;x++) if(d[(y*W+x)*4+3] > 8){ if(x<x0) x0=x; if(x>x1) x1=x; if(y<y0) y0=y; if(y>y1) y1=y; }
   if(x1 < 0) return canvas;
   x0 = Math.max(0, x0-pad); y0 = Math.max(0, y0-pad); x1 = Math.min(W-1, x1+pad); y1 = Math.min(H-1, y1+pad);
   const out = document.createElement('canvas'); out.width = x1-x0+1; out.height = y1-y0+1;
-  out.getContext('2d').drawImage(canvas, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+  out.getContext('2d', CTX_READ).drawImage(canvas, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
   return out;
 }
 
 // 잉크 느낌 — 볼펜 잉크가 고르게 묻지 않은 것처럼 진하기를 넓게·잘게 살짝 다르게(불투명도 82~100%)
 function applySigInkTexture(canvas, seed){
-  const { width: W, height: H } = canvas, ctx = canvas.getContext('2d'), im = ctx.getImageData(0,0,W,H), d = im.data;
+  const { width: W, height: H } = canvas, ctx = canvas.getContext('2d', CTX_READ), im = ctx.getImageData(0,0,W,H), d = im.data;
   let st = seed || 7; const rnd = ()=>{ st = (st*1103515245 + 12345) & 0x7fffffff; return st/0x7fffffff; };
   const cell = 48, gw = Math.ceil(W/cell)+2, gh = Math.ceil(H/cell)+2, g = new Float32Array(gw*gh);
   for(let i=0;i<g.length;i++) g[i] = rnd();
@@ -5963,7 +5967,7 @@ function renderSignature(name, family, colorHex, skew){
   const tw = m.measureText(name).width;
   const W = Math.ceil(tw + SIG_FONT_PX*(2 + skew*2)), H = Math.ceil(SIG_FONT_PX*2.8);
   const c = document.createElement('canvas'); c.width = W; c.height = H;
-  const x = c.getContext('2d');
+  const x = c.getContext('2d', CTX_READ);
   x.fillStyle = colorHex; x.font = fontCss; x.textAlign = 'center'; x.textBaseline = 'middle';
   // 오른쪽으로 기울이기(위쪽을 오른쪽으로 밂) + 오른쪽이 살짝 올라가게 — 손으로 쓴 서명처럼
   x.setTransform(1, -0.03, -skew, 1, W/2, H/2);
