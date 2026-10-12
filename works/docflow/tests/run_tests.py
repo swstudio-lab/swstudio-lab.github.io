@@ -534,6 +534,106 @@ REDACT_RUN_JS = r"""
            images: { preview: T.png(applyRedaction(r.canvas, ocr, red, { preview: true })), saved: T.png(out) } };
 """
 
+# 페이지 안에서: 사용자처럼 "정보 가리기" 프리셋 → 처리 → 검토 화면 조작(누르기·형광펜·두 손가락·되돌리기) → 저장 확인
+REDACT_UI_JS = r"""
+  const fail = [], log = [];
+  const $ = id=> document.getElementById(id);
+  document.getElementById('noticeOverlay').classList.remove('show');
+  await T.load('/works/docflow/tests/fixtures/redact_bankbook.png', 'redact_bankbook.png');
+  [...document.querySelectorAll('.preset-card')].find(el=> el.textContent.includes('정보 가리기')).click();
+  if(!checked.has('ocrText') || !checked.has('redact') || scanMode !== 'color' || selectedFormat !== 'pdf') fail.push('프리셋 구성');
+  const ocrRow = [...document.querySelectorAll('.check-row')].find(r=> r.querySelector('.check-name').textContent === '글자 읽기 (OCR)');
+  ocrRow.click(); if(!checked.has('ocrText')) fail.push('정보 가리기가 켜져 있는데 글자 읽기를 끌 수 있음');
+  $('processBtn').click();
+  await new Promise(r=> setTimeout(r, 50));
+  for(let i=0; i<3000 && $('spinnerLine').classList.contains('show'); i++) await new Promise(r=> setTimeout(r, 100));
+  if(!$('redactPanel').classList.contains('show')) return { ok: false, info: '검토 화면이 안 열림' };
+  if(getComputedStyle($('downloadBtn')).display !== 'none') fail.push('가리는 중에 일반 다운로드가 보임');
+  const P = redactPage, items = ()=> P.red.items, nAuto = items().length;
+  log.push(`자동 ${nAuto}개`);
+  const cv = $('redactCanvas');
+  const toClient = (x, y)=>{ const r = cv.getBoundingClientRect(); return { clientX: r.left + x * r.width / cv.width, clientY: r.top + y * r.height / cv.height }; };
+  const wordAt = re=> P.ocr.words.findIndex(w=> re.test(w.text));
+  const center = wi=>{ const b = P.ocr.words[wi].bbox; return toClient((b.x0+b.x1)/2, (b.y0+b.y1)/2); };
+  // ① 단어 누르기 → 선택, 다시 누르기 → 해제, 되돌리기 → 다시 선택
+  // 이름은 엔진이 "홍 | 길 | 동"처럼 글자마다 나누기도 함 — 가운데 글자를 눌러도 이름 전체가 골라져야 함
+  const wName = wordAt(/길/);
+  cv.dispatchEvent(new MouseEvent('click', { bubbles: true, ...center(wName) }));
+  if(items().length !== nAuto + 1 || items().at(-1).kind !== 'word') fail.push('단어 누르기로 선택 안 됨');
+  else { const t = items().at(-1).words.map(i=> P.ocr.words[i].text).join(''); log.push(`"길"을 눌러 고른 것: ${t}`); if(!t.includes('홍길동')) fail.push('이름 일부만 골라짐: ' + t); }
+  cv.dispatchEvent(new MouseEvent('click', { bubbles: true, ...center(wName) }));
+  if(items().length !== nAuto) fail.push('다시 눌러도 해제 안 됨');
+  redactUndo(); if(items().length !== nAuto + 1) fail.push('되돌리기(해제 취소) 안 됨');
+  // 자동 검출을 눌러 해제 → 되돌리기
+  const wRrn = P.ocr.words.findIndex((w, i)=> items().some(it=> it.kind === 'rrn' && it.words.includes(i)));
+  cv.dispatchEvent(new MouseEvent('click', { bubbles: true, ...center(wRrn) }));
+  if(items().some(it=> it.kind === 'rrn')) fail.push('자동 검출 해제 안 됨');
+  redactUndo(); if(!items().some(it=> it.kind === 'rrn')) fail.push('자동 검출 해제 되돌리기 안 됨');
+  // ② 일부만 가리기 → 읽은 글자 창
+  document.querySelector('[data-rmode="partial"]').click();
+  const ta = $('ocrTextArea').value;
+  if(!/900101-1■{6}/.test(ta)) fail.push('일부만: 주민번호 글자 창 ' + (ta.match(/900101\S*/) || ['없음'])[0]);
+  if(!/010-■{4}-6789/.test(ta)) fail.push('일부만: 전화 글자 창');
+  if(!ta.includes('■■■■■■■') ) fail.push('일부만: 이메일이 전부 가려지지 않음');
+  if(/홍길동/.test(ta)) fail.push('직접 고른 이름이 글자 창에 보임');
+  document.querySelector('[data-rmode="full"]').click();
+  if(!/주민등록번호:? ■{14} /.test($('ocrTextArea').value)) fail.push('전체: 주민번호가 다 가려지지 않음');
+  // ③ 형광펜: 단어 위로 그으면 그 단어 선택, 빈 곳에 그으면 그은 자리 칠하기
+  document.querySelector('[data-rtool="pen"]').click();
+  if(cv.style.touchAction !== 'none' || !$('redactTools').classList.contains('sticky')) fail.push('형광펜: 터치 처리·도구 줄 고정 안 됨');
+  const pe = (type, id, c)=> cv.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: id, pointerType: 'touch', isPrimary: id === 1, ...c }));
+  const swipe = (pts, id = 1)=>{ pe('pointerdown', id, pts[0]); for(const q of pts.slice(1)) pe('pointermove', id, q); pe('pointerup', id, pts.at(-1)); };
+  const wDate = wordAt(/^2026-03-02/), b = P.ocr.words[wDate].bbox;
+  const before = items().length;
+  swipe([toClient(b.x0 + 2, (b.y0+b.y1)/2), toClient((b.x0+b.x1)/2, (b.y0+b.y1)/2), toClient(b.x1 - 2, (b.y0+b.y1)/2)]);
+  const it3 = items().at(-1);
+  if(items().length !== before + 1 || it3.kind !== 'word' || !it3.words.includes(wDate)) fail.push('형광펜으로 단어 선택 안 됨');
+  const W = cv.width, H = cv.height;
+  swipe([toClient(W*0.55, H*0.92), toClient(W*0.7, H*0.92), toClient(W*0.85, H*0.93)]);
+  if(items().at(-1).kind !== 'stroke') fail.push('빈 곳 획이 칠하기로 안 남음');
+  // 두 손가락: 확대만, 획은 남지 않음
+  const nBefore = items().length, z0 = RZ.zoom;
+  pe('pointerdown', 1, toClient(W*0.4, H*0.5)); pe('pointerdown', 2, toClient(W*0.6, H*0.5));
+  pe('pointermove', 1, toClient(W*0.3, H*0.5)); pe('pointermove', 2, toClient(W*0.7, H*0.5));
+  pe('pointerup', 1, toClient(W*0.3, H*0.5)); pe('pointerup', 2, toClient(W*0.7, H*0.5));
+  if(items().length !== nBefore) fail.push('두 손가락 확대 중에 칠해짐');
+  if(!(RZ.zoom > z0 * 1.5)) fail.push(`두 손가락으로 확대 안 됨 (${z0.toFixed(2)} → ${RZ.zoom.toFixed(2)})`);
+  log.push(`확대 ${Math.round(z0*100)}% → ${Math.round(RZ.zoom*100)}%`);
+  // ④ 저장 확인 → PDF, PNG (저장 함수를 가로채 결과만 받음)
+  let saved = null; const origBlob = saveBlobFile, origCanvas = saveCanvasFile;
+  window.saveBlobFile = (blob, name)=>{ saved = { blob, name }; };
+  window.saveCanvasFile = (canvas, name, mime)=>{ saved = { canvas, name, mime }; };
+  $('redactSaveBtn').click();
+  if(!$('redactConfirm').classList.contains('show') || !$('redactConfirmImg').src.startsWith('data:image')) fail.push('저장 확인 화면 안 뜸');
+  $('redactBackBtn').click();
+  if($('redactConfirm').classList.contains('show') || saved) fail.push('돌아가서 고치기가 저장해 버림');
+  $('redactSaveBtn').click(); $('redactDoSaveBtn').click();
+  if(!saved || !saved.blob || saved.name !== 'DocFlow_가림.pdf') fail.push('PDF 저장 안 됨');
+  else {
+    const bytes = new Uint8Array(await saved.blob.arrayBuffer());
+    log.push(`PDF ${Math.round(bytes.length/1024)}KB`);   // pdf.js가 바이트를 작업자로 넘기며 비우므로 먼저 잼
+    const doc = await pdfjsLib.getDocument({ data: bytes }).promise;
+    if((await (await doc.getPage(1)).getTextContent()).items.length) fail.push('PDF에 글자 층');
+  }
+  saved = null;
+  $('redactSaveBtn').click();
+  [...$('redactFormatRow').children].find(el=> el.textContent === 'PNG').click();
+  $('redactDoSaveBtn').click();
+  if(!saved || !saved.canvas || saved.mime !== 'image/png') fail.push('PNG 저장 안 됨');
+  else {
+    // 가린 자리(형광펜 단어 2026-03-02)가 완전히 검정인지
+    const d = saved.canvas.getContext('2d').getImageData(Math.round((b.x0+b.x1)/2), Math.round((b.y0+b.y1)/2), 1, 1).data;
+    if(d[0] || d[1] || d[2]) fail.push('PNG의 가린 자리가 검정이 아님');
+  }
+  window.saveBlobFile = origBlob; window.saveCanvasFile = origCanvas;
+  // ⑤ 정보 가리기를 끄고 다시 처리하면 검토 화면이 닫히고 일반 다운로드가 돌아옴
+  checked.delete('redact'); renderSections();
+  $('processBtn').click(); await new Promise(r=> setTimeout(r, 50));
+  for(let i=0; i<3000 && $('spinnerLine').classList.contains('show'); i++) await new Promise(r=> setTimeout(r, 100));
+  if($('redactPanel').classList.contains('show') || getComputedStyle($('downloadBtn')).display === 'none') fail.push('가리기 끈 뒤에도 검토 화면이 남음');
+  return { ok: !fail.length, info: (fail.join(' / ') || '누르기·해제·되돌리기·일부만·형광펜·두 손가락·저장 확인 정상') + ' · ' + log.join(' · ') };
+"""
+
 def run_redact_tests(fresh_page, out_dir, remake=False):
     fails = 0
     for name, doc in REDACT_DOCS.items():
@@ -591,6 +691,15 @@ def run_redact_tests(fresh_page, out_dir, remake=False):
             if r['wrong']: print(f'        잘못 잡음: {", ".join(r["wrong"])}')
             print(f"        저장본 — 다시 읽어서 보인 값 {len(r['leaked'])}개{(' ' + ', '.join(r['leaked'])) if r['leaked'] else ''}"
                   f" · 가린 자리 검정 아닌 픽셀 {r['notBlack']}/{r['px']} · PDF 문서 정보 {r['pdfInfo'] or '없음'} · PDF 글자 층 {'있음' if r['pdfText'] else '없음'}")
+    pg = fresh_page()
+    t0 = time.time()
+    try:
+        r = pg.evaluate('async () => {' + REDACT_UI_JS + '}')
+    except Exception as e:
+        r = {'ok': False, 'info': f'오류: {e}'}
+    pg.close()
+    fails += 0 if r['ok'] else 1
+    print(f"  {'PASS' if r['ok'] else 'FAIL'}  검토 화면 조작 ({time.time()-t0:.0f}s)\n        {r['info']}")
     if total:
         print('  종류별 합계(깨끗한 이미지+사진): ' + ' · '.join(f'{REDACT_LABEL.get(k, k)} {a[0]}/{a[1]}' for k, a in total.items()))
         print(f'  결과: {od}')

@@ -228,6 +228,42 @@
   .ocr-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;}
   .ocr-hint{font-size:11.5px;color:var(--muted);}
 
+  /* 정보 가리기 — 검토 화면 */
+  .redact-panel{display:none;margin-top:18px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;}
+  .redact-panel.show{display:block;}
+  .redact-title{font-size:13.5px;font-weight:700;color:var(--ink);}
+  .redact-note{font-size:11.5px;color:var(--muted);line-height:1.6;margin:4px 0 8px;}
+  .redact-note b{color:var(--gold);font-weight:600;}
+  .redact-tools{background:var(--panel);padding:6px 0;display:flex;flex-direction:column;gap:8px;z-index:20;}
+  /* 형광펜을 켜면 도구 줄이 화면 위에 붙어 있음 — 칠하다가도 되돌리기·끄기를 바로 누를 수 있게 */
+  .redact-tools.sticky{position:sticky;top:0;border-bottom:1px solid var(--line);box-shadow:0 8px 12px -6px rgba(0,0,0,0.5);}
+  .redact-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;}
+  .redact-row .format-btn{padding:8px 12px;}
+  .redact-row .btn-ghost{padding:8px 12px;}
+  .redact-row .btn-ghost:disabled, .redact-row .format-btn:disabled{opacity:0.4;cursor:default;}
+  .redact-label{font-size:11.5px;color:var(--muted);}
+  .redact-brush{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);}
+  .redact-brush input[type=range]{width:110px;accent-color:var(--gold);}
+  .redact-check{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);cursor:pointer;}
+  .redact-zoom{display:flex;align-items:center;gap:4px;margin-left:auto;font-size:12px;color:var(--muted);}
+  .redact-zoom .format-btn{padding:6px 12px;min-width:36px;}
+  .redact-zoom span{min-width:44px;text-align:center;}
+  .redact-hint{font-size:11.5px;color:var(--gold);line-height:1.6;}
+  .redact-view-wrap{position:relative;margin-top:8px;}
+  .redact-view{overflow:auto;max-height:72vh;background:#0b0b0e;border-radius:10px;}
+  .redact-view canvas{display:block;margin:0 auto;cursor:pointer;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
+  .redact-view.pen canvas{cursor:crosshair;}
+  .redact-list-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:12px 0 6px;font-size:12.5px;color:var(--ink);}
+  .redact-list-head .btn-ghost{padding:6px 10px;font-size:11.5px;}
+  .redact-list{display:flex;flex-direction:column;gap:4px;}
+  .redact-item{display:flex;align-items:center;gap:8px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:6px 6px 6px 10px;font-size:12.5px;cursor:pointer;}
+  .redact-item .ri-kind{color:var(--muted);flex-shrink:0;}
+  .redact-item .ri-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);}
+  .redact-item .ri-tag{font-size:10.5px;color:#f5c518;flex-shrink:0;}
+  .redact-item .ri-x{background:none;border:none;color:var(--muted);font-size:15px;cursor:pointer;padding:4px 8px;font-family:inherit;}
+  .redact-empty{font-size:12px;color:var(--muted);padding:6px 2px;}
+  @media(max-width:560px){ .redact-item .ri-kind .ri-label{display:none;} .redact-zoom{margin-left:0;} }
+
   .spinner-line{display:none;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-top:10px;}
   .spinner-line.show{display:flex;}
   .spinner-dot{width:8px;height:8px;border-radius:50%;background:var(--gold);animation:pulse 1s ease infinite;}
@@ -256,6 +292,22 @@
     <div id="saveSheetBody"></div>
     <div class="inapp-actions" id="saveSheetActions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;"></div>
     <button class="btn-ghost" id="saveSheetClose" style="width:100%;margin-top:12px;">닫기</button>
+  </div>
+</div>
+
+<!-- 정보 가리기 — 저장 전 확인 -->
+<div class="notice-overlay" id="redactConfirm">
+  <div class="notice-modal wide">
+    <div class="notice-title">🕶️ 가린 부분을 한 번 더 확인해 주세요</div>
+    <div class="save-sheet-hint" style="text-align:left;" id="redactConfirmMsg"></div>
+    <img class="save-sheet-img" id="redactConfirmImg" alt="저장될 그림 (가린 곳은 검게 칠해짐)">
+    <div class="sub-option-label">저장 형식</div>
+    <div class="format-row" id="redactFormatRow"></div>
+    <div class="gen-hint" id="redactFormatNote"></div>
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button class="btn-ghost" id="redactBackBtn" style="flex:1;">돌아가서 고치기</button>
+      <button class="btn-primary" id="redactDoSaveBtn" style="flex:1;margin-top:0;">저장</button>
+    </div>
   </div>
 </div>
 
@@ -351,6 +403,38 @@
         <div class="preview-label">결과</div>
         <canvas id="resultPreview"></canvas>
       </div>
+    </div>
+    <div class="redact-panel" id="redactPanel">
+      <div class="redact-title">🕶️ 가릴 부분을 고르세요</div>
+      <div class="redact-note">자동으로 찾은 개인정보는 <b>노란 테두리</b>로 미리 골라 뒀어요. 자동 찾기는 놓치거나 잘못 잡을 수 있으니
+        문서 전체를 꼭 확인해 주세요. 모든 처리는 이 기기 안에서만 해요.</div>
+      <div class="redact-note" id="redactNoOcr" hidden>글자를 읽지 못해서 자동 찾기·단어 고르기를 할 수 없어요. 형광펜으로 가릴 곳을 칠해 주세요.</div>
+      <div class="redact-tools" id="redactTools">
+        <div class="redact-row">
+          <button class="format-btn" data-rtool="word">👆 단어 고르기</button>
+          <button class="format-btn" data-rtool="pen">🖍 형광펜</button>
+          <label class="redact-brush" id="redactBrushWrap">굵기 <input type="range" id="redactBrush" min="8" max="64" step="2"> <span id="redactBrushVal"></span></label>
+          <label class="redact-check" id="redactPenRawWrap"><input type="checkbox" id="redactPenRaw"> 단어 대신 그은 자리 칠하기</label>
+        </div>
+        <div class="redact-row">
+          <button class="btn-ghost" id="redactUndo">↶ 되돌리기</button>
+          <button class="btn-ghost" id="redactClear">모두 해제</button>
+          <div class="redact-zoom">🔍 <button class="format-btn" id="redactZoomOut" aria-label="축소">−</button><span id="redactZoomVal">100%</span><button class="format-btn" id="redactZoomIn" aria-label="확대">+</button></div>
+        </div>
+        <div class="redact-row">
+          <span class="redact-label">가리기 방식</span>
+          <button class="format-btn sub-option-btn" data-rmode="full">■ 전체 가리기</button>
+          <button class="format-btn sub-option-btn" data-rmode="partial">□ 일부만 (주민번호 뒷자리·계좌 가운데·전화 가운데)</button>
+        </div>
+        <div class="redact-hint" id="redactHint"></div>
+      </div>
+      <div class="redact-view-wrap" id="redactViewWrap">
+        <div class="redact-view" id="redactView"><canvas id="redactCanvas"></canvas></div>
+        <canvas id="redactLoupe" class="corner-loupe" width="240" height="240"></canvas>
+      </div>
+      <div class="redact-list-head"><span>선택한 것 <b id="redactCount">0</b>개</span><button class="btn-ghost" id="redactClear2">모두 해제</button></div>
+      <div class="redact-list" id="redactList"></div>
+      <button class="btn-primary" id="redactSaveBtn" style="margin-top:12px;">가린 결과 확인하고 저장</button>
     </div>
     <button class="btn-primary" id="downloadBtn" style="margin-top:14px;">⬇ 다운로드</button>
     <div class="ocr-panel" id="ocrPanel">
@@ -571,14 +655,15 @@ function showPdfBlockedSheet(onImage){
 // 공용 저장 — 일반 브라우저는 파일 다운로드, 인앱 브라우저는 저장 시트
 function saveCanvasFile(canvas, filename, mime, quality){
   if(INAPP.inApp){ showImageSaveSheet(canvas, mime, quality); return; }
-  canvas.toBlob(blob=>{
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click(); a.remove();
-    // 바로 해제하면 일부 브라우저(특히 모바일)에서 다운로드가 시작되기 전에 주소가 사라져 실패함 → 넉넉히 뒤에 해제
-    setTimeout(()=> URL.revokeObjectURL(url), 60000);
-  }, mime, quality);
+  canvas.toBlob(blob=> saveBlobFile(blob, filename), mime, quality);
+}
+function saveBlobFile(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  // 바로 해제하면 일부 브라우저(특히 모바일)에서 다운로드가 시작되기 전에 주소가 사라져 실패함 → 넉넉히 뒤에 해제
+  setTimeout(()=> URL.revokeObjectURL(url), 60000);
 }
 
 /* ---------------------------------------------------------
@@ -613,6 +698,7 @@ const SECTIONS = [
     {id:'contrast', name:'명암 보정', desc:'밝고 어두운 부분의 대비를 자동으로 맞춰요.', ready:true},
     {id:'sharpen', name:'선명도 향상', desc:'살짝 흐릿한 이미지를 또렷하게 만들어요.', ready:true},
     {id:'ocrText', name:'글자 읽기 (OCR)', desc:'처리한 결과에서 한글·영문을 읽어 텍스트로 꺼내요. 문서는 기기 밖으로 나가지 않아요. (처음 한 번 약 8MB를 내려받고, 다음부터는 바로 시작해요)', ready:true},
+    {id:'redact', name:'정보 가리기 (검토 후 저장)', desc:'주민등록번호·전화번호·계좌번호·이메일을 찾아 가릴 후보로 골라 두고, 직접 확인·수정한 뒤 검게 칠해 저장해요. 글자 읽기가 함께 실행돼요. 모든 처리는 기기 안에서만 해요.', ready:true},
   ]},
   { title:'객체 추출', items:[
     {id:'stampExtract', name:'도장 추출', desc:'빨간 도장만 배경 투명하게 오려내요. (본인 소유·사용 권한이 있는 도장만 사용해주세요)', ready:true},
@@ -622,7 +708,8 @@ const SECTIONS = [
 
 const PRESETS = [
   {id:'stamp', name:'도장 추출하기', emoji:'🔴', checks:['trimMargin','denoise','sharpen','stampExtract'], format:'png', ready:true},
-  {id:'report', name:'보고서 삽입', emoji:'📋', checks:['trimMargin','sharpen','contrast'], format:'jpg', ready:true},
+  // 정보 가리기: 컬러 스캔(직인·도장 색 유지 — 증빙으로 내는 문서), 기본 저장은 PDF
+  {id:'redact', name:'정보 가리기', emoji:'🕶️', checks:['autoCrop','scanEffect','denoise','ocrText','redact'], format:'pdf', scanMode:'color', ready:true},
   {id:'signature', name:'서명 추출하기', emoji:'✍️', checks:['denoise','signatureExtract','contrast'], format:'png', ready:true},
   // 기울기 자동 보정은 원근 보정에, 흑백 변환은 스캔 효과(흑백)에 포함되므로 프리셋에 넣지 않음 (INCLUDED_BY 참고)
   {id:'ocr', name:'OCR 최적화', emoji:'🔍', checks:['autoCrop','scanEffect','trimMargin','denoise','removeLines','ocrText'], format:'png', scanMode:'bw', ready:true},
@@ -645,6 +732,12 @@ const INCLUDED_BY = {
   grayscale: ()=> checked.has('scanEffect') && scanMode === 'bw' ? '스캔 효과(흑백)에 포함됨' : null,
 };
 const includedIn = id=> INCLUDED_BY[id] ? INCLUDED_BY[id]() : null;
+// 다른 항목이 켜져 있으면 반드시 함께 실행되는 항목 — 체크된 채로 흐리게 표시하고 끌 수 없게 함
+//  · 글자 읽기: 정보 가리기가 읽은 글자에서 가릴 정보를 찾음
+const REQUIRED_BY = {
+  ocrText: ()=> checked.has('redact') ? '정보 가리기에 필요' : null,
+};
+const requiredBy = id=> REQUIRED_BY[id] ? REQUIRED_BY[id]() : null;
 
 const ALL_ITEMS = SECTIONS.flatMap(s=>s.items);
 const ITEM_MAP = Object.fromEntries(ALL_ITEMS.map(i=>[i.id,i]));
@@ -731,6 +824,7 @@ function renderSections(){
   wrap.innerHTML = '';
   // 다른 항목에 포함된 항목은 체크를 풀어 둠 (포함한 항목을 끄면 다시 고를 수 있음)
   for(const id of Object.keys(INCLUDED_BY)) if(includedIn(id)) checked.delete(id);
+  for(const id of Object.keys(REQUIRED_BY)) if(requiredBy(id)) checked.add(id);
   SECTIONS.forEach(sec=>{
     const group = document.createElement('div');
     group.innerHTML = `<div style="font-size:11.5px;color:var(--muted);margin:12px 0 6px;">${sec.title}</div>`;
@@ -738,10 +832,10 @@ function renderSections(){
     list.className = 'check-group';
     sec.items.forEach(item=>{
       const row = document.createElement('div');
-      const included = includedIn(item.id);
-      row.className = 'check-row' + (!item.ready || included ? ' disabled' : '');
+      const included = includedIn(item.id), required = requiredBy(item.id);
+      row.className = 'check-row' + (!item.ready || included || required ? ' disabled' : '');
       const on = checked.has(item.id);
-      const tag = !item.ready ? '준비중' : included;
+      const tag = !item.ready ? '준비중' : included || required;
       row.innerHTML = `
         <div class="box ${on?'on':''}"></div>
         <div style="flex:1;">
@@ -750,7 +844,7 @@ function renderSections(){
         </div>
         ${tag ? `<div class="check-soon">${tag}</div>` : ''}
       `;
-      if(item.ready && !included){
+      if(item.ready && !included && !required){
         row.onclick = ()=>{
           selectedPreset = null; // 수동으로 건드리면 프리셋 선택 해제
           if(checked.has(item.id)) checked.delete(item.id);
@@ -5398,6 +5492,8 @@ const REDACT_KINDS = {
 const REDACT_PAD = 3; // 가릴 상자를 글자 위치보다 넓게(px) — 글자 가장자리가 삐져나오지 않게
 let redactSeq = 0;
 const newRedactId = ()=> 'r' + (++redactSeq);
+// 정보 가리기 화면 설정(새 쪽을 처리할 때의 기본값) — 쪽마다 snapshotPageSettings()로 복사해 둠
+let redactSettings = { mode: 'full', brush: 24 };
 
 // 숫자 자리의 흔한 오인식 맞추기(같은 길이 유지): O·o → 0, l·I·| → 1, 여러 가지 줄표 → -
 const normDigits = s=> s.replace(/[Oo]/g, '0').replace(/[lI|]/g, '1').replace(/[–—~]/g, '-');
@@ -5412,6 +5508,25 @@ function redactLineString(ocr, li){
     chars.forEach((t, ci)=>{ for(const ch of t){ parts.push(ch); map.push([wi, ci]); } });
   });
   return { str: parts.join(''), map };
+}
+
+// 보이는 단어 묶음 — 엔진이 한글 단어를 글자 하나씩 따로 단어로 내놓기도 함("홍 | 길 | 동", 줄 글자에는 "홍길동").
+// 줄 글자에서 공백 없이 이어진 단어 조각들을 한 묶음으로 → 단어를 누르면 묶음 전체를 고름. 결과: 단어 번호 → 묶음(단어 번호 배열)
+function redactWordGroups(ocr){
+  const groupOf = new Array(ocr.words.length);
+  ocr.lines.forEach((ln, li)=>{
+    let at = 0, prevEnd = -1, cur = null;
+    ocr.words.forEach((w, wi)=>{
+      if(w.line !== li) return;
+      const i = ln.text.indexOf(w.text, at);
+      const joined = cur && i >= 0 && i === prevEnd;
+      if(!joined){ cur = []; }
+      cur.push(wi); groupOf[wi] = cur;
+      if(i >= 0){ at = i + w.text.length; prevEnd = at; } else prevEnd = -1;
+    });
+  });
+  ocr.words.forEach((_, wi)=>{ if(!groupOf[wi]) groupOf[wi] = [wi]; });
+  return groupOf;
 }
 
 // 자동 검출 — 개인정보로 보이는 것을 "제안" 항목으로 (미리 선택)
@@ -5502,8 +5617,12 @@ function applyRedaction(canvas, ocr, red, opts = {}){
   const x = out.getContext('2d', CTX_READ);
   x.drawImage(canvas, 0, 0);
   if(!red || !red.items.length) return out;
-  const { rects, strokes } = redactionShapes(ocr, red);
-  const color = opts.preview ? 'rgba(0,0,0,0.55)' : '#000';
+  paintRedaction(x, redactionShapes(ocr, red), opts.preview ? 'rgba(0,0,0,0.55)' : '#000');
+  return out;
+}
+// 상자·획 칠하기 — 저장(불투명)과 검토 화면(반투명)이 같은 모양을 쓰도록 한 곳에서
+function paintRedaction(x, { rects, strokes }, color){
+  x.save();
   x.fillStyle = color; x.strokeStyle = color;
   for(const r of rects) x.fillRect(Math.floor(r.x0), Math.floor(r.y0), Math.ceil(r.x1 - r.x0) + 1, Math.ceil(r.y1 - r.y0) + 1);
   x.lineCap = 'round'; x.lineJoin = 'round';
@@ -5513,7 +5632,7 @@ function applyRedaction(canvas, ocr, red, opts = {}){
     if(s.points.length === 1) x.lineTo(s.points[0].x + 0.1, s.points[0].y);
     x.stroke();
   }
-  return out;
+  x.restore();
 }
 
 // 형광펜 획이 단어 상자에 닿는지(획 굵기의 절반 안)
@@ -5638,13 +5757,14 @@ const PROCESSORS = {
 // 스캔 효과를 표 선 제거보다 먼저 하는 이유: 그림자 경계가 어두운 선으로 잡혀 표 선으로 오인되는 걸 막기 위해.
 // 원근 보정 단계에서 채운 빈 칸·가장자리도 스캔 효과에서 함께 하얗게 정리되어 이음매가 남지 않음
 // 글자 읽기(ocrText)는 모든 이미지 처리가 끝난 결과에서 맨 마지막에
-const PROCESS_ORDER = ['signatureExtract','autoCrop','deskew','scanEffect','denoise','removeLines','trimMargin','grayscale','contrast','sharpen','stampExtract','ocrText'];
+// 정보 가리기(redact)는 글자 읽기 결과에서 가릴 후보를 찾으므로 그 뒤에 — 이미지는 바꾸지 않음(검토 화면에서 고른 뒤 저장할 때 칠함)
+const PROCESS_ORDER = ['signatureExtract','autoCrop','deskew','scanEffect','denoise','removeLines','trimMargin','grayscale','contrast','sharpen','stampExtract','ocrText','redact'];
 // 처리 중 단계별 진행 문구 — 휴대폰에서 오래 걸리는 단계도 멈춘 것처럼 보이지 않게
 const STEP_LABELS = {
   signatureExtract:'서명 오려내는 중…', autoCrop:'문서 테두리를 찾아 반듯하게 펴는 중…', deskew:'기울기 맞추는 중…',
   scanEffect:'그림자 지우고 배경 하얗게 만드는 중…', denoise:'잡티 줄이는 중…', removeLines:'표 선 찾는 중…',
   trimMargin:'여백 정리하는 중…', grayscale:'흑백으로 바꾸는 중…', contrast:'명암 맞추는 중…', sharpen:'선명하게 만드는 중…',
-  stampExtract:'도장 오려내는 중…', ocrText:'글자 읽기 준비 중…',
+  stampExtract:'도장 오려내는 중…', ocrText:'글자 읽기 준비 중…', redact:'가릴 정보 찾는 중…',
 };
 // 화면이 실제로 한 번 그려질 때까지 기다림 (requestAnimationFrame 다음 → 그리기가 끝난 뒤)
 const nextPaint = ()=> new Promise(r=> requestAnimationFrame(()=> setTimeout(r, 0)));
@@ -5661,6 +5781,7 @@ function snapshotPageSettings(){
     scanMode, outsideMode,
     corner: { ...cornerState, corners: cornerState.corners ? cornerState.corners.map(p=>({ x:p.x, y:p.y })) : null },
     signatureSelection: signatureSelection ? { ...signatureSelection } : null,
+    redact: { ...redactSettings },
   };
 }
 // 처리 함수들은 아직 화면 전역 상태(scanMode·cornerState 등)를 읽으므로, 처리하는 동안만 그 쪽 설정으로 바꿔 두고 되돌림
@@ -5673,23 +5794,29 @@ async function withPageSettings(image, ps, fn){
     ({ originalImage, scanMode, outsideMode, cornerState, signatureSelection } = saved);
   }
 }
-// 결과: { page, canvas, warnings:[...], ocr: OCR 결과(글자 읽기를 했으면) + page }
+// 결과: { page, canvas, warnings:[...], ocr: OCR 결과(글자 읽기를 했으면) + page,
+//        redaction: 정보 가리기를 켰으면 { mode, brush, items: 자동 검출 } — 검토 화면에서 사용자가 고침 }
 // onStatus(text, stepNo, stepCount): 진행 문구 알림(화면이 그려질 때까지 기다리는 함수를 넘기면 됨)
 async function processPage(image, ps, { page = 1, onStatus } = {}){
   return withPageSettings(image, ps, async ()=>{
-    let canvas = cloneCanvasFromImage(image), ocr = null, stepNo = 0;
+    let canvas = cloneCanvasFromImage(image), ocr = null, redaction = null, stepNo = 0;
     const warnings = [];
     const status = text=> onStatus ? onStatus(text, stepNo, ps.checks.length) : null;
     for(const key of ps.checks){
       stepNo++;
       await status(STEP_LABELS[key] || '처리하는 중…');
+      if(key === 'redact'){
+        // 글자를 못 읽었으면 자동 검출 없이 형광펜으로만 가릴 수 있음
+        redaction = { mode: ps.redact.mode, brush: ps.redact.brush, items: ocr ? detectSensitive(ocr) : [] };
+        continue;
+      }
       const result = await PROCESSORS[key](canvas, status);
       if(result instanceof HTMLCanvasElement){ canvas = result; continue; }
       canvas = result.canvas;
       if(result.warning) warnings.push(result.warning);
       if(result.ocr) ocr = { ...result.ocr, page };
     }
-    return { page, canvas, warnings, ocr };
+    return { page, canvas, warnings, ocr, redaction };
   });
 }
 
@@ -5711,6 +5838,7 @@ document.getElementById('processBtn').addEventListener('click', async ()=>{
   document.getElementById('spinnerLine').classList.add('show');
   document.getElementById('warningBox').classList.remove('show');
   document.getElementById('ocrPanel').classList.remove('show');
+  showRedactPanel(null);
   document.getElementById('processBtn').disabled = true;
   // 글자 읽기를 할 거면 엔진·언어 데이터를 이미지 처리하는 동안 미리 받아 둠 — 처리가 끝나면 바로 인식 시작
   if(ps.checks.includes('ocrText')) getOcrWorker().catch(()=>{});
@@ -5730,6 +5858,8 @@ document.getElementById('processBtn').addEventListener('click', async ()=>{
   showOcrPanel(lastOcrPages);
 
   document.getElementById('previewWrap').classList.add('show');
+  // 정보 가리기: 검토 화면은 결과가 보인 뒤에 열어야 화면 폭에 맞춰 그려짐
+  showRedactPanel(r.redaction ? { page: 1, canvas, ocr: r.ocr || EMPTY_OCR, red: r.redaction } : null);
   document.getElementById('previewWrap').scrollIntoView({behavior:'smooth', block:'nearest'});
   if(warnings.length){
     document.getElementById('warningBox').textContent = warnings.join(' ');
@@ -5762,6 +5892,361 @@ document.getElementById('ocrCopyBtn').addEventListener('click', async ()=>{
   ta.focus(); ta.select();
   hint.textContent = '자동 복사가 막혀 있어요. 선택된 글자를 길게 눌러 "복사"를 눌러주세요.';
 });
+
+/* ---------------------------------------------------------
+   정보 가리기 — 검토 화면
+   · 단어 고르기: 누르면 선택, 다시 누르면 해제 (휴대폰: 한 손가락으로 끌면 평소처럼 스크롤)
+   · 형광펜: 그은 자리에 걸린 단어를 한꺼번에 선택. 걸린 단어가 없으면(손글씨·흐린 글자·도장) 그은 자리 자체를 칠함
+     휴대폰에서는 형광펜을 켰을 때만 한 손가락 = 칠하기, 두 손가락 = 스크롤·확대. 칠하는 동안 손가락 위에 돋보기
+   · 화면에서는 반투명으로 보여 주고, 저장할 때 불투명 검정으로 칠함(확인 화면을 거침)
+   · 되돌리기는 마지막 동작(선택·해제·획·모두 해제)을 하나씩 취소
+--------------------------------------------------------- */
+const EMPTY_OCR = { text: '', words: [], lines: [], addrFixes: [] };
+let redactPage = null; // 지금 검토 중인 쪽 { page, canvas, ocr, red, undo:[] } — 여러 쪽이 되면 쪽마다 하나씩
+const RZ = { tool: 'word', zoom: 1, stroke: null, pointers: new Map(), pinch: null, raf: 0, loupeAt: null, final: null };
+const RZ_ZOOM_MIN = 0.5, RZ_ZOOM_MAX = 5;
+const $r = id=> document.getElementById(id);
+
+function showRedactPanel(p){
+  redactPage = p;
+  // 가리는 중에는 일반 다운로드를 숨김 — 가리지 않은 결과를 실수로 저장하지 않게(저장은 확인 화면을 거침)
+  $r('downloadBtn').style.display = p ? 'none' : '';
+  if(!p){ $r('redactPanel').classList.remove('show'); return; }
+  p.undo = [];
+  p.groups = redactWordGroups(p.ocr);
+  RZ.tool = p.ocr.words.length ? 'word' : 'pen';
+  RZ.zoom = 1; RZ.stroke = null; RZ.pinch = null; RZ.pointers.clear();
+  const cv = $r('redactCanvas');
+  cv.width = p.canvas.width; cv.height = p.canvas.height;
+  $r('redactNoOcr').hidden = !!p.ocr.words.length;
+  $r('redactPanel').classList.add('show');
+  renderRedactTools(); applyRedactZoom();
+  // 처음 확대: 글자(단어 높이 중앙값)가 화면에서 14px쯤 되게 — 휴대폰 폭에서 100%면 글자가 작아 누르기 어려움
+  const hs = p.ocr.words.map(w=> w.bbox.y1 - w.bbox.y0).sort((a, b)=> a - b);
+  if(hs.length){
+    const onScreen = hs[hs.length >> 1] / redactK();
+    if(onScreen < 14){ RZ.zoom = Math.min(3, 14 / onScreen); applyRedactZoom(); }
+  }
+  redactChanged();
+}
+
+// 화면 1px = 이미지 몇 px인지
+const redactK = ()=>{ const cv = $r('redactCanvas'); return cv.width / Math.max(1, cv.getBoundingClientRect().width); };
+function redactImgPt(clientX, clientY){
+  const cv = $r('redactCanvas'), r = cv.getBoundingClientRect();
+  return { x: (clientX - r.left) * cv.width / r.width, y: (clientY - r.top) * cv.height / r.height };
+}
+
+function renderRedactTools(){
+  const pen = RZ.tool === 'pen', red = redactPage.red;
+  document.querySelectorAll('[data-rtool]').forEach(b=> b.classList.toggle('selected', b.dataset.rtool === RZ.tool));
+  document.querySelectorAll('[data-rtool="word"]').forEach(b=> b.disabled = !redactPage.ocr.words.length);
+  document.querySelectorAll('[data-rmode]').forEach(b=> b.classList.toggle('selected', b.dataset.rmode === red.mode));
+  $r('redactBrushWrap').style.display = pen ? '' : 'none';
+  $r('redactPenRawWrap').style.display = pen && redactPage.ocr.words.length ? '' : 'none';
+  $r('redactBrush').value = red.brush;
+  $r('redactBrushVal').textContent = red.brush + 'px';
+  $r('redactTools').classList.toggle('sticky', pen);
+  $r('redactView').classList.toggle('pen', pen);
+  // 형광펜일 때만 화면 끌기를 직접 처리(칠하기·두 손가락 스크롤/확대), 아니면 브라우저 기본 스크롤·확대
+  $r('redactCanvas').style.touchAction = pen ? 'none' : 'manipulation';
+  $r('redactHint').textContent = pen
+    ? '가릴 곳을 그으세요. 지나간 단어가 한꺼번에 골라져요. (휴대폰: 두 손가락으로 스크롤·확대)'
+    : '가릴 단어를 누르면 골라지고, 다시 누르면 풀려요.';
+}
+
+function applyRedactZoom(keep){
+  const view = $r('redactView'), cv = $r('redactCanvas');
+  const before = keep ? redactImgPt(keep.x, keep.y) : null;
+  cv.style.width = Math.round(Math.max(50, view.clientWidth) * RZ.zoom) + 'px';
+  cv.style.height = 'auto';
+  $r('redactZoomVal').textContent = Math.round(RZ.zoom * 100) + '%';
+  // keep(화면 좌표)에 있던 이미지 지점이 확대 뒤에도 같은 자리에 오도록 스크롤
+  if(before){
+    const r = cv.getBoundingClientRect(), s = r.width / cv.width;
+    view.scrollLeft += (r.left + before.x * s) - keep.x;
+    view.scrollTop  += (r.top  + before.y * s) - keep.y;
+  }
+}
+function setRedactZoom(z, keep){
+  RZ.zoom = Math.max(RZ_ZOOM_MIN, Math.min(RZ_ZOOM_MAX, z));
+  applyRedactZoom(keep);
+  scheduleRedactDraw();
+}
+function redactViewCenter(){ const r = $r('redactView').getBoundingClientRect(); return { x: r.left + r.width/2, y: r.top + Math.min(r.height, innerHeight - r.top)/2 }; }
+
+function scheduleRedactDraw(){
+  if(RZ.raf) return;
+  RZ.raf = requestAnimationFrame(()=>{ RZ.raf = 0; drawRedactCanvas(); if(RZ.loupeAt) drawRedactLoupe(); });
+}
+function drawRedactCanvas(){
+  const p = redactPage; if(!p) return;
+  const cv = $r('redactCanvas'), x = cv.getContext('2d'), k = redactK();
+  x.setTransform(1,0,0,1,0,0);
+  x.drawImage(p.canvas, 0, 0);
+  // 읽은 단어마다 옅은 테두리 — 누를 수 있는 곳
+  x.lineWidth = Math.max(1, k);
+  x.strokeStyle = 'rgba(70,130,230,0.45)';
+  for(const w of p.ocr.words){ const b = w.bbox; x.strokeRect(b.x0 - 1, b.y0 - 1, b.x1 - b.x0 + 2, b.y1 - b.y0 + 2); }
+  // 가릴 곳(반투명 검정) + 고른 단어 테두리(자동 = 노란색, 직접 = 빨간색)
+  paintRedaction(x, redactionShapes(p.ocr, p.red), 'rgba(0,0,0,0.55)');
+  x.lineWidth = Math.max(2, 2*k);
+  for(const it of p.red.items){
+    if(it.kind === 'stroke') continue;
+    x.strokeStyle = it.auto ? '#f5c518' : '#e5484d';
+    for(const wi of it.words){ const w = p.ocr.words[wi]; if(!w) continue; const b = w.bbox, d = REDACT_PAD + k;
+      x.strokeRect(b.x0 - d, b.y0 - d, b.x1 - b.x0 + 2*d, b.y1 - b.y0 + 2*d); }
+  }
+  // 긋는 중인 획
+  const s = RZ.stroke;
+  if(s && s.points.length){
+    x.save(); x.strokeStyle = 'rgba(255,214,0,0.5)'; x.lineWidth = s.width; x.lineCap = 'round'; x.lineJoin = 'round';
+    x.beginPath(); s.points.forEach((q, i)=> i ? x.lineTo(q.x, q.y) : x.moveTo(q.x, q.y));
+    if(s.points.length === 1) x.lineTo(s.points[0].x + 0.1, s.points[0].y);
+    x.stroke(); x.restore();
+  }
+}
+
+// 돋보기 — 손가락 위쪽에 2배로(손가락에 가려진 글자를 보여 줌)
+function drawRedactLoupe(){
+  const L = $r('redactLoupe'), cv = $r('redactCanvas'), at = RZ.loupeAt;
+  const S = L.width, size = L.clientWidth || 120, k = redactK();
+  const pt = redactImgPt(at.x, at.y), span = size / 2 * k;
+  const ctx = L.getContext('2d');
+  ctx.setTransform(1,0,0,1,0,0); ctx.fillStyle = '#0b0b0e'; ctx.fillRect(0,0,S,S);
+  ctx.save(); ctx.beginPath(); ctx.arc(S/2,S/2,S/2,0,Math.PI*2); ctx.clip();
+  ctx.drawImage(cv, pt.x - span/2, pt.y - span/2, span, span, 0, 0, S, S);
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(229,72,77,0.9)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(S/2-12,S/2); ctx.lineTo(S/2+12,S/2); ctx.moveTo(S/2,S/2-12); ctx.lineTo(S/2,S/2+12); ctx.stroke();
+  const r = $r('redactViewWrap').getBoundingClientRect();
+  let left = at.x - r.left - size/2, top = at.y - r.top - size - 50;
+  if(at.y - size - 60 < 0) top = at.y - r.top + 50; // 화면 위쪽이 모자라면 손가락 아래로
+  L.style.left = Math.max(0, Math.min(r.width - size, left)) + 'px'; L.style.top = top + 'px';
+  L.style.display = 'block';
+}
+function hideRedactLoupe(){ RZ.loupeAt = null; $r('redactLoupe').style.display = 'none'; }
+
+// ---- 동작(되돌리기 단위) ----
+// { type:'add', items } | { type:'remove', entries:[[번호, item], …] (번호 오름차순) }
+function redactDo(act){ redactApply(act); redactPage.undo.push(act); redactChanged(); }
+function redactApply(act){
+  const items = redactPage.red.items;
+  if(act.type === 'add') items.push(...act.items);
+  else for(const [i] of [...act.entries].reverse()) items.splice(i, 1);
+}
+function redactUndo(){
+  const p = redactPage, act = p && p.undo.pop(); if(!act) return;
+  const items = p.red.items;
+  if(act.type === 'add'){ const ids = new Set(act.items.map(it=> it.id)); p.red.items = items.filter(it=> !ids.has(it.id)); }
+  else for(const [i, it] of act.entries) items.splice(i, 0, it);
+  redactChanged();
+}
+function redactRemove(pred){
+  const entries = []; redactPage.red.items.forEach((it, i)=>{ if(pred(it)) entries.push([i, it]); });
+  if(entries.length) redactDo({ type: 'remove', entries });
+}
+function redactAddWords(words){
+  const ocr = redactPage.ocr;
+  redactDo({ type: 'add', items: [{ id: newRedactId(), kind: 'word', auto: false, words, partial: [], text: words.map(i=> ocr.words[i].text).join(' ') }] });
+}
+const redactTaken = ()=> new Set(redactPage.red.items.flatMap(it=> it.kind === 'stroke' ? [] : it.words));
+
+function redactWordAt(pt, tol){
+  let best = -1, bd = Infinity;
+  redactPage.ocr.words.forEach((w, i)=>{
+    const b = w.bbox, dx = Math.max(b.x0 - pt.x, 0, pt.x - b.x1), dy = Math.max(b.y0 - pt.y, 0, pt.y - b.y1), d = Math.hypot(dx, dy);
+    if(d <= tol && d < bd){ bd = d; best = i; }
+  });
+  return best;
+}
+function finishRedactStroke(){
+  const s = RZ.stroke; RZ.stroke = null; hideRedactLoupe();
+  if(!s || !s.points.length){ scheduleRedactDraw(); return; }
+  const ocr = redactPage.ocr;
+  if(!$r('redactPenRaw').checked && ocr.words.length){
+    const hit = ocr.words.map((_, i)=> i).filter(i=> strokeHitsBox(s.points, s.width, ocr.words[i].bbox));
+    // 걸린 단어 조각이 속한 보이는 단어 전체("홍길동"의 "길"만 걸려도 이름 전체)
+    const hits = [...new Set(hit.flatMap(i=> redactPage.groups[i]))].sort((a, b)=> a - b);
+    if(hits.length){
+      const taken = redactTaken(), fresh = hits.filter(i=> !taken.has(i));
+      if(fresh.length) redactAddWords(fresh); else scheduleRedactDraw();
+      return;
+    }
+  }
+  redactDo({ type: 'add', items: [{ id: newRedactId(), kind: 'stroke', auto: false, points: s.points, width: s.width, words: [], partial: [] }] });
+}
+
+// 고른 것이 바뀔 때마다: 화면·목록·읽은 글자 창(가린 글자는 ■)
+function redactChanged(){
+  scheduleRedactDraw();
+  renderRedactList();
+  if(lastOcrPages.length){
+    const pages = lastOcrPages.map(pg=> pg.page === redactPage.page ? { ...pg, text: redactOcrText(pg, redactPage.red) } : pg);
+    $r('ocrTextArea').value = formatOcrPages(pages);
+  }
+  $r('redactUndo').disabled = !redactPage.undo.length;
+}
+
+function renderRedactList(){
+  const { ocr, red } = redactPage, list = $r('redactList');
+  list.innerHTML = '';
+  const strokes = red.items.filter(it=> it.kind === 'stroke');
+  const row = (kind, text, tag, onX, onGo)=>{
+    const el = document.createElement('div'); el.className = 'redact-item';
+    const k = REDACT_KINDS[kind];
+    const kd = document.createElement('span'); kd.className = 'ri-kind';
+    kd.innerHTML = `${k.icon} <span class="ri-label"></span>`; kd.querySelector('.ri-label').textContent = k.label;
+    const t = document.createElement('span'); t.className = 'ri-text'; t.textContent = text;
+    el.append(kd, t);
+    if(tag){ const g = document.createElement('span'); g.className = 'ri-tag'; g.textContent = tag; el.append(g); }
+    const x = document.createElement('button'); x.className = 'ri-x'; x.textContent = '✕'; x.setAttribute('aria-label', '해제');
+    x.onclick = e=>{ e.stopPropagation(); onX(); };
+    el.append(x);
+    if(onGo) el.onclick = onGo;
+    list.append(el);
+  };
+  for(const it of red.items){
+    if(it.kind === 'stroke') continue;
+    row(it.kind, redactItemPreview(ocr, red, it), it.auto ? (it.fixed ? '자동, 점 되살림' : '자동') : '',
+      ()=> redactRemove(x=> x === it), ()=> scrollToRedactItem(it));
+  }
+  if(strokes.length) row('stroke', `${strokes.length}곳`, '', ()=> redactRemove(x=> x.kind === 'stroke'), ()=> scrollToRedactItem(strokes[strokes.length-1]));
+  if(!red.items.length){ const e = document.createElement('div'); e.className = 'redact-empty'; e.textContent = '아직 고른 것이 없어요. 가릴 단어를 누르거나 형광펜으로 그어 주세요.'; list.append(e); }
+  $r('redactCount').textContent = red.items.length;
+}
+// 목록에서 누르면 그 자리가 화면 가운데 오도록
+function scrollToRedactItem(it){
+  const ocr = redactPage.ocr, view = $r('redactView'), cv = $r('redactCanvas');
+  const pts = it.kind === 'stroke' ? it.points : it.words.flatMap(wi=> ocr.words[wi] ? [{ x: ocr.words[wi].bbox.x0, y: ocr.words[wi].bbox.y0 }, { x: ocr.words[wi].bbox.x1, y: ocr.words[wi].bbox.y1 }] : []);
+  if(!pts.length) return;
+  const cx = pts.reduce((a, q)=> a + q.x, 0) / pts.length, cy = pts.reduce((a, q)=> a + q.y, 0) / pts.length;
+  const r = cv.getBoundingClientRect(), vr = view.getBoundingClientRect(), s = r.width / cv.width;
+  view.scrollLeft += (r.left + cx*s) - (vr.left + vr.width/2);
+  view.scrollTop  += (r.top + cy*s) - (vr.top + vr.height/2);
+  view.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+(function setupRedactPanel(){
+  const cv = $r('redactCanvas');
+  document.querySelectorAll('[data-rtool]').forEach(b=> b.onclick = ()=>{ RZ.tool = b.dataset.rtool; renderRedactTools(); });
+  document.querySelectorAll('[data-rmode]').forEach(b=> b.onclick = ()=>{
+    redactPage.red.mode = redactSettings.mode = b.dataset.rmode; renderRedactTools(); redactChanged();
+  });
+  $r('redactBrush').oninput = e=>{ redactPage.red.brush = redactSettings.brush = +e.target.value; $r('redactBrushVal').textContent = e.target.value + 'px'; };
+  $r('redactUndo').onclick = redactUndo;
+  $r('redactClear').onclick = $r('redactClear2').onclick = ()=> redactRemove(()=> true);
+  $r('redactZoomIn').onclick = ()=> setRedactZoom(RZ.zoom * 1.25, redactViewCenter());
+  $r('redactZoomOut').onclick = ()=> setRedactZoom(RZ.zoom / 1.25, redactViewCenter());
+  addEventListener('resize', ()=>{ if(redactPage) { applyRedactZoom(); scheduleRedactDraw(); } });
+  document.addEventListener('keydown', e=>{
+    if(!redactPage || !$r('redactPanel').classList.contains('show') || /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+    if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z'){ e.preventDefault(); redactUndo(); }
+  });
+
+  // 단어 고르기 — 누르기(끌어서 스크롤하면 브라우저가 click을 보내지 않음)
+  cv.addEventListener('click', e=>{
+    if(!redactPage || RZ.tool !== 'word') return;
+    const k = redactK(), wi = redactWordAt(redactImgPt(e.clientX, e.clientY), (e.pointerType === 'mouse' ? 3 : 10) * k);
+    if(wi < 0) return;
+    // 이미 고른 단어(묶음 중 하나라도)면 그것을 해제, 아니면 보이는 단어 묶음 전체를 고름
+    const group = redactPage.groups[wi];
+    if(redactPage.red.items.some(x=> x.kind !== 'stroke' && x.words.some(i=> group.includes(i))))
+      redactRemove(x=> x.kind !== 'stroke' && x.words.some(i=> group.includes(i)));
+    else redactAddWords(group);
+  });
+
+  // 형광펜 — 한 손가락(마우스) = 칠하기, 두 손가락 = 스크롤·확대
+  const pinchInfo = ()=>{ const [a, b] = [...RZ.pointers.values()]; return { c: { x: (a.x+b.x)/2, y: (a.y+b.y)/2 }, d: Math.max(10, Math.hypot(a.x-b.x, a.y-b.y)) }; };
+  cv.addEventListener('pointerdown', e=>{
+    if(!redactPage || RZ.tool !== 'pen') return;
+    if(e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    RZ.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    try{ cv.setPointerCapture(e.pointerId); }catch(_){}
+    if(RZ.pointers.size === 1){
+      RZ.stroke = { id: e.pointerId, points: [redactImgPt(e.clientX, e.clientY)], width: redactPage.red.brush * redactK() };
+      if(e.pointerType !== 'mouse') RZ.loupeAt = { x: e.clientX, y: e.clientY };
+    } else if(RZ.pointers.size === 2){
+      RZ.stroke = null; hideRedactLoupe();   // 두 번째 손가락이 닿으면 긋던 획은 버리고 스크롤·확대로
+      const { c, d } = pinchInfo(), v = $r('redactView');
+      RZ.pinch = { d, zoom: RZ.zoom, c, sl: v.scrollLeft, st: v.scrollTop };
+    }
+    scheduleRedactDraw();
+  });
+  cv.addEventListener('pointermove', e=>{
+    if(!RZ.pointers.has(e.pointerId)) return;
+    RZ.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if(RZ.pinch && RZ.pointers.size >= 2){
+      const { c, d } = pinchInfo(), z = RZ.pinch.zoom * d / RZ.pinch.d;
+      if(Math.abs(z - RZ.zoom) > 0.01) setRedactZoom(z, c);
+      const v = $r('redactView');   // 두 손가락 가운데가 움직인 만큼 스크롤
+      v.scrollLeft -= c.x - RZ.pinch.c.x; v.scrollTop -= c.y - RZ.pinch.c.y;
+      RZ.pinch.c = c;
+      return;
+    }
+    const s = RZ.stroke;
+    if(!s || s.id !== e.pointerId) return;
+    const q = redactImgPt(e.clientX, e.clientY), last = s.points[s.points.length - 1];
+    if(Math.hypot(q.x - last.x, q.y - last.y) >= 2) s.points.push(q);
+    if(e.pointerType !== 'mouse') RZ.loupeAt = { x: e.clientX, y: e.clientY };
+    scheduleRedactDraw();
+  });
+  const up = e=>{
+    if(!RZ.pointers.has(e.pointerId)) return;
+    RZ.pointers.delete(e.pointerId);
+    if(RZ.stroke && RZ.stroke.id === e.pointerId){
+      if(e.type === 'pointercancel'){ RZ.stroke = null; hideRedactLoupe(); scheduleRedactDraw(); }
+      else finishRedactStroke();
+    }
+    if(RZ.pointers.size < 2) RZ.pinch = null;
+  };
+  cv.addEventListener('pointerup', up);
+  cv.addEventListener('pointercancel', up);
+  cv.addEventListener('contextmenu', e=>{ if(RZ.tool === 'pen') e.preventDefault(); });
+
+  // 저장 — 확인 화면(불투명 칠을 크게) → [저장] / [돌아가서 고치기]
+  $r('redactSaveBtn').onclick = openRedactConfirm;
+  $r('redactBackBtn').onclick = ()=> $r('redactConfirm').classList.remove('show');
+  $r('redactConfirm').addEventListener('click', e=>{ if(e.target.id === 'redactConfirm') $r('redactConfirm').classList.remove('show'); });
+  $r('redactDoSaveBtn').onclick = saveRedacted;
+})();
+
+function openRedactConfirm(){
+  const p = redactPage; if(!p) return;
+  RZ.final = applyRedaction(p.canvas, p.ocr, p.red);
+  const n = p.red.items.length;
+  $r('redactConfirmMsg').innerHTML = n
+    ? `아래가 <b>저장될 그림</b>이에요. 가린 ${n}곳은 검게 칠해져서 원래 글자를 되살릴 수 없어요. 빠진 곳이 없는지 확인해 주세요.`
+    : '<b>가린 곳이 없어요.</b> 이대로 저장하면 문서가 그대로 저장돼요.';
+  $r('redactConfirmImg').src = RZ.final.toDataURL('image/jpeg', 0.9);
+  renderRedactFormats();
+  $r('redactConfirm').classList.add('show');
+}
+function renderRedactFormats(){
+  const box = $r('redactFormatRow'); box.innerHTML = '';
+  for(const f of FORMATS){
+    const b = document.createElement('button');
+    b.className = 'format-btn sub-option-btn' + (selectedFormat === f.id ? ' selected' : '');
+    b.textContent = f.id === 'pdf' ? 'PDF (증빙 제출용)' : f.name.replace(' (투명)', '');
+    b.onclick = ()=>{ selectedFormat = f.id; renderFormats(); renderRedactFormats(); };
+    box.append(b);
+  }
+  $r('redactFormatNote').textContent = selectedFormat === 'pdf'
+    ? 'PDF에는 가린 그림 한 장만 들어가요. 글자 층이 없어 복사·검색으로 가린 글자가 나오지 않고, 만든 날짜·프로그램 같은 문서 정보도 넣지 않아요.'
+    : '그림을 새로 만들어 저장해서 원본 사진의 촬영 정보(위치·기기 등)는 붙지 않아요.';
+}
+function saveRedacted(){
+  const final = RZ.final; if(!final) return;
+  $r('redactConfirm').classList.remove('show');
+  if(selectedFormat === 'pdf'){
+    if(INAPP.inApp){ showPdfBlockedSheet(()=> showImageSaveSheet(final, 'image/jpeg', 0.92)); return; }
+    saveBlobFile(redactedPdfBlob(final), 'DocFlow_가림.pdf');
+    return;
+  }
+  const mime = { png:'image/png', jpg:'image/jpeg', webp:'image/webp' }[selectedFormat];
+  saveCanvasFile(final, `DocFlow_가림.${selectedFormat}`, mime, selectedFormat === 'png' ? undefined : 0.92);
+}
 
 /* ---------------------------------------------------------
    다운로드
