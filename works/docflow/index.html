@@ -5272,7 +5272,8 @@ function cleanOcrLine(line, fixes){
 //  canvas: 처리 결과 등 원래 이미지 / opts.rect: {x,y,w,h}면 그 칸만 / opts.mode: 'page' | 'block' | 'line'
 //  opts.onProgress({stage:'load'|'recognize', progress 0~1}) / opts.prepare: false면 OCR용 정리 없이 그대로(테스트 비교용)
 // 결과(좌표는 모두 넘겨준 canvas 기준):
-//  { text, meanConf, lowConfWords, lowConfList, ms, lines:[{text, conf, bbox:{x0,y0,x1,y1}}], words:[{text, conf, bbox, suspect?}], ocrCanvas }
+//  { text, meanConf, lowConfWords, lowConfList, ms, lines:[{text, conf, bbox:{x0,y0,x1,y1}, para}], words:[{text, conf, bbox, line, chars:[{t, bbox}], suspect?}], ocrCanvas }
+//  line: 몇 번째 줄인지(lines 번호), para: 문단 첫 줄인지, chars: 글자 단위 위치
 //  suspect: 한글 사이에 낀 짧은 영문 덩어리(엉뚱한 영어일 수 있음)·점을 되살린 주소 — 확신 낮은 단어로 셈
 //  addrFixes: [{from, to}] 점을 되살린 이메일·웹 주소 (정보 가리기에서 이메일 후보로 쓸 수 있음)
 function ocrRecognize(canvas, opts = {}){
@@ -5322,7 +5323,7 @@ function ocrRecognize(canvas, opts = {}){
         catch(e2){ throw Object.assign(new Error(String(e2 && e2.message || e2)), { ocrStage, first: e1, cause: e2 }); }
       }
       const rawLines = [];
-      for(const bl of data.blocks || []) for(const pa of bl.paragraphs || []) for(const li of pa.lines || []) rawLines.push(li);
+      for(const bl of data.blocks || []) for(const pa of bl.paragraphs || []) (pa.lines || []).forEach((li, k)=>{ li._para = k === 0; rawLines.push(li); });
       let text = data.text || '';
       text = await rereadStrayLatin(worker, prep.canvas, rawLines, text);
       // 후처리(₩, 혼자 떨어진 기호, 주소의 빠진 점) — 쪽 글자·줄·단어에 똑같이
@@ -5333,7 +5334,9 @@ function ocrRecognize(canvas, opts = {}){
       const lines = [], words = [];
       for(const li of rawLines){
         const t = cleanOcrLine((li.text || '').trim(), []);
-        if(t) lines.push({ text: t, conf: Math.round(li.confidence), bbox: box(li.bbox) });
+        if(!t) continue;
+        lines.push({ text: t, conf: Math.round(li.confidence), bbox: box(li.bbox), para: !!li._para });
+        const lineNo = lines.length - 1;
         const ws = (li.words || []).filter(w=> (w.text || '').trim() && !OCR_STRAY.test(w.text.trim()));
         ws.forEach((w, i)=>{
           const orig = w.text.trim(), wf = [];
@@ -5341,7 +5344,9 @@ function ocrRecognize(canvas, opts = {}){
           // 한글 사이에 낀 짧은 영문 덩어리(다시 읽어도 영문으로 남은 것)는 확신이 아주 높지 않으면 "의심" — 원본과 대조하도록
           // 점을 되살린 주소(이 단어 안에서, 또는 여러 단어에 걸쳐)도 "의심" — 맞게 고쳐졌는지 확인하도록
           const suspect = (isStrayLatin(wt) && conf < 85 && besideHangul(ws, i)) || wf.length > 0 || fixedPieces.has(orig);
-          words.push({ text: wt, conf, bbox: box(w.bbox), ...(suspect ? { suspect: true } : {}) });
+          // chars: 글자 단위 위치(정보 가리기의 "일부만 가리기"에 씀) — 엔진이 읽은 그대로의 글자
+          const chars = (w.symbols || []).filter(c=> (c.text || '').trim()).map(c=> ({ t: c.text, bbox: box(c.bbox) }));
+          words.push({ text: wt, conf, bbox: box(w.bbox), line: lineNo, chars, ...(suspect ? { suspect: true } : {}) });
         });
       }
       // 평균 신뢰도는 글자 수로 가중 — 한두 글자짜리 잡음이 평균을 흔들지 않게
@@ -5371,6 +5376,224 @@ function formatOcrPages(pages){
   const list = pages.filter(Boolean).sort((a,b)=> (a.page||1) - (b.page||1));
   if(list.length <= 1) return list[0] ? list[0].text : '';
   return list.map(p=> `── ${p.page}쪽 ──\n${p.text}`).join('\n\n');
+}
+
+/* ---------------------------------------------------------
+   정보 가리기 — 자동 검출 · 가린 영역 · 가리기 적용 (쪽 하나 단위)
+   · 모든 처리는 브라우저 안에서만. 가리는 것은 흐림이 아니라 불투명 검정 칠
+   · 가린 영역(redaction)은 쪽 결과에 붙여 기억: { mode:'full'|'partial', brush, items:[...] }
+     item: { id, kind, auto, words:[단어 번호], partial:[[단어 번호, 글자 번호]], label, text }
+           kind: 'rrn'(주민) 'frn'(외국인) 'phone' 'account' 'email' 'word'(직접 고른 단어) 'stroke'(형광펜으로 칠한 자리)
+           stroke는 { points:[{x,y}], width } — 좌표는 모두 그 쪽 결과 이미지 기준
+--------------------------------------------------------- */
+const REDACT_KINDS = {
+  rrn:     { icon:'🆔', label:'주민등록번호' },
+  frn:     { icon:'🆔', label:'외국인등록번호' },
+  phone:   { icon:'📞', label:'전화번호' },
+  account: { icon:'🏦', label:'계좌번호' },
+  email:   { icon:'✉', label:'이메일' },
+  word:    { icon:'✏', label:'직접 고른 단어' },
+  stroke:  { icon:'🖍', label:'형광펜으로 칠한 자리' },
+};
+const REDACT_PAD = 3; // 가릴 상자를 글자 위치보다 넓게(px) — 글자 가장자리가 삐져나오지 않게
+let redactSeq = 0;
+const newRedactId = ()=> 'r' + (++redactSeq);
+
+// 숫자 자리의 흔한 오인식 맞추기(같은 길이 유지): O·o → 0, l·I·| → 1, 여러 가지 줄표 → -
+const normDigits = s=> s.replace(/[Oo]/g, '0').replace(/[lI|]/g, '1').replace(/[–—~]/g, '-');
+
+// 줄 하나를 문자열로 이어 붙이고, 문자열 위치 → (단어 번호, 글자 번호)를 기억
+function redactLineString(ocr, li){
+  const parts = [], map = [];
+  ocr.words.forEach((w, wi)=>{
+    if(w.line !== li) return;
+    const chars = w.chars && w.chars.length ? w.chars.map(c=> c.t) : [...w.text];
+    if(parts.length){ parts.push(' '); map.push(null); }
+    chars.forEach((t, ci)=>{ for(const ch of t){ parts.push(ch); map.push([wi, ci]); } });
+  });
+  return { str: parts.join(''), map };
+}
+
+// 자동 검출 — 개인정보로 보이는 것을 "제안" 항목으로 (미리 선택)
+function detectSensitive(ocr){
+  const items = [], used = new Set(); // used: 이미 다른 검출에 쓴 글자("단어,글자")
+  const nLines = ocr.lines.length;
+  const add = (kind, map, start, end, hideFrom, hideTo, lineText)=>{
+    const pos = []; for(let i=start;i<end;i++) if(map[i]) pos.push(map[i]);
+    if(!pos.length || pos.some(p=> used.has(p.join(',')))) return false;
+    pos.forEach(p=> used.add(p.join(',')));
+    const words = [...new Set(pos.map(p=> p[0]))];
+    const partial = []; for(let i=hideFrom;i<hideTo;i++) if(map[i]) partial.push(map[i]);
+    items.push({ id: newRedactId(), kind, auto: true, words, partial, text: lineText.slice(start, end) });
+    return true;
+  };
+  const validDate = (mm, dd)=> +mm >= 1 && +mm <= 12 && +dd >= 1 && +dd <= 31;
+  for(let li=0; li<nLines; li++){
+    const { str, map } = redactLineString(ocr, li);
+    if(!str) continue;
+    const n = normDigits(str);
+    const ctx = (ocr.lines[li] ? ocr.lines[li].text : '') + ' ' + (ocr.lines[li-1] ? ocr.lines[li-1].text : '');
+    let m;
+    // 주민·외국인등록번호: 생년월일 6자리(날짜 확인) + 성별 1~8 + 6자리. 일부만 가리기 = 성별 자리 뒤 6자리
+    const reRrn = /(?<!\d)(\d{2})(\d{2})(\d{2})\s?-\s?([1-8])(\d{6})(?!\d)/g;
+    while((m = reRrn.exec(n))){
+      if(!validDate(m[2], m[3])) continue;
+      const gIdx = m.index + m[0].length - 7; // 성별 자리 = 끝에서 7번째(뒤 6자리 앞)
+      add(+m[4] >= 5 ? 'frn' : 'rrn', map, m.index, m.index + m[0].length, gIdx + 1, m.index + m[0].length, str);
+    }
+    // 휴대전화·전화: 가운데 묶음이 일부만 가리기 대상
+    const rePhone = /(?<![\d-])(01[016789]|0\d{1,2})(\s?[-.)]\s?|\s)(\d{3,4})(\s?[-.]\s?|\s)(\d{4})(?![\d-])/g;
+    while((m = rePhone.exec(n))){
+      const midStart = m.index + m[1].length + m[2].length;
+      add('phone', map, m.index, m.index + m[0].length, midStart, midStart + m[3].length, str);
+    }
+    // 계좌번호: 하이픈 숫자 묶음 10~16자리(날짜·사업자등록번호·위에서 잡은 것 제외). 같은 줄·윗줄에 계좌 관련 말이 있거나 12자리 이상
+    //  ("지급"·"수령"은 "강사료 지급 명세서" 같은 제목에도 흔해서 단서로 쓰지 않음 — 사업자등록번호가 계좌로 잡혔었음)
+    const reAcct = /(?<![\d-])(\d{2,6})-(\d{2,7})-(\d{2,7})(?:-(\d{1,7}))?(?![\d-])/g;
+    while((m = reAcct.exec(n))){
+      const digits = m[0].replace(/\D/g, '').length;
+      if(digits < 10 || digits > 16) continue;
+      if(/^\d{4}-\d{1,2}-\d{1,2}$/.test(m[0])) continue;
+      if(/^\d{3}-\d{2}-\d{5}$/.test(m[0])) continue; // 사업자등록번호 형식
+      if(!/계좌|통장|예금주|은행|입금/.test(ctx) && digits < 12) continue;
+      const groups = m[0].split('-'), first = groups[0].length, last = groups[groups.length-1].length;
+      add('account', map, m.index, m.index + m[0].length, m.index + first + 1, m.index + m[0].length - last - 1, str);
+    }
+    // 하이픈 없는 계좌번호(11~14자리 숫자) — 계좌 관련 말이 있을 때만
+    if(/계좌|통장|예금주|은행/.test(ctx)){
+      const reAcct2 = /(?<![\d-])\d{11,14}(?![\d-])/g;
+      while((m = reAcct2.exec(n))) add('account', map, m.index, m.index + m[0].length, m.index + 3, m.index + m[0].length - 3, str);
+    }
+  }
+  // 이메일: 고친 단어 글자(점을 되살린 주소 포함)에서 @가 있는 단어. 바로 앞이 영문 조각이면(점이 공백이 된 아이디) 함께
+  ocr.words.forEach((w, wi)=>{
+    if(!/@/.test(w.text) || !/[A-Za-z0-9]/.test(w.text)) return;
+    if(w.chars && w.chars.some((c, ci)=> used.has(wi + ',' + ci))) return;
+    const words = [wi];
+    const prev = ocr.words[wi-1];
+    if(prev && prev.line === w.line && /^[A-Za-z0-9._-]+$/.test(prev.text) && w.bbox.x0 - prev.bbox.x1 < (w.bbox.y1 - w.bbox.y0)*1.2) words.unshift(wi-1);
+    const fixed = (ocr.addrFixes || []).some(x=> w.text.includes(x.to));
+    items.push({ id: newRedactId(), kind: 'email', auto: true, words, partial: [], text: words.map(i=> ocr.words[i].text).join(' '), fixed });
+  });
+  return items;
+}
+
+// 가릴 모양: 상자 목록 + 형광펜 획. 일부만 가리기면 단어마다 가릴 글자들의 처음~끝을 한 상자로
+function redactionShapes(ocr, red){
+  const rects = [], strokes = [];
+  const padR = b=> ({ x0: b.x0 - REDACT_PAD, y0: b.y0 - REDACT_PAD, x1: b.x1 + REDACT_PAD, y1: b.y1 + REDACT_PAD });
+  for(const it of red.items){
+    if(it.kind === 'stroke'){ strokes.push(it); continue; }
+    if(red.mode === 'partial' && it.partial && it.partial.length){
+      const byWord = new Map();
+      for(const [wi, ci] of it.partial){ const c = ocr.words[wi] && ocr.words[wi].chars && ocr.words[wi].chars[ci]; if(!c) continue;
+        const b = byWord.get(wi) || { x0: Infinity, x1: -Infinity }; b.x0 = Math.min(b.x0, c.bbox.x0); b.x1 = Math.max(b.x1, c.bbox.x1); byWord.set(wi, b); }
+      for(const [wi, b] of byWord){ const wb = ocr.words[wi].bbox; rects.push(padR({ x0: b.x0, y0: wb.y0, x1: b.x1, y1: wb.y1 })); }
+      if(byWord.size) continue; // 글자 위치가 없으면 아래에서 단어 전체를 가림(안전한 쪽으로)
+    }
+    for(const wi of it.words) if(ocr.words[wi]) rects.push(padR(ocr.words[wi].bbox));
+  }
+  return { rects, strokes };
+}
+
+// 가리기 적용 → 새 캔버스(원본 결과는 그대로). 불투명 검정(#000)으로 칠함
+function applyRedaction(canvas, ocr, red, opts = {}){
+  const out = document.createElement('canvas'); out.width = canvas.width; out.height = canvas.height;
+  const x = out.getContext('2d', CTX_READ);
+  x.drawImage(canvas, 0, 0);
+  if(!red || !red.items.length) return out;
+  const { rects, strokes } = redactionShapes(ocr, red);
+  const color = opts.preview ? 'rgba(0,0,0,0.55)' : '#000';
+  x.fillStyle = color; x.strokeStyle = color;
+  for(const r of rects) x.fillRect(Math.floor(r.x0), Math.floor(r.y0), Math.ceil(r.x1 - r.x0) + 1, Math.ceil(r.y1 - r.y0) + 1);
+  x.lineCap = 'round'; x.lineJoin = 'round';
+  for(const s of strokes){
+    x.lineWidth = s.width;
+    x.beginPath(); s.points.forEach((p, i)=> i ? x.lineTo(p.x, p.y) : x.moveTo(p.x, p.y));
+    if(s.points.length === 1) x.lineTo(s.points[0].x + 0.1, s.points[0].y);
+    x.stroke();
+  }
+  return out;
+}
+
+// 형광펜 획이 단어 상자에 닿는지(획 굵기의 절반 안)
+function strokeHitsBox(points, width, b){
+  const r = width/2;
+  for(let i=0;i<points.length;i++){
+    const p = points[i], q = points[i+1] || p;
+    // 선분 p-q 위의 점들을 굵기 간격으로 훑음
+    const steps = Math.max(1, Math.ceil(Math.hypot(q.x-p.x, q.y-p.y) / Math.max(2, r)));
+    for(let k=0;k<=steps;k++){
+      const x = p.x + (q.x-p.x)*k/steps, y = p.y + (q.y-p.y)*k/steps;
+      const dx = Math.max(b.x0 - x, 0, x - b.x1), dy = Math.max(b.y0 - y, 0, y - b.y1);
+      if(dx*dx + dy*dy <= r*r) return true;
+    }
+  }
+  return false;
+}
+
+// 읽은 글자에서 가린 부분을 ■로 — 가린 단어는 전부, 일부만 가리기면 그 글자만, 형광펜이 지나간 단어도 전부
+function redactOcrText(ocr, red){
+  if(!red || !red.items.length) return ocr.text;
+  const full = new Set(), part = new Map(); // part: 단어 → 가릴 글자 번호들
+  for(const it of red.items){
+    if(it.kind === 'stroke'){ ocr.words.forEach((w, wi)=>{ if(strokeHitsBox(it.points, it.width, w.bbox)) full.add(wi); }); continue; }
+    if(red.mode === 'partial' && it.partial && it.partial.length && it.partial.every(([wi, ci])=> ocr.words[wi] && ocr.words[wi].chars)){
+      for(const [wi, ci] of it.partial){ if(!part.has(wi)) part.set(wi, new Set()); part.get(wi).add(ci); }
+      continue;
+    }
+    it.words.forEach(wi=> full.add(wi));
+  }
+  // 줄마다 단어 글자를 순서대로 찾아 바꿈(같은 글자가 여러 번 나와도 앞에서부터 차례로)
+  const out = ocr.lines.map((ln, li)=>{
+    let t = ln.text, from = 0;
+    ocr.words.forEach((w, wi)=>{
+      if(w.line !== li) return;
+      const at = t.indexOf(w.text, from);
+      if(at < 0) return;
+      let rep = w.text;
+      if(full.has(wi)) rep = '■'.repeat(w.text.length);
+      else if(part.has(wi)){
+        const hide = part.get(wi), chars = w.chars ? w.chars.map(c=> c.t) : [...w.text];
+        rep = chars.join('') === w.text ? chars.map((c, ci)=> hide.has(ci) ? '■'.repeat(c.length) : c).join('') : '■'.repeat(w.text.length);
+      }
+      t = t.slice(0, at) + rep + t.slice(at + w.text.length);
+      from = at + rep.length;
+    });
+    return (ln.para && li ? '\n' : '') + t;
+  });
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// 목록에 보여줄 글자(일부만 가리기면 가린 글자를 ·로)
+function redactItemPreview(ocr, red, it){
+  if(it.kind === 'stroke') return `굵기 ${Math.round(it.width)}px`;
+  const hide = new Set(red.mode === 'partial' ? (it.partial || []).map(p=> p.join(',')) : []);
+  return it.words.map(wi=>{
+    const w = ocr.words[wi]; if(!w) return '';
+    if(red.mode !== 'partial' || !(it.partial && it.partial.length) || !w.chars) return w.text;
+    return w.chars.map((c, ci)=> hide.has(wi + ',' + ci) ? '·'.repeat(c.t.length) : c.t).join('');
+  }).join(' ');
+}
+
+// 저장용 PDF — 가린 이미지 한 장만, 글자 층 없이. 문서 정보(만든 프로그램·날짜)는 같은 길이의 공백으로 지움
+function redactedPdfBlob(canvas){
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation: canvas.width > canvas.height ? 'landscape' : 'portrait', unit: 'px', format: [canvas.width, canvas.height], compress: true });
+  pdf.setProperties({ title: '', subject: '', author: '', keywords: '', creator: '' });
+  pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, canvas.width, canvas.height);
+  const bytes = new Uint8Array(pdf.output('arraybuffer'));
+  // /Producer (…) /CreationDate (…) /ModDate (…) 값만 공백으로(바이트 위치가 그대로라 PDF 구조는 유지)
+  const s = new TextDecoder('latin1').decode(bytes);
+  for(const key of ['/Producer', '/CreationDate', '/ModDate', '/Creator']){
+    let i = 0;
+    while((i = s.indexOf(key + ' (', i)) >= 0){
+      const st = i + key.length + 2, en = s.indexOf(')', st);
+      for(let k=st; k<en; k++) bytes[k] = 0x20;
+      i = en;
+    }
+  }
+  return new Blob([bytes], { type: 'application/pdf' });
 }
 
 const PROCESSORS = {

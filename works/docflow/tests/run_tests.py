@@ -5,6 +5,7 @@
        python works/docflow/tests/run_tests.py photo      (실제 사진 테스트만)
        python works/docflow/tests/run_tests.py ocr        (글자 읽기 정확도 비교만 — 몇 분 걸림)
        python works/docflow/tests/run_tests.py serve      (실제 서버 환경에서 업로드→OCR 끝까지만)
+       python works/docflow/tests/run_tests.py redact     (정보 가리기 — 가상 문서 자동 검출·가린 저장본, redact-make는 가상 문서를 다시 그림)
 준비:  pip install playwright  →  python -m playwright install chromium
 
 · 합성 이미지 테스트: 사진 없이 브라우저에서 직접 그린 이미지로 검사 — 항상 실행
@@ -60,6 +61,39 @@ window.T = {
     const c=document.createElement('canvas'); c.width=W; c.height=H; const x=c.getContext('2d');
     x.fillStyle=`rgb(${paperLum},${paperLum},${paperLum})`; x.fillRect(0,0,W,H);
     x.translate(W/2,H/2); x.rotate(deg*Math.PI/180); x.translate(-W/2,-H/2); draw(x); return c;
+  },
+  // 사진처럼: 비스듬한 각도(원근) + 책상 배경 + 누런 조명 + 손 그림자 + 어둡고 잡티 + 카톡 압축(긴 변 1400px, JPEG)
+  synthPhoto(src, seed){
+    let s = seed*9973+7; const rnd = ()=>{ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; };
+    const W = 1500, H = 2000, sw = src.width, sh = src.height;
+    const sd = src.getContext('2d').getImageData(0,0,sw,sh).data;
+    const quad = [{x:190,y:170},{x:1330,y:250},{x:1405,y:1860},{x:110,y:1790}];   // 종이 네 모서리(사진 속)
+    const Hm = computeHomography(quad, [{x:0,y:0},{x:sw,y:0},{x:sw,y:sh},{x:0,y:sh}]); // 사진 좌표 → 원본 좌표
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const ctx = c.getContext('2d'), im = ctx.createImageData(W,H), d = im.data;
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+      const den = Hm[6]*x + Hm[7]*y + 1, u = (Hm[0]*x + Hm[1]*y + Hm[2])/den, v = (Hm[3]*x + Hm[4]*y + Hm[5])/den;
+      let r, g, b;
+      if(u >= 0 && v >= 0 && u < sw-1 && v < sh-1){
+        const x0=u|0, y0=v|0, tx=u-x0, ty=v-y0, i00=(y0*sw+x0)*4, i10=i00+4, i01=i00+sw*4, i11=i01+4;
+        const bl = k=> sd[i00+k]*(1-tx)*(1-ty) + sd[i10+k]*tx*(1-ty) + sd[i01+k]*(1-tx)*ty + sd[i11+k]*tx*ty;
+        r = bl(0); g = bl(1); b = bl(2);
+      } else { const t = 150 + 12*Math.sin(y/9 + Math.sin(x/40)*2); r = t+18; g = t+6; b = t-12; } // 나뭇결 책상
+      // 누런 조명: 왼쪽 위는 따뜻하고 밝게, 오른쪽 아래로 갈수록 어둡게
+      const lt = 0.95 - 0.28*((x/W)*0.6 + (y/H)*0.4);
+      r *= lt*1.0; g *= lt*0.92; b *= lt*0.72;
+      // 손 그림자: 오른쪽 아래에서 들어온 흐린 덩어리
+      const dx = (x-1150)/420, dy = (y-1500)/300, dd = Math.sqrt(dx*dx+dy*dy);
+      const sh2 = dd < 1 ? 0.55 : dd < 1.6 ? 0.55 + 0.45*((dd-1)/0.6) : 1;
+      r *= sh2; g *= sh2; b *= sh2;
+      const nz = (rnd()+rnd()+rnd()-1.5)*14;   // 어두운 곳에서 찍은 잡티
+      const i = (y*W+x)*4; d[i]=r+nz; d[i+1]=g+nz; d[i+2]=b+nz; d[i+3]=255;
+    }
+    ctx.putImageData(im,0,0);
+    // 살짝 흐리게(초점) + 카톡처럼 긴 변 1400px로 줄이고 JPEG 압축
+    const k = document.createElement('canvas'); k.width = Math.round(W*0.7); k.height = Math.round(H*0.7);
+    const kx = k.getContext('2d'); kx.filter = 'blur(0.6px)'; kx.drawImage(c, 0, 0, k.width, k.height);
+    return k.toDataURL('image/jpeg', 0.72);
   },
   noise(c, amp, seed){ // 사진 같은 잔잡음(재현 가능하게 고정 시드)
     let s=seed||1; const rnd=()=>{ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; };
@@ -262,7 +296,7 @@ OCR_MAKE_JS = r"""
     const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0,0,c.width,c.height);
     await page.render({ canvasContext: x, viewport: vp }).promise;
     out['page'+n+'_clean'] = c.toDataURL('image/png');
-    out['page'+n+'_photo'] = synthPhoto(c, n);
+    out['page'+n+'_photo'] = T.synthPhoto(c, n);
   }
   // 한영 혼합 문서(본문 30px ≈ 200dpi의 10.5pt)
   const c = document.createElement('canvas'); c.width = 1654; c.height = 1300;
@@ -273,42 +307,9 @@ OCR_MAKE_JS = r"""
     x.fillText(t, 140, y); y += k==='title' ? 110 : 72;
   }
   out['mixed_clean'] = c.toDataURL('image/png');
-  out['mixed_photo'] = synthPhoto(c, 5);
+  out['mixed_photo'] = T.synthPhoto(c, 5);
   return out;
 
-  // 사진처럼: 비스듬한 각도(원근) + 책상 배경 + 누런 조명 + 손 그림자 + 어둡고 잡티 + 카톡 압축(긴 변 1400px, JPEG)
-  function synthPhoto(src, seed){
-    let s = seed*9973+7; const rnd = ()=>{ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; };
-    const W = 1500, H = 2000, sw = src.width, sh = src.height;
-    const sd = src.getContext('2d').getImageData(0,0,sw,sh).data;
-    const quad = [{x:190,y:170},{x:1330,y:250},{x:1405,y:1860},{x:110,y:1790}];   // 종이 네 모서리(사진 속)
-    const Hm = computeHomography(quad, [{x:0,y:0},{x:sw,y:0},{x:sw,y:sh},{x:0,y:sh}]); // 사진 좌표 → 원본 좌표
-    const c = document.createElement('canvas'); c.width = W; c.height = H;
-    const ctx = c.getContext('2d'), im = ctx.createImageData(W,H), d = im.data;
-    for(let y=0;y<H;y++) for(let x=0;x<W;x++){
-      const den = Hm[6]*x + Hm[7]*y + 1, u = (Hm[0]*x + Hm[1]*y + Hm[2])/den, v = (Hm[3]*x + Hm[4]*y + Hm[5])/den;
-      let r, g, b;
-      if(u >= 0 && v >= 0 && u < sw-1 && v < sh-1){
-        const x0=u|0, y0=v|0, tx=u-x0, ty=v-y0, i00=(y0*sw+x0)*4, i10=i00+4, i01=i00+sw*4, i11=i01+4;
-        const bl = k=> sd[i00+k]*(1-tx)*(1-ty) + sd[i10+k]*tx*(1-ty) + sd[i01+k]*(1-tx)*ty + sd[i11+k]*tx*ty;
-        r = bl(0); g = bl(1); b = bl(2);
-      } else { const t = 150 + 12*Math.sin(y/9 + Math.sin(x/40)*2); r = t+18; g = t+6; b = t-12; } // 나뭇결 책상
-      // 누런 조명: 왼쪽 위는 따뜻하고 밝게, 오른쪽 아래로 갈수록 어둡게
-      const lt = 0.95 - 0.28*((x/W)*0.6 + (y/H)*0.4);
-      r *= lt*1.0; g *= lt*0.92; b *= lt*0.72;
-      // 손 그림자: 오른쪽 아래에서 들어온 흐린 덩어리
-      const dx = (x-1150)/420, dy = (y-1500)/300, dd = Math.sqrt(dx*dx+dy*dy);
-      const sh2 = dd < 1 ? 0.55 : dd < 1.6 ? 0.55 + 0.45*((dd-1)/0.6) : 1;
-      r *= sh2; g *= sh2; b *= sh2;
-      const nz = (rnd()+rnd()+rnd()-1.5)*14;   // 어두운 곳에서 찍은 잡티
-      const i = (y*W+x)*4; d[i]=r+nz; d[i+1]=g+nz; d[i+2]=b+nz; d[i+3]=255;
-    }
-    ctx.putImageData(im,0,0);
-    // 살짝 흐리게(초점) + 카톡처럼 긴 변 1400px로 줄이고 JPEG 압축
-    const k = document.createElement('canvas'); k.width = Math.round(W*0.7); k.height = Math.round(H*0.7);
-    const kx = k.getContext('2d'); kx.filter = 'blur(0.6px)'; kx.drawImage(c, 0, 0, k.width, k.height);
-    return k.toDataURL('image/jpeg', 0.72);
-  }
 """
 
 # 페이지 안에서: 이미지 하나를 ① 원본 그대로 ② OCR 최적화 처리 후 로 읽고, 정답과 비교
@@ -410,6 +411,192 @@ def run_ocr_tests(fresh_page, out_dir):
                                    '엉뚱한 영어 = 결과의 영문 덩어리(2자 이상) 중 정답에 없는 것. 영문·이메일 = 확인할 영문·이메일·주소 중 그대로 읽힌 것.\n\n' + table + '\n', encoding='utf-8')
     (od / 'summary.json').write_text(json.dumps({k: {w: {kk: vv for kk, vv in r[w].items() if kk != 'text'} for w in ('raw', 'proc')} for k, r in rows}, ensure_ascii=False, indent=1), encoding='utf-8')
     return fails, table
+# ---------------- 정보 가리기 ----------------
+# 가상 문서 2종(테스트가 직접 그림 → tests/fixtures/, 저장소에 올림). 가짜임이 분명한 값만 씀:
+#  이름에 "(가상)", 주민·외국인번호는 형식만 맞고 검증 숫자가 틀린 값, 이메일은 예약 도메인 example.com/org, 값 옆에 "(가상)"
+# 줄: (모양, 글자). 기대값: (종류, 값) — 자동 검출이 찾아야 하는 것. 사업자등록번호·날짜·금액은 잡으면 안 되는 미끼
+FIXTURES = TESTS / 'fixtures'
+REDACT_DOCS = {
+    'redact_bankbook': {
+        'size': (1654, 1500),
+        'lines': [
+            ('title', '통장 사본 — 가상 데이터 · SAMPLE'),
+            ('b', '가나은행 (가상 은행 · SAMPLE)'),
+            ('b', '예금주: 홍길동(가상)'),
+            ('b', '계좌번호: 123-456789-01-234 (가상)'),
+            ('b', '주민등록번호: 900101-1234567 (가상)'),
+            ('b', '연락처: 010-2345-6789 (가상)'),
+            ('b', '이메일: gildong.hong@example.com (가상)'),
+            ('b', '지점 전화: 02-123-4567 (가상)'),
+            ('b', '신규일: 2026-03-02 (가상)'),
+            ('s', '이 문서는 테스트용 가상 데이터입니다 · SAMPLE'),
+        ],
+        'expect': [('account', '123-456789-01-234'), ('rrn', '900101-1234567'), ('phone', '010-2345-6789'),
+                   ('email', 'gildong.hong@example.com'), ('phone', '02-123-4567')],
+    },
+    'redact_lecture_pay': {
+        'size': (1654, 2000),
+        'lines': [
+            ('title', '강사료 지급 명세서 (가상 데이터 · SAMPLE)'),
+            ('b', '업체명: 한빛교육컨설팅(가상)   사업자등록번호: 123-45-67890 (가상)'),
+            ('b', '지급일: 2026-09-30   총 지급액: 1,500,000원 (가상)'),
+            ('h', '1. 홍길동(가상)'),
+            ('b', '주민등록번호 850315-2345671 (가상)   휴대폰 010-3456-7890 (가상)'),
+            ('b', '가나은행 계좌 110-234-567890 (가상)   이메일 hong.gd@example.org'),
+            ('b', '지급액 500,000원 (원천징수 16,500원)'),
+            ('h', '2. 김가나(가상)'),
+            ('b', '주민등록번호 920720-1357913 (가상)   휴대폰 010-4567-8901 (가상)'),
+            ('b', '다라은행 계좌 352-0123-4567-83 (가상)   이메일 kim.gana@example.com'),
+            ('b', '지급액 600,000원'),
+            ('h', '3. John Sample(가상)'),
+            ('b', '외국인등록번호 880412-5246803 (가상)   휴대폰 010-5678-9012 (가상)'),
+            ('b', '마바은행 계좌 1002-345-678901 (가상)   이메일 john.sample@example.org'),
+            ('b', '지급액 400,000원'),
+            ('s', '이 문서는 테스트용 가상 데이터입니다 · SAMPLE'),
+        ],
+        'expect': [('rrn', '850315-2345671'), ('phone', '010-3456-7890'), ('account', '110-234-567890'), ('email', 'hong.gd@example.org'),
+                   ('rrn', '920720-1357913'), ('phone', '010-4567-8901'), ('account', '352-0123-4567-83'), ('email', 'kim.gana@example.com'),
+                   ('frn', '880412-5246803'), ('phone', '010-5678-9012'), ('account', '1002-345-678901'), ('email', 'john.sample@example.org')],
+    },
+}
+REDACT_PRESET = ['autoCrop', 'scanEffect', 'denoise', 'ocrText']
+
+def rrn_check_ok(v):
+    """주민·외국인등록번호 검증 숫자가 맞는지 — 가상 값은 일부러 틀려야 함"""
+    d = [int(c) for c in v if c.isdigit()]
+    return (11 - sum(a * b for a, b in zip(d[:12], [2, 3, 4, 5, 6, 7, 8, 9, 2, 3, 4, 5])) % 11) % 10 == d[12]
+
+REDACT_MAKE_JS = r"""
+  const [size, lines] = ARGS;
+  const c = document.createElement('canvas'); c.width = size[0]; c.height = size[1];
+  const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0,0,c.width,c.height);
+  let y = 150;
+  for(const [k, t] of lines){
+    x.fillStyle = k==='s' ? '#555' : '#111';
+    x.font = (k==='title' ? 'bold 44px' : k==='h' ? 'bold 34px' : k==='s' ? '26px' : '30px') + " 'Malgun Gothic','Noto Sans KR',sans-serif";
+    x.fillText(t, 140, y); y += k==='title' ? 110 : k==='h' ? 80 : 72;
+  }
+  // 가상 데이터 표시 — 오른쪽 위 빨간 테두리 도장 모양
+  x.strokeStyle = '#c33'; x.lineWidth = 4; x.strokeRect(c.width-330, 40, 260, 70);
+  x.fillStyle = '#c33'; x.font = "bold 32px 'Malgun Gothic',sans-serif"; x.fillText('SAMPLE 가상', c.width-310, 88);
+  return { clean: c.toDataURL('image/png'), photo: T.synthPhoto(c, size[1] % 97) };
+"""
+
+# 페이지 안에서: 처리(글자 읽기까지) → 자동 검출 → 기대값과 맞추기 → 가리기 적용 → 다시 읽기·검정 픽셀·PDF 확인
+REDACT_RUN_JS = r"""
+  const [url, name, expect, preset] = ARGS;
+  await T.load(url, name);
+  const r = await T.process(preset, { scanMode: 'color' });
+  const ocr = lastOcrPages[0];
+  if(!ocr) return { ok: false, info: '글자 읽기 결과 없음 ' + (r.warning || '') };
+  const items = detectSensitive(ocr);
+  const norm = s=> normDigits(s).toLowerCase().replace(/[^0-9a-z@.]/g, '');
+  const lev = (a, b)=>{ let p = [...Array(b.length+1).keys()], c = []; for(let i=1;i<=a.length;i++){ c=[i]; for(let j=1;j<=b.length;j++) c[j]=Math.min(p[j]+1,c[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1)); p=c; } return p[b.length]; };
+  // 기대값마다 같은 종류의 자동 검출 중 글자가 같은 것(이메일은 편집거리 2 이하)을 찾고,
+  // 남은 것은 같은 종류끼리 순서대로 짝지음 — 글자는 틀리게 읽혔어도 그 자리를 잡아 가리는 것("읽기 틀림")
+  const used = new Set(), found = [];
+  for(const [kind, val] of expect){
+    const k = items.findIndex((it, i)=> !used.has(i) && it.kind === kind && lev(norm(it.text), norm(val)) <= (kind === 'email' ? 2 : 0));
+    if(k >= 0) used.add(k);
+    found.push({ kind, val, hit: k >= 0, got: k >= 0 ? items[k].text : null });
+  }
+  for(const f of found){
+    if(f.hit) continue;
+    const k = items.findIndex((it, i)=> !used.has(i) && it.kind === f.kind);
+    if(k >= 0){ used.add(k); f.hit = true; f.misread = items[k].text; }
+  }
+  const wrong = items.filter((_, i)=> !used.has(i)).map(it=> it.kind + ':' + it.text);
+  // 일부만 가리기 — 텍스트 창 글자
+  const partText = redactOcrText(ocr, { mode: 'partial', items });
+  // 저장할 때처럼 전체 가리기(불투명 검정) → 다시 읽어서 찾은 값이 안 읽히는지
+  const red = { mode: 'full', items };
+  const out = applyRedaction(r.canvas, ocr, red);
+  const again = await ocrRecognize(out);
+  const againN = norm(again.text);
+  // 이메일은 아이디(@ 앞), 번호는 숫자 전체가 다시 읽히면 샌 것 (끝자리만 보면 가리지 않는 사업자등록번호와 겹침)
+  const key = f=> f.kind === 'email' ? norm(f.val.split('@')[0]) : norm(f.val);
+  const leaked = found.filter(f=> f.hit && againN.includes(key(f))).map(f=> f.val);
+  // 가린 상자 안쪽이 완전한 검정인지(가장자리 1px 안쪽 모든 픽셀)
+  const { rects } = redactionShapes(ocr, red);
+  const d = out.getContext('2d').getImageData(0, 0, out.width, out.height).data;
+  let notBlack = 0, px = 0;
+  for(const b of rects) for(let yy=Math.ceil(b.y0)+1; yy<Math.floor(b.y1); yy++) for(let xx=Math.ceil(b.x0)+1; xx<Math.floor(b.x1); xx++){
+    if(xx<0 || yy<0 || xx>=out.width || yy>=out.height) continue;
+    const i = (yy*out.width+xx)*4; px++; if(d[i] || d[i+1] || d[i+2]) notBlack++;
+  }
+  // PDF: 문서 정보(만든 프로그램·날짜 등)가 비었는지, 글자 층(pdf.js로 꺼낼 수 있는 글자)이 없는지
+  const pdfBytes = new Uint8Array(await redactedPdfBlob(out).arrayBuffer());
+  const pdfS = new TextDecoder('latin1').decode(pdfBytes);
+  const pdfInfo = [...pdfS.matchAll(/\/(Producer|CreationDate|ModDate|Creator|Title|Author|Subject|Keywords) \(([^)]*)\)/g)].filter(m=> m[2].trim()).map(m=> m[1]);
+  const pdfDoc = await pdfjsLib.getDocument({ data: pdfBytes.slice() }).promise;
+  const pdfText = (await (await pdfDoc.getPage(1)).getTextContent()).items.length > 0;
+  return { ok: true, found, wrong, leaked, notBlack, px, pdfInfo, pdfText, partText, text: ocr.text, size: r.canvas.width + 'x' + r.canvas.height,
+           images: { preview: T.png(applyRedaction(r.canvas, ocr, red, { preview: true })), saved: T.png(out) } };
+"""
+
+def run_redact_tests(fresh_page, out_dir, remake=False):
+    fails = 0
+    for name, doc in REDACT_DOCS.items():
+        for kind, v in doc['expect']:
+            if kind in ('rrn', 'frn') and rrn_check_ok(v):
+                print(f'  FAIL  {name}: 가상 주민번호 {v}의 검증 숫자가 맞음 — 실제 번호일 수 있으니 바꿀 것')
+                fails += 1
+    FIXTURES.mkdir(exist_ok=True)
+    for name, doc in REDACT_DOCS.items():
+        if remake or not (FIXTURES / f'{name}.png').is_file() or not (FIXTURES / f'{name}_photo.jpg').is_file():
+            pg = fresh_page()
+            im = pg.evaluate('async (ARGS) => {' + REDACT_MAKE_JS + '}', [list(doc['size']), [list(x) for x in doc['lines']]])
+            pg.close()
+            (FIXTURES / f'{name}.png').write_bytes(base64.b64decode(im['clean'].split(',', 1)[1]))
+            (FIXTURES / f'{name}_photo.jpg').write_bytes(base64.b64decode(im['photo'].split(',', 1)[1]))
+            print(f'  가상 문서 그림: tests/fixtures/{name}.png, {name}_photo.jpg')
+    od = out_dir / 'redact'
+    total = {}   # 종류 → [찾은 수, 기대 수]
+    for name, doc in REDACT_DOCS.items():
+        for file in (f'{name}.png', f'{name}_photo.jpg'):
+            pg = fresh_page()
+            t0 = time.time()
+            try:
+                r = pg.evaluate('async (ARGS) => {' + REDACT_RUN_JS + '}',
+                                ['/works/docflow/tests/fixtures/' + file, file, [list(x) for x in doc['expect']], REDACT_PRESET])
+            except Exception as e:
+                r = {'ok': False, 'info': f'오류: {e}'}
+            pg.close()
+            if not r['ok']:
+                fails += 1
+                print(f"  FAIL  {file}  {r.get('info')}")
+                continue
+            od.mkdir(parents=True, exist_ok=True)
+            for k, v in r['images'].items():
+                (od / f'{pathlib.Path(file).stem}_{k}.png').write_bytes(base64.b64decode(v.split(',', 1)[1]))
+            (od / f'{pathlib.Path(file).stem}_text.txt').write_text(r['text'] + '\n\n── 일부만 가리기 ──\n' + r['partText'], encoding='utf-8')
+            by = {}
+            for f in r['found']:
+                a = by.setdefault(f['kind'], [0, 0]); a[1] += 1; a[0] += f['hit']
+                t = total.setdefault(f['kind'], [0, 0]); t[1] += 1; t[0] += f['hit']
+            hit = sum(f['hit'] for f in r['found'])
+            # 판정: 깨끗한 이미지는 모두 찾고 잘못 잡은 것 없음, 사진은 기록만(놓친 것은 안내) / 가린 글자는 어디서든 안 읽히고 검정이어야 함
+            clean = not file.endswith('_photo.jpg')
+            ok_detect = (hit == len(r['found']) and not r['wrong']) if clean else True
+            ok_save = not r['leaked'] and r['notBlack'] == 0 and not r['pdfInfo'] and not r['pdfText']
+            ok = ok_detect and ok_save
+            fails += 0 if ok else 1
+            kinds = ' · '.join(f'{REDACT_LABEL.get(k, k)} {a[0]}/{a[1]}' for k, a in by.items())
+            miss = [f"{f['kind']}:{f['val']}" for f in r['found'] if not f['hit']]
+            print(f"  {'PASS' if ok else 'FAIL'}  {file}  자동 검출 {hit}/{len(r['found'])} ({kinds}) · 잘못 잡음 {len(r['wrong'])}"
+                  f"  ({time.time()-t0:.0f}s, {r['size']})")
+            if miss: print(f'        놓침: {", ".join(miss)}')
+            misread = [f"{f['val']} → {f['misread']}" for f in r['found'] if f.get('misread')]
+            if misread: print(f'        읽기 틀림(자리는 잡아 가림): {", ".join(misread)}')
+            if r['wrong']: print(f'        잘못 잡음: {", ".join(r["wrong"])}')
+            print(f"        저장본 — 다시 읽어서 보인 값 {len(r['leaked'])}개{(' ' + ', '.join(r['leaked'])) if r['leaked'] else ''}"
+                  f" · 가린 자리 검정 아닌 픽셀 {r['notBlack']}/{r['px']} · PDF 문서 정보 {r['pdfInfo'] or '없음'} · PDF 글자 층 {'있음' if r['pdfText'] else '없음'}")
+    if total:
+        print('  종류별 합계(깨끗한 이미지+사진): ' + ' · '.join(f'{REDACT_LABEL.get(k, k)} {a[0]}/{a[1]}' for k, a in total.items()))
+        print(f'  결과: {od}')
+    return fails
+REDACT_LABEL = {'rrn': '주민', 'frn': '외국인', 'phone': '전화', 'account': '계좌', 'email': '이메일'}
+
 # ---------------- 실제 서버 환경 (Live Server처럼) ----------------
 # 다른 테스트는 페이지 요청을 가로채 파일을 넣어 주지만, 여기서는 진짜 정적 서버를 띄움 — 저장소 루트를 사이트 루트로,
 # 확장자대로 Content-Type, gzip 자동 처리 없음(VS Code Live Server·깃허브 페이지와 같은 방식).
@@ -541,6 +728,10 @@ def main():
                     print(f"  {'PASS' if ok else 'FAIL'}  {label}\n        {info}{extra}")
                 if out_dir.exists():
                     print(f'  결과 이미지: {out_dir}')
+        if which in ('all', 'redact', 'redact-make'):
+            print('■ 정보 가리기 (가상 문서 — 자동 검출·가린 저장본)')
+            fails += run_redact_tests(fresh_page, out_dir, remake=which == 'redact-make')
+
         if which in ('all', 'serve'):
             print('■ 실제 서버 환경 (Live Server처럼 띄워 업로드 → OCR)')
             fails += run_serve_tests(browser)
