@@ -3,3 +3,9 @@ works/docflow/tests/private/
 
 # 파이썬 캐시
 __pycache__/
+
+# Claude Code 작업 폴더
+.claude/
+
+# 스토리 아카이브 — 톤 다운 전 원본 그림 백업(로컬 보관용)
+games/story-archive/cases/case001/assets/_pre-tonedown-backup/

@@ -5587,8 +5587,21 @@ function detectSensitive(ocr){
     const words = [wi];
     const prev = ocr.words[wi-1];
     if(prev && prev.line === w.line && /^[A-Za-z0-9._-]+$/.test(prev.text) && w.bbox.x0 - prev.bbox.x1 < (w.bbox.y1 - w.bbox.y0)*1.2) words.unshift(wi-1);
-    const fixed = (ocr.addrFixes || []).some(x=> w.text.includes(x.to));
-    items.push({ id: newRedactId(), kind: 'email', auto: true, words, partial: [], text: words.map(i=> ocr.words[i].text).join(' '), fixed });
+    // 뒤로 이어진 주소 조각도 함께 — 엔진이 "gdhong@mail.ganauniv.ac" | "kr"처럼 나눠 읽고 줄 글자에서만 점을 되살려 이어 붙인 경우
+    // (사진 05: 이메일 단어만 가리면 뒤의 "kr"·"ganauniv.ac.kr"이 그대로 보였음). 줄 글자의 주소 덩어리에 들어 있는 다음 단어만
+    const ln = (ocr.lines[w.line] || {}).text || '';
+    const at = ln.indexOf(w.text);
+    let rest = at >= 0 ? ln.slice(at + w.text.length).split(/\s/)[0] : '';
+    for(let j = wi + 1; rest && ocr.words[j] && ocr.words[j].line === w.line; j++){
+      const t = ocr.words[j].text, r = rest.replace(/^\./, '');
+      if(!t || !r.startsWith(t)) break;
+      words.push(j); rest = r.slice(t.length);
+    }
+    const text = at >= 0 && words.length > 1 && words[0] === wi ? ln.slice(at).split(/\s/)[0] : words.map(i=> ocr.words[i].text).join(' ');
+    // @ 뒤(도메인)에 영문자가 3자 이상일 때만 — 손글씨 취소선 칸이 "Zzms@o0"처럼 읽혀 이메일로 잡혔었음(사진 01)
+    if((text.split('@')[1] || '').replace(/[^A-Za-z]/g, '').length < 3) return;
+    const fixed = (ocr.addrFixes || []).some(x=> text.includes(x.to));
+    items.push({ id: newRedactId(), kind: 'email', auto: true, words, partial: [], text, fixed });
   });
   return items;
 }
@@ -5733,9 +5746,11 @@ const PROCESSORS = {
     return removeTableLines(canvas, found);
   },
   // 글자 읽기 — 이미지는 그대로 두고 OCR 결과만 붙여 돌려줌. 실패해도 이미지 처리 결과는 그대로 보여줌
-  ocrText: async (canvas, status)=>{
+  // 읽는 이미지는 makeOcrSource()로 따로 만듦(흑백 스캔 효과 + 표 선 제거) — 보이는 결과는 컬러·표 선 그대로여도 됨
+  ocrText: async (canvas, status, ps)=>{
     try{
-      const ocr = await ocrRecognize(canvas, { onProgress: ({stage, progress})=>{
+      const src = await makeOcrSource(canvas, ps, status);
+      const ocr = await ocrRecognize(src, { onProgress: ({stage, progress})=>{
         status(stage === 'load'
           ? '글자 읽기 — 언어 데이터 불러오는 중… (처음 한 번만)'
           : `글자 인식 중 ${Math.round(progress*100)}%`);
@@ -5750,6 +5765,30 @@ const PROCESSORS = {
   },
   scanEffect: scanEffect,
 };
+// 글자 읽기에 넣을 이미지 — 보이는 결과(컬러·표 선 그대로일 수 있음)와 따로 만듦
+//  · 흑백 스캔 효과: 컬러 결과에서는 엔진이 이메일을 숫자로 읽거나(가상 통장 사본) 표 칸 글자를 못 읽었음(사진 05)
+//  · 표 선 제거: 표 테두리가 글자에 붙어 있으면 칸 안 글자를 거의 못 읽음(사진 05 표 — "SENET CN" 같은 글자)
+//  보이는 결과에 이미 한 단계는 다시 하지 않음. 두 단계 모두 크기를 바꾸지 않으므로 단어 위치가 보이는 결과와 같은 좌표
+//  (정보 가리기 상자가 그대로 맞음). 크기가 달라지면 안전하게 보이는 결과로 읽음
+async function makeOcrSource(canvas, ps, status = ()=>{}){
+  const bwDone = ps.checks.includes('scanEffect') && ps.scanMode === 'bw';
+  const linesDone = ps.checks.includes('removeLines');
+  if(bwDone && linesDone) return canvas;
+  let c = cloneCanvasFromImage(canvas);
+  if(!bwDone){
+    await status('글자 읽기용 흑백 이미지 만드는 중…');
+    const saved = scanMode; scanMode = 'bw';
+    try{ scanEffect(c); } finally{ scanMode = saved; }
+  }
+  if(!linesDone){
+    await status('글자 읽기용 표 선 지우는 중…');
+    const r = removeTableLines(c, findTableLines(c));
+    c = r instanceof HTMLCanvasElement ? r : r.canvas;
+  }
+  if(c.width !== canvas.width || c.height !== canvas.height){ console.warn('[DocFlow OCR] 글자 읽기용 이미지 크기가 달라져 결과 그대로 읽음'); return canvas; }
+  return c;
+}
+
 // 항상 이 순서로 적용 (체크 안 한 건 건너뜀)
 // signatureExtract는 사용자가 "원본 이미지" 좌표 기준으로 영역을 골랐기 때문에, 다른 단계가 크기를 바꾸기 전인
 // 맨 처음에 실행해야 좌표가 어긋나지 않음. 그다음 배경과 함께 찍힌 사진이면 자동크롭으로 문서만 추리고,
@@ -5810,7 +5849,7 @@ async function processPage(image, ps, { page = 1, onStatus } = {}){
         redaction = { mode: ps.redact.mode, brush: ps.redact.brush, items: ocr ? detectSensitive(ocr) : [] };
         continue;
       }
-      const result = await PROCESSORS[key](canvas, status);
+      const result = await PROCESSORS[key](canvas, status, ps);
       if(result instanceof HTMLCanvasElement){ canvas = result; continue; }
       canvas = result.canvas;
       if(result.warning) warnings.push(result.warning);

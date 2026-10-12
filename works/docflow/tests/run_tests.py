@@ -506,12 +506,18 @@ REDACT_RUN_JS = r"""
     if(k >= 0){ used.add(k); f.hit = true; f.misread = items[k].text; }
   }
   const wrong = items.filter((_, i)=> !used.has(i)).map(it=> it.kind + ':' + it.text);
+  // 읽힘: 기대값이 읽은 글자에 그대로 들어 있는지(표 안 글자를 제대로 읽었는지 — 검출과 따로 셈)
+  const textN = norm(ocr.text);
+  const readable = expect.filter(([k, v])=> textN.includes(norm(v))).length;
+  // 전체 가리기 글자 창에서 ■ 바로 뒤에 주소 조각(kr·com·…)이 남으면 이메일 뒷부분을 덜 가린 것
+  const fullText = redactOcrText(ocr, { mode: 'full', items });
+  const addrLeft = [...fullText.matchAll(/■\s?(\.?[A-Za-z0-9-]*\.?(?:kr|com|net|org))/g)].map(m=> m[1]);
   // 일부만 가리기 — 텍스트 창 글자
   const partText = redactOcrText(ocr, { mode: 'partial', items });
   // 저장할 때처럼 전체 가리기(불투명 검정) → 다시 읽어서 찾은 값이 안 읽히는지
   const red = { mode: 'full', items };
   const out = applyRedaction(r.canvas, ocr, red);
-  const again = await ocrRecognize(out);
+  const again = await ocrRecognize(await makeOcrSource(out, { checks: [], scanMode: 'color' }));   // 처리할 때와 같은 글자 읽기 경로
   const againN = norm(again.text);
   // 이메일은 아이디(@ 앞), 번호는 숫자 전체가 다시 읽히면 샌 것 (끝자리만 보면 가리지 않는 사업자등록번호와 겹침)
   const key = f=> f.kind === 'email' ? norm(f.val.split('@')[0]) : norm(f.val);
@@ -530,7 +536,7 @@ REDACT_RUN_JS = r"""
   const pdfInfo = [...pdfS.matchAll(/\/(Producer|CreationDate|ModDate|Creator|Title|Author|Subject|Keywords) \(([^)]*)\)/g)].filter(m=> m[2].trim()).map(m=> m[1]);
   const pdfDoc = await pdfjsLib.getDocument({ data: pdfBytes.slice() }).promise;
   const pdfText = (await (await pdfDoc.getPage(1)).getTextContent()).items.length > 0;
-  return { ok: true, found, wrong, leaked, notBlack, px, pdfInfo, pdfText, partText, text: ocr.text, size: r.canvas.width + 'x' + r.canvas.height,
+  return { ok: true, found, wrong, leaked, readable, addrLeft, notBlack, px, pdfInfo, pdfText, partText, text: ocr.text, size: r.canvas.width + 'x' + r.canvas.height,
            images: { preview: T.png(applyRedaction(r.canvas, ocr, red, { preview: true })), saved: T.png(out) } };
 """
 
@@ -652,13 +658,26 @@ def run_redact_tests(fresh_page, out_dir, remake=False):
             print(f'  가상 문서 그림: tests/fixtures/{name}.png, {name}_photo.jpg')
     od = out_dir / 'redact'
     total = {}   # 종류 → [찾은 수, 기대 수]
-    for name, doc in REDACT_DOCS.items():
-        for file in (f'{name}.png', f'{name}_photo.jpg'):
+    cases = [(f'/works/docflow/tests/fixtures/{f}', f, doc['expect'], False)
+             for name, doc in REDACT_DOCS.items() for f in (f'{name}.png', f'{name}_photo.jpg')]
+    # 실제 사진 05 — 표 안의 연락처·이메일(기대값은 private에만). 결과에 실제 값이 찍히지 않게 가려서 출력
+    exp05 = PRIVATE / 'photo05_expected.json'
+    if (PRIVATE / 'photo05.jpg').is_file() and exp05.is_file():
+        e = json.loads(exp05.read_text(encoding='utf-8'))
+        cases.append((PRIVATE_URL + 'photo05.jpg', 'photo05.jpg',
+                       [('phone', v) for v in e.get('phones', [])] + [('email', v) for v in e['en'] if '@' in v], True))
+    else:
+        print('  SKIP  photo05.jpg — tests/private/ 에 사진·기대값이 없어서 건너뜀')
+    # 실제 사진 01 — 개인정보가 없는 예산 표(손글씨 취소선 칸 있음). 아무것도 잡히면 안 됨("Zzms@o0"를 이메일로 잡았었음)
+    for f in ('photo01.jpg', 'photo01_original.jpg'):
+        if (PRIVATE / f).is_file():
+            cases.append((PRIVATE_URL + f, f, [], True))
+    mask = lambda v: (v[:3] + '…') if v else v
+    for url, file, expect, private in cases:
             pg = fresh_page()
             t0 = time.time()
             try:
-                r = pg.evaluate('async (ARGS) => {' + REDACT_RUN_JS + '}',
-                                ['/works/docflow/tests/fixtures/' + file, file, [list(x) for x in doc['expect']], REDACT_PRESET])
+                r = pg.evaluate('async (ARGS) => {' + REDACT_RUN_JS + '}', [url, file, [list(x) for x in expect], REDACT_PRESET])
             except Exception as e:
                 r = {'ok': False, 'info': f'오류: {e}'}
             pg.close()
@@ -675,21 +694,23 @@ def run_redact_tests(fresh_page, out_dir, remake=False):
                 a = by.setdefault(f['kind'], [0, 0]); a[1] += 1; a[0] += f['hit']
                 t = total.setdefault(f['kind'], [0, 0]); t[1] += 1; t[0] += f['hit']
             hit = sum(f['hit'] for f in r['found'])
-            # 판정: 깨끗한 이미지는 모두 찾고 잘못 잡은 것 없음, 사진은 기록만(놓친 것은 안내) / 가린 글자는 어디서든 안 읽히고 검정이어야 함
-            clean = not file.endswith('_photo.jpg')
-            ok_detect = (hit == len(r['found']) and not r['wrong']) if clean else True
-            ok_save = not r['leaked'] and r['notBlack'] == 0 and not r['pdfInfo'] and not r['pdfText']
+            # 판정: 깨끗한 가상 문서와 사진 05는 모두 찾고 잘못 잡은 것 없어야 함. 가상 사진 합성은 기록만
+            strict = not file.endswith('_photo.jpg')
+            ok_detect = (hit == len(r['found']) and not r['wrong']) if strict else True
+            ok_save = not r['leaked'] and not r['addrLeft'] and r['notBlack'] == 0 and not r['pdfInfo'] and not r['pdfText']
             ok = ok_detect and ok_save
             fails += 0 if ok else 1
             kinds = ' · '.join(f'{REDACT_LABEL.get(k, k)} {a[0]}/{a[1]}' for k, a in by.items())
-            miss = [f"{f['kind']}:{f['val']}" for f in r['found'] if not f['hit']]
-            print(f"  {'PASS' if ok else 'FAIL'}  {file}  자동 검출 {hit}/{len(r['found'])} ({kinds}) · 잘못 잡음 {len(r['wrong'])}"
+            show = mask if private else (lambda v: v)
+            miss = [f"{f['kind']}:{show(f['val'])}" for f in r['found'] if not f['hit']]
+            print(f"  {'PASS' if ok else 'FAIL'}  {file}  자동 검출 {hit}/{len(r['found'])} ({kinds}) · 잘못 잡음 {len(r['wrong'])} · 그대로 읽힘 {r['readable']}/{len(r['found'])}"
                   f"  ({time.time()-t0:.0f}s, {r['size']})")
             if miss: print(f'        놓침: {", ".join(miss)}')
-            misread = [f"{f['val']} → {f['misread']}" for f in r['found'] if f.get('misread')]
+            misread = [f"{show(f['val'])} → {show(f['misread'])}" for f in r['found'] if f.get('misread')]
             if misread: print(f'        읽기 틀림(자리는 잡아 가림): {", ".join(misread)}')
-            if r['wrong']: print(f'        잘못 잡음: {", ".join(r["wrong"])}')
-            print(f"        저장본 — 다시 읽어서 보인 값 {len(r['leaked'])}개{(' ' + ', '.join(r['leaked'])) if r['leaked'] else ''}"
+            if r['wrong']: print(f'        잘못 잡음: {", ".join(show(w) for w in r["wrong"])}')
+            if r['addrLeft']: print(f'        이메일 뒷부분이 안 가려짐: {", ".join(r["addrLeft"])}')
+            print(f"        저장본 — 다시 읽어서 보인 값 {len(r['leaked'])}개{(' ' + ', '.join(show(v) for v in r['leaked'])) if r['leaked'] else ''}"
                   f" · 가린 자리 검정 아닌 픽셀 {r['notBlack']}/{r['px']} · PDF 문서 정보 {r['pdfInfo'] or '없음'} · PDF 글자 층 {'있음' if r['pdfText'] else '없음'}")
     pg = fresh_page()
     t0 = time.time()
