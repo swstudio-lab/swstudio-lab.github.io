@@ -194,6 +194,36 @@ SYNTHETIC = {
   const bad = cases.map(([a, want])=> [a, cleanOcrLine(a, []), want]).filter(([a, got, want])=> got !== want);
   return { ok: !bad.length, info: bad.length ? bad.map(([a, got, want])=> `"${a}" → "${got}" (기대 "${want}")`).join(' / ') : `${cases.length}개 예시 모두 기대대로` };
 """,
+'정보 가리기 — 가림 상자는 항목마다 네모 하나, 표 칸 밖으로 안 넘침': r"""
+  // 사진 05 상황: 표 칸 안 이름을 엔진이 글자마다 단어로 나누고, 가운데 글자 상자만 위 칸 선을 넘게 큼.
+  // 이메일 단어 상자는 오른쪽 칸 선을 넘음. 글자 읽기 없이 단어 위치를 직접 만들어 검사
+  const W = 900, H = 400, rows = [100, 200, 300], cols = [100, 400, 800];
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, W, H); x.fillStyle = '#222';
+  for(const y of rows) x.fillRect(cols[0], y - 1, cols[2] - cols[0], 3);
+  for(const cx of cols) x.fillRect(cx - 1, rows[0], 3, rows[2] - rows[0]);
+  const lines = tableLineSegs(findTableLines(c));
+  const word = (t, x0, y0, x1, y1, line)=> ({ text: t, conf: 90, bbox: { x0, y0, x1, y1 }, line, chars: [{ t, bbox: { x0, y0, x1, y1 } }] });
+  const ocr = { words: [
+    word('주', 220, 135, 245, 162, 0), word('경', 245, 92, 270, 175, 0), word('필', 270, 135, 295, 161, 0),  // 가운데만 위 칸 선(100) 넘음
+    word('gdhong@mail.ganauniv.ac', 450, 230, 790, 270, 1), word('kr', 795, 232, 830, 268, 1),               // 뒷조각이 오른쪽 선(800) 넘음
+  ], lines: [{ text: '홍길동', bbox: {} }, { text: 'gdhong@mail.ganauniv.ac.kr', bbox: {} }] };
+  const items = [{ id: 'n', kind: 'name', words: [0, 1, 2], partial: [] }, { id: 'e', kind: 'email', words: [3, 4], partial: [] }];
+  const crossing = rs=> rs.filter(b=> lines.h.some(s=> Math.min(s.x1, s.x2) < b.x1 - 3 && Math.max(s.x1, s.x2) > b.x0 + 3 && s.y1 > b.y0 + 1 && s.y1 < b.y1 - 1)
+                               || lines.v.some(s=> Math.min(s.y1, s.y2) < b.y1 - 3 && Math.max(s.y1, s.y2) > b.y0 + 3 && s.x1 > b.x0 + 1 && s.x1 < b.x1 - 1)).length;
+  const noClip = redactionShapes(ocr, { mode: 'full', items, lines: null }).rects;
+  const clip = redactionShapes(ocr, { mode: 'full', items, lines }).rects;
+  const fail = [];
+  if(!lines || lines.h.length < 3 || lines.v.length < 3) fail.push('표 선을 못 찾음');
+  if(crossing(noClip) === 0) fail.push('검사가 넘친 상자를 못 잡음(칸 자르기 없이도 0)');
+  if(crossing(clip) !== 0) fail.push(`칸 밖으로 넘친 상자 ${crossing(clip)}개`);
+  if(clip.filter(b=> b.id === 'n').length !== 1 || clip.filter(b=> b.id === 'e').length !== 1) fail.push('항목마다 네모 하나가 아님');
+  const n = clip.find(b=> b.id === 'n'), e = clip.find(b=> b.id === 'e');
+  if(n && !(n.y0 >= 132 && n.y0 <= 135 && n.y1 >= 162 && n.y1 <= 165)) fail.push(`이름 상자 높이가 정상 글자 기준이 아님 (${n.y0}~${n.y1})`);
+  if(e && !(e.x1 < 800 && e.x0 <= 447)) fail.push(`이메일 상자가 칸 경계에서 안 잘림 (${e.x0}~${e.x1})`);
+  return { ok: !fail.length, info: fail.join(' / ') || `칸 자르기 없으면 넘침 ${crossing(noClip)}개 → 자르면 0개, 항목마다 네모 하나 (이름 ${Math.round(n.y0)}~${Math.round(n.y1)}, 이메일 오른쪽 끝 ${Math.round(e.x1)} < 칸 선 800)` };
+""",
+
 '프리셋 — OCR·문서 보관 구성과 "포함됨" 표시': r"""
   const card = n=>[...document.querySelectorAll('.preset-card')].find(el=>el.textContent.includes(n));
   const row = n=>[...document.querySelectorAll('.check-row')].find(el=>el.querySelector('.check-name').textContent===n);
@@ -512,14 +542,15 @@ REDACT_RUN_JS = r"""
   const textN = norm(ocr.text);
   const readable = expect.filter(([k, v])=> textN.includes(norm(v))).length;
   // 전체 가리기 글자 창에서 ■ 바로 뒤에 주소 조각(kr·com·…)이 남으면 이메일 뒷부분을 덜 가린 것
+  const L = redactPage ? redactPage.red.lines : null;   // 처리할 때 찾은 표 선(검토 화면과 같은 것)
   const fullText = redactOcrText(ocr, { mode: 'full', items });
   // 이메일은 길이·모양이 드러나지 않게 ■ 덩어리 하나로 — ■ 옆에 점·@가 남으면 모양이 드러난 것
   const emailShape = [...fullText.matchAll(/■+[.@]+■*|[.@]+■+/g)].map(m=> m[0]);
   const addrLeft = [...fullText.matchAll(/■\s?(\.?[A-Za-z0-9-]*\.?(?:kr|com|net|org))/g)].map(m=> m[1]);
   // 일부만 가리기 — 텍스트 창 글자
-  const partText = redactOcrText(ocr, { mode: 'partial', items });
+  const partText = redactOcrText(ocr, { mode: 'partial', items, lines: L });
   // 저장할 때처럼 전체 가리기(불투명 검정) → 다시 읽어서 찾은 값이 안 읽히는지
-  const red = { mode: 'full', items };
+  const red = { mode: 'full', items, lines: L };
   const out = applyRedaction(r.canvas, ocr, red);
   const again = await ocrRecognize(await makeOcrSource(out, { checks: [], scanMode: 'color' }));   // 처리할 때와 같은 글자 읽기 경로
   const againN = norm(again.text);
@@ -534,13 +565,29 @@ REDACT_RUN_JS = r"""
     if(xx<0 || yy<0 || xx>=out.width || yy>=out.height) continue;
     const i = (yy*out.width+xx)*4; px++; if(d[i] || d[i+1] || d[i+2]) notBlack++;
   }
+  // 가림 상자 모양: ① 항목 하나는 줄마다 네모 하나 ② 칸 테두리를 넘지 않음 — 결과 이미지에서 표 선을 새로 찾아 상자 안쪽을
+  //  가로지르는 선이 있으면 넘친 것(사진 05에서 이름 상자가 울퉁불퉁하고 위 칸 쪽으로 삐져나왔었음)
+  const perItem = new Map(); for(const b of rects) perItem.set(b.id, (perItem.get(b.id) || 0) + 1);
+  const notOne = items.filter(it=> (perItem.get(it.id) || 0) !== new Set(it.words.map(wi=> ocr.words[wi].line)).size).map(it=> it.kind);
+  const tl = findTableLines(r.canvas).segments, overflow = [];
+  const crosses = (b, s, horiz)=>{
+    const [a0, a1, lo, hi] = horiz ? [Math.min(s.x1, s.x2), Math.max(s.x1, s.x2), b.x0, b.x1] : [Math.min(s.y1, s.y2), Math.max(s.y1, s.y2), b.y0, b.y1];
+    const a = Math.max(a0, lo), z = Math.min(a1, hi); if(z - a < 3) return false;
+    const m = (a + z)/2, t = horiz ? (s.x2 === s.x1 ? 0 : (m - s.x1)/(s.x2 - s.x1)) : (s.y2 === s.y1 ? 0 : (m - s.y1)/(s.y2 - s.y1));
+    const v = horiz ? s.y1 + (s.y2 - s.y1)*t : s.x1 + (s.x2 - s.x1)*t;
+    return horiz ? v > b.y0 + 1 && v < b.y1 - 1 : v > b.x0 + 1 && v < b.x1 - 1;
+  };
+  const partRects = redactionShapes(ocr, { mode: 'partial', items, lines: L }).rects;
+  for(const b of [...rects, ...partRects]){
+    if(tl.h.some(s=> crosses(b, s, true)) || tl.v.some(s=> crosses(b, s, false))) overflow.push((items.find(it=> it.id === b.id) || {}).kind);
+  }
   // PDF: 문서 정보(만든 프로그램·날짜 등)가 비었는지, 글자 층(pdf.js로 꺼낼 수 있는 글자)이 없는지
   const pdfBytes = new Uint8Array(await redactedPdfBlob(out).arrayBuffer());
   const pdfS = new TextDecoder('latin1').decode(pdfBytes);
   const pdfInfo = [...pdfS.matchAll(/\/(Producer|CreationDate|ModDate|Creator|Title|Author|Subject|Keywords) \(([^)]*)\)/g)].filter(m=> m[2].trim()).map(m=> m[1]);
   const pdfDoc = await pdfjsLib.getDocument({ data: pdfBytes.slice() }).promise;
   const pdfText = (await (await pdfDoc.getPage(1)).getTextContent()).items.length > 0;
-  return { ok: true, found, wrong, leaked, readable, addrLeft, emailShape, notBlack, px, pdfInfo, pdfText, partText, text: ocr.text, size: r.canvas.width + 'x' + r.canvas.height,
+  return { ok: true, found, wrong, leaked, readable, addrLeft, emailShape, notOne, overflow, nLines: tl.h.length + tl.v.length, nRects: rects.length, notBlack, px, pdfInfo, pdfText, partText, text: ocr.text, size: r.canvas.width + 'x' + r.canvas.height,
            images: { preview: T.png(applyRedaction(r.canvas, ocr, red, { preview: true })), saved: T.png(out) } };
 """
 
@@ -707,7 +754,7 @@ def run_redact_tests(fresh_page, out_dir, remake=False):
             # 판정: 깨끗한 가상 문서와 사진 05는 모두 찾고 잘못 잡은 것 없어야 함. 가상 사진 합성은 기록만
             strict = not file.endswith('_photo.jpg')
             ok_detect = (hit == len(r['found']) and not r['wrong']) if strict else True
-            ok_save = not r['leaked'] and not r['addrLeft'] and not r['emailShape'] and r['notBlack'] == 0 and not r['pdfInfo'] and not r['pdfText']
+            ok_save = not r['leaked'] and not r['addrLeft'] and not r['emailShape'] and not r['notOne'] and not r['overflow'] and r['notBlack'] == 0 and not r['pdfInfo'] and not r['pdfText']
             ok = ok_detect and ok_save
             fails += 0 if ok else 1
             kinds = ' · '.join(f'{REDACT_LABEL.get(k, k)} {a[0]}/{a[1]}' for k, a in by.items())
@@ -719,6 +766,8 @@ def run_redact_tests(fresh_page, out_dir, remake=False):
             misread = [f"{show(f['val'])} → {show(f['misread'])}" for f in r['found'] if f.get('misread')]
             if misread: print(f'        읽기 틀림(자리는 잡아 가림): {", ".join(misread)}')
             if r['wrong']: print(f'        잘못 잡음: {", ".join(show(w) for w in r["wrong"])}')
+            print(f"        가림 상자 {r['nRects']}개 — 네모 하나가 아닌 항목 {len(r['notOne'])}개 · 칸 밖으로 넘친 상자 {len(r['overflow'])}개 (표 선 {r['nLines']}개 기준)"
+                  + (f" {r['notOne']} {r['overflow']}" if r['notOne'] or r['overflow'] else ''))
             if r['emailShape']: print(f'        이메일 모양(점·@)이 글자 창에 남음: {", ".join(r["emailShape"])}')
             if r['addrLeft']: print(f'        이메일 뒷부분이 안 가려짐: {", ".join(r["addrLeft"])}')
             print(f"        저장본 — 다시 읽어서 보인 값 {len(r['leaked'])}개{(' ' + ', '.join(show(v) for v in r['leaked'])) if r['leaked'] else ''}"

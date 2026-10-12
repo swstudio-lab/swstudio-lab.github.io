@@ -5657,28 +5657,60 @@ function detectSensitive(ocr){
   return items;
 }
 
-// 가릴 모양: 상자 목록 + 형광펜 획. 일부만 가리기면 단어마다 가릴 글자들의 처음~끝을 한 상자로
+// 가릴 모양: 상자 목록 + 형광펜 획
+//  · 항목 하나는 줄마다 반듯한 네모 하나 — 글자마다 따로 칠하면 엔진이 글자마다 단어로 나눈 이름("홍|길|동")에서 상자 높이가
+//    제각각이라 울퉁불퉁했음(사진 05: 가운데 글자 상자만 높이 55px, 나머지 26px). 위아래는 정상 높이 상자들로 정하고
+//    혼자 비정상적으로 큰 상자(높이 중앙값의 1.5배 넘음)는 높이 계산에서 뺌
+//  · 표 안 글자는 칸 테두리(red.lines) 밖으로 넘치지 않게 자름 — 여백(REDACT_PAD)은 칸 안에서만
+//  · 일부만 가리기면 단어마다 가릴 글자들의 처음~끝을 한 상자로
+function redactUnionBox(boxes){
+  const hs = boxes.map(b=> b.y1 - b.y0).sort((a, b)=> a - b), med = hs[hs.length >> 1];
+  const normal = boxes.filter(b=> b.y1 - b.y0 <= med * 1.5);
+  const ys = normal.length ? normal : boxes;
+  return { x0: Math.min(...boxes.map(b=> b.x0)), x1: Math.max(...boxes.map(b=> b.x1)),
+           y0: Math.min(...ys.map(b=> b.y0)), y1: Math.max(...ys.map(b=> b.y1)) };
+}
+// 상자 b(여백 포함)를 칸 테두리 안으로: 글자(core)의 가운데를 기준으로 그 위·아래·왼·오른쪽 표 선을 넘지 않게
+function clipToCell(b, core, lines){
+  if(!lines) return b;
+  const out = { ...b }, cx = (core.x0 + core.x1)/2, cy = (core.y0 + core.y1)/2;
+  const yAt = (s, x)=> s.x2 === s.x1 ? (s.y1 + s.y2)/2 : s.y1 + (s.y2 - s.y1) * (x - s.x1) / (s.x2 - s.x1);
+  const xAt = (s, y)=> s.y2 === s.y1 ? (s.x1 + s.x2)/2 : s.x1 + (s.x2 - s.x1) * (y - s.y1) / (s.y2 - s.y1);
+  for(const s of lines.h){
+    const a = Math.max(Math.min(s.x1, s.x2), b.x0), z = Math.min(Math.max(s.x1, s.x2), b.x1);
+    if(z - a < 2) continue;                              // 상자와 겹치는 가로선만
+    const y = yAt(s, Math.max(a, Math.min(z, cx))), half = (s.thick || 2)/2 + 1;
+    if(y <= cy && y + half > out.y0 && y + half < core.y1) out.y0 = y + half;
+    if(y >= cy && y - half < out.y1 && y - half > core.y0) out.y1 = y - half;
+  }
+  for(const s of lines.v){
+    const a = Math.max(Math.min(s.y1, s.y2), b.y0), z = Math.min(Math.max(s.y1, s.y2), b.y1);
+    if(z - a < 2) continue;
+    const x = xAt(s, Math.max(a, Math.min(z, cy))), half = (s.thick || 2)/2 + 1;
+    if(x <= cx && x + half > out.x0 && x + half < core.x1) out.x0 = x + half;
+    if(x >= cx && x - half < out.x1 && x - half > core.x0) out.x1 = x - half;
+  }
+  return out;
+}
 function redactionShapes(ocr, red){
   const rects = [], strokes = [];
-  const padR = b=> ({ x0: b.x0 - REDACT_PAD, y0: b.y0 - REDACT_PAD, x1: b.x1 + REDACT_PAD, y1: b.y1 + REDACT_PAD });
+  const push = (core, it)=>{
+    const padded = { x0: core.x0 - REDACT_PAD, y0: core.y0 - REDACT_PAD, x1: core.x1 + REDACT_PAD, y1: core.y1 + REDACT_PAD };
+    rects.push({ ...clipToCell(padded, core, red.lines), id: it.id });
+  };
   for(const it of red.items){
     if(it.kind === 'stroke'){ strokes.push(it); continue; }
     if(red.mode === 'partial' && it.partial && it.partial.length){
       const byWord = new Map();
       for(const [wi, ci] of it.partial){ const c = ocr.words[wi] && ocr.words[wi].chars && ocr.words[wi].chars[ci]; if(!c) continue;
         const b = byWord.get(wi) || { x0: Infinity, x1: -Infinity }; b.x0 = Math.min(b.x0, c.bbox.x0); b.x1 = Math.max(b.x1, c.bbox.x1); byWord.set(wi, b); }
-      for(const [wi, b] of byWord){ const wb = ocr.words[wi].bbox; rects.push(padR({ x0: b.x0, y0: wb.y0, x1: b.x1, y1: wb.y1 })); }
+      for(const [wi, b] of byWord){ const wb = ocr.words[wi].bbox; push({ x0: b.x0, y0: wb.y0, x1: b.x1, y1: wb.y1 }, it); }
       if(byWord.size) continue; // 글자 위치가 없으면 아래에서 단어 전체를 가림(안전한 쪽으로)
     }
-    // 이메일은 줄마다 처음~끝을 한 상자로 — 단어 사이 틈으로 점·@가 보이면 주소 모양이 드러남
-    if(it.kind === 'email'){
-      const byLine = new Map();
-      for(const wi of it.words){ const w = ocr.words[wi]; if(!w) continue; const b = byLine.get(w.line);
-        byLine.set(w.line, b ? { x0: Math.min(b.x0, w.bbox.x0), y0: Math.min(b.y0, w.bbox.y0), x1: Math.max(b.x1, w.bbox.x1), y1: Math.max(b.y1, w.bbox.y1) } : { ...w.bbox }); }
-      for(const b of byLine.values()) rects.push(padR(b));
-      continue;
-    }
-    for(const wi of it.words) if(ocr.words[wi]) rects.push(padR(ocr.words[wi].bbox));
+    // 줄마다 단어 상자들을 합친 네모 하나(이메일은 사이의 점·@까지 덮임)
+    const byLine = new Map();
+    for(const wi of it.words){ const w = ocr.words[wi]; if(!w) continue; if(!byLine.has(w.line)) byLine.set(w.line, []); byLine.get(w.line).push(w.bbox); }
+    for(const boxes of byLine.values()) push(redactUnionBox(boxes), it);
   }
   return { rects, strokes };
 }
@@ -5817,6 +5849,7 @@ const PROCESSORS = {
   removeLines: async (canvas, status)=>{
     await status('표 선 찾는 중…');
     const found = findTableLines(canvas);
+    pageTableLines = tableLineSegs(found);
     await status('표 선 지우는 중…');
     return removeTableLines(canvas, found);
   },
@@ -5857,12 +5890,21 @@ async function makeOcrSource(canvas, ps, status = ()=>{}){
   }
   if(!linesDone){
     await status('글자 읽기용 표 선 지우는 중…');
-    const r = removeTableLines(c, findTableLines(c));
+    const found = findTableLines(c);
+    pageTableLines = tableLineSegs(found);   // 정보 가리기에서 칸 경계로 씀(같은 좌표)
+    const r = removeTableLines(c, found);
     c = r instanceof HTMLCanvasElement ? r : r.canvas;
   }
   if(c.width !== canvas.width || c.height !== canvas.height){ console.warn('[DocFlow OCR] 글자 읽기용 이미지 크기가 달라져 결과 그대로 읽음'); return canvas; }
   return c;
 }
+
+// 처리 중 찾은 표 선(그 쪽 결과 좌표) — 정보 가리기에서 가림 상자를 칸 테두리 안으로 자르는 데 씀
+let pageTableLines = null;
+const GEOMETRY_STEPS = new Set(['signatureExtract', 'autoCrop', 'deskew', 'trimMargin', 'stampExtract']);
+const tableLineSegs = found=> found && found.segments
+  ? { h: found.segments.h.map(({ x1, y1, x2, y2, thick })=> ({ x1, y1, x2, y2, thick })), v: found.segments.v.map(({ x1, y1, x2, y2, thick })=> ({ x1, y1, x2, y2, thick })) }
+  : null;
 
 // 항상 이 순서로 적용 (체크 안 한 건 건너뜀)
 // signatureExtract는 사용자가 "원본 이미지" 좌표 기준으로 영역을 골랐기 때문에, 다른 단계가 크기를 바꾸기 전인
@@ -5914,6 +5956,7 @@ async function withPageSettings(image, ps, fn){
 async function processPage(image, ps, { page = 1, onStatus } = {}){
   return withPageSettings(image, ps, async ()=>{
     let canvas = cloneCanvasFromImage(image), ocr = null, redaction = null, stepNo = 0;
+    pageTableLines = null;
     const warnings = [];
     const status = text=> onStatus ? onStatus(text, stepNo, ps.checks.length) : null;
     for(const key of ps.checks){
@@ -5921,10 +5964,14 @@ async function processPage(image, ps, { page = 1, onStatus } = {}){
       await status(STEP_LABELS[key] || '처리하는 중…');
       if(key === 'redact'){
         // 글자를 못 읽었으면 자동 검출 없이 형광펜으로만 가릴 수 있음
-        redaction = { mode: ps.redact.mode, brush: ps.redact.brush, items: ocr ? detectSensitive(ocr) : [] };
+        // 표 선: 처리 중에 찾은 것(표 선 제거·OCR용 이미지)을 쓰고, 없으면 지금 결과에서 찾음 — 가림 상자를 칸 안으로 자름
+        const lines = pageTableLines || tableLineSegs(findTableLines(canvas));
+        redaction = { mode: ps.redact.mode, brush: ps.redact.brush, items: ocr ? detectSensitive(ocr) : [], lines };
         continue;
       }
       const result = await PROCESSORS[key](canvas, status, ps);
+      // 모양·크기가 바뀌는 단계 뒤에는 앞에서 찾은 표 선 좌표가 맞지 않음
+      if(GEOMETRY_STEPS.has(key)) pageTableLines = null;
       if(result instanceof HTMLCanvasElement){ canvas = result; continue; }
       canvas = result.canvas;
       if(result.warning) warnings.push(result.warning);
