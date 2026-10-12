@@ -4913,15 +4913,22 @@ let ocrWorkerPromise = null;
 let ocrProgress = null; // 지금 진행 중인 인식의 진행 알림 함수 — 엔진의 로그를 여기로 넘김
 let ocrQueue = Promise.resolve(); // 인식은 한 번에 하나씩 (엑셀에서 칸 여러 개를 연달아 부를 때)
 
+// 스크립트를 한 번만 불러옴. 실패한 태그는 지우고 새로 받음 — 예전엔 미리 받기가 실패하면 그 태그가 남아,
+// 다음 시도가 이미 실패한 태그의 "로드 완료"를 영원히 기다려 처리 중 표시가 끝나지 않았음
 function loadScriptOnce(src){
   return new Promise((resolve, reject)=>{
-    const found = [...document.scripts].find(s=>s.src === src);
-    if(found){ if(found.dataset.loaded) resolve(); else found.addEventListener('load', resolve); return; }
-    const s = document.createElement('script');
-    s.src = src;
-    s.onload = ()=>{ s.dataset.loaded = '1'; resolve(); };
-    s.onerror = ()=> reject(new Error('OCR 엔진 파일을 불러오지 못했어요'));
-    document.head.appendChild(s);
+    let el = [...document.scripts].find(s=> s.src === src);
+    if(el && el.dataset.loaded){ resolve(); return; }
+    if(el && el.dataset.failed){ el.remove(); el = null; }
+    if(!el){
+      el = document.createElement('script');
+      el.src = src;
+      el.addEventListener('load', ()=>{ el.dataset.loaded = '1'; });
+      el.addEventListener('error', ()=>{ el.dataset.failed = '1'; });
+      document.head.appendChild(el);
+    }
+    el.addEventListener('load', ()=> resolve(), { once: true });
+    el.addEventListener('error', ()=> reject(new Error('엔진 파일을 받지 못함: ' + src)), { once: true });
   });
 }
 
@@ -4933,23 +4940,60 @@ function wasmSimdSupported(){
 }
 
 // OCR 작업자 — 처음 한 번만 만들고 계속 재사용(언어 데이터를 다시 불러오지 않음).
-// 언어 데이터는 처음에만 내려받고, 다음부터는 엔진이 브라우저 저장소(IndexedDB)에 보관한 것을 씀
+// 언어 데이터는 엔진 자체 캐시(IndexedDB)를 쓰지 않고 브라우저의 일반 HTTP 캐시에 맡김(cacheMethod 'none') —
+// 엔진 캐시가 깨져 있으면 한국어 데이터를 못 열고도 실패를 알리지 않은 채 영어만으로 읽어 한글이 엉터리가 됐음.
+// 엔진·언어 파일은 이 사이트에서 받으므로 한 번 받은 뒤엔 브라우저가 그대로 다시 씀
+// ocrStage: 지금 어느 단계인지('script' 엔진 파일 → 'core' 엔진 시작 → 'lang' 언어 데이터 → 'init' 준비 → 'recognize' 인식)
+//           — 실패했을 때 원인에 맞는 안내를 띄우고 Console에 남기는 데 씀
+// ocrSafeMode: 한 번 실패한 뒤의 재시도 — 작업자를 blob 주소 대신 파일 주소로 만듦(blob 작업자가 막힌 환경일 경우)
+let ocrStage = 'idle', ocrSafeMode = false;
 function getOcrWorker(){
   if(!ocrWorkerPromise){
     ocrWorkerPromise = (async ()=>{
+      ocrStage = 'script';
       await loadScriptOnce(OCR_VENDOR + 'tesseract.min.js');
+      ocrStage = 'core';
       const core = wasmSimdSupported() ? 'tesseract-core-simd-lstm.wasm.js' : 'tesseract-core-lstm.wasm.js';
-      return Tesseract.createWorker(['kor', 'eng'], 1 /* LSTM */, {
+      // 엔진은 언어 파일을 못 받으면 오류만 알리고(errorHandler) 작업자 생성은 끝내지 않음 → 오류가 오면 바로 실패로
+      let failCreate;
+      const failed = new Promise((_, reject)=>{ failCreate = reject; });
+      const created = Tesseract.createWorker(['kor', 'eng'], 1 /* LSTM */, {
         workerPath: OCR_VENDOR + 'worker.min.js',
         corePath: OCR_VENDOR + core,
         langPath: OCR_VENDOR + 'lang',
         gzip: true,
-        logger: m=>{ if(ocrProgress) ocrProgress(m); },
+        cacheMethod: 'none',
+        ...(ocrSafeMode ? { workerBlobURL: false } : {}),
+        logger: m=>{
+          if(m.status === 'loading tesseract core') ocrStage = 'core';
+          else if(/language/.test(m.status || '')) ocrStage = 'lang';
+          else if(m.status === 'initializing api') ocrStage = 'init';
+          if(ocrProgress) ocrProgress(m);
+        },
+        errorHandler: e=>{ console.error('[DocFlow OCR] 작업자 오류', e); failCreate(e); },
       });
+      return Promise.race([created, failed]);
     })();
     ocrWorkerPromise.catch(()=>{ ocrWorkerPromise = null; }); // 실패하면 다음에 다시 시도할 수 있게
   }
   return ocrWorkerPromise;
+}
+// 작업자를 버리고 다음엔 안전 모드로 새로 만듦. 이전 작업자는 기다리지 않고 정리만 걸어 둠 —
+// 언어 파일을 못 받으면 엔진이 실패를 알리지 않고 멈춰 있어서, 끝나길 기다리면 재시도가 영영 시작되지 않았음
+function resetOcrWorker(){
+  const p = ocrWorkerPromise;
+  ocrWorkerPromise = null; ocrSafeMode = true;
+  if(p) p.then(w=> w.terminate(), ()=>{}).catch(()=>{});
+}
+// 실패 단계별 안내 — 엔진·언어 데이터는 이 사이트에서 받으므로 "인터넷 연결"은 실제로 끊겼을 때만 안내
+function ocrFailMessage(stage){
+  const tail = ' (자세한 오류는 개발자 도구 Console에 "[DocFlow OCR]"로 남겼어요)';
+  if(!navigator.onLine && (stage === 'script' || stage === 'core' || stage === 'lang'))
+    return '📝 인터넷 연결이 끊겨 있어서 글자 읽기 엔진을 받지 못했어요. 연결된 뒤 다시 처리해주세요. (처음 한 번은 약 8MB를 받아요)';
+  if(stage === 'script') return '📝 글자 읽기 엔진 파일을 불러오지 못했어요. 페이지를 새로고침한 뒤 다시 처리해주세요.' + tail;
+  if(stage === 'core') return '📝 글자 읽기 엔진을 시작하지 못했어요. 이 브라우저에서 WebAssembly가 막혀 있거나 메모리가 부족할 수 있어요. 크롬·엣지·사파리 최신 버전에서 다시 시도해주세요.' + tail;
+  if(stage === 'lang' || stage === 'init') return '📝 글자 읽기 언어 데이터(한국어·영어)를 불러오지 못했어요. 페이지를 새로고침한 뒤 다시 처리해주세요.' + tail;
+  return '📝 글자를 읽는 중에 오류가 났어요. 다시 처리해도 같으면 다른 브라우저에서 시도해주세요.' + tail;
 }
 
 // 어두운 바탕 + 밝은 글씨 영역(사진 01 파란 띠의 흰 글씨 같은 반전 글자) 찾기
@@ -5245,13 +5289,34 @@ function ocrRecognize(canvas, opts = {}){
       else report({ stage: 'load', progress: m.progress || 0 });
     };
     try{
-      report({ stage: 'load', progress: 0 });
-      const worker = await getOcrWorker();
-      report({ stage: 'recognize', progress: 0 });
-      // 세로쓰기 판단 끔 — 한국어 모델이 직인의 세로 글자·"결/재" 같은 배치를 보고 문단을 세로쓰기로 읽어
-      // 글자가 엉뚱하게 나왔음(지출결의서 쪽 정확도 26% → 끄면 70%)
-      await worker.setParameters({ tessedit_pageseg_mode: OCR_PSM[mode] || '4', textord_tabfind_vertical_text: '0' });
-      const { data } = await worker.recognize(prep.canvas, {}, { text: true, blocks: true });
+      // 엔진 준비 → 인식. 실패하면 엔진을 버리고 안전 모드(캐시 안 씀·파일 주소 작업자)로 한 번 더 시도.
+      // 엔진이 90초 동안 아무 진행도 알려오지 않으면 그 단계에서 실패로 봄(끝없이 기다리며 멈춰 있지 않게)
+      let lastTick = Date.now();
+      const prevProgress = ocrProgress;
+      ocrProgress = m=>{ lastTick = Date.now(); prevProgress(m); };
+      const watchdog = p=> new Promise((resolve, reject)=>{
+        lastTick = Date.now();
+        const t = setInterval(()=>{ if(Date.now() - lastTick > 90000){ clearInterval(t); reject(new Error(`응답 없음(90초) — ${ocrStage} 단계`)); } }, 2000);
+        p.then(v=>{ clearInterval(t); resolve(v); }, e=>{ clearInterval(t); reject(e); });
+      });
+      const attempt = ()=> watchdog((async ()=>{
+        report({ stage: 'load', progress: 0 });
+        const w = await getOcrWorker();
+        ocrStage = 'recognize';
+        report({ stage: 'recognize', progress: 0 });
+        // 세로쓰기 판단 끔 — 한국어 모델이 직인의 세로 글자·"결/재" 같은 배치를 보고 문단을 세로쓰기로 읽어
+        // 글자가 엉뚱하게 나왔음(지출결의서 쪽 정확도 26% → 끄면 70%)
+        await w.setParameters({ tessedit_pageseg_mode: OCR_PSM[mode] || '4', textord_tabfind_vertical_text: '0' });
+        return [w, (await w.recognize(prep.canvas, {}, { text: true, blocks: true })).data];
+      })());
+      let worker, data;
+      try{ [worker, data] = await attempt(); }
+      catch(e1){
+        console.warn(`[DocFlow OCR] ${ocrStage} 단계에서 실패 — 엔진을 새로 시작해 한 번 더 시도합니다`, e1);
+        resetOcrWorker();
+        try{ [worker, data] = await attempt(); }
+        catch(e2){ throw Object.assign(new Error(String(e2 && e2.message || e2)), { ocrStage, first: e1, cause: e2 }); }
+      }
       const rawLines = [];
       for(const bl of data.blocks || []) for(const pa of bl.paragraphs || []) for(const li of pa.lines || []) rawLines.push(li);
       let text = data.text || '';
@@ -5331,8 +5396,10 @@ const PROCESSORS = {
       }});
       return { canvas, ocr };
     }catch(err){
-      console.error(err);
-      return { canvas, warning: '📝 글자 읽기를 실행하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해주세요. (처음 한 번은 엔진을 내려받아야 해요)' };
+      const stage = err.ocrStage || ocrStage;
+      console.error('[DocFlow OCR] 글자 읽기 실패', { 단계: stage, 오류: err.cause || err, 첫시도오류: err.first,
+        엔진주소: OCR_VENDOR, 온라인: navigator.onLine, 브라우저: navigator.userAgent });
+      return { canvas, warning: ocrFailMessage(stage) };
     }
   },
   scanEffect: scanEffect,

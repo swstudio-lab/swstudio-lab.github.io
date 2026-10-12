@@ -4,6 +4,7 @@
        python works/docflow/tests/run_tests.py synthetic  (합성 이미지 테스트만)
        python works/docflow/tests/run_tests.py photo      (실제 사진 테스트만)
        python works/docflow/tests/run_tests.py ocr        (글자 읽기 정확도 비교만 — 몇 분 걸림)
+       python works/docflow/tests/run_tests.py serve      (실제 서버 환경에서 업로드→OCR 끝까지만)
 준비:  pip install playwright  →  python -m playwright install chromium
 
 · 합성 이미지 테스트: 사진 없이 브라우저에서 직접 그린 이미지로 검사 — 항상 실행
@@ -16,7 +17,7 @@
 
 페이지는 실제 사이트와 같은 경로 구조로 띄움: http://docflow.test/works/docflow/index.html, /assets/... = 저장소 루트
 """
-import base64, json, pathlib, re, sys, time, urllib.parse
+import base64, functools, http.server, json, pathlib, re, sys, threading, time, urllib.parse
 from playwright.sync_api import sync_playwright
 
 TESTS = pathlib.Path(__file__).resolve().parent
@@ -409,6 +410,65 @@ def run_ocr_tests(fresh_page, out_dir):
                                    '엉뚱한 영어 = 결과의 영문 덩어리(2자 이상) 중 정답에 없는 것. 영문·이메일 = 확인할 영문·이메일·주소 중 그대로 읽힌 것.\n\n' + table + '\n', encoding='utf-8')
     (od / 'summary.json').write_text(json.dumps({k: {w: {kk: vv for kk, vv in r[w].items() if kk != 'text'} for w in ('raw', 'proc')} for k, r in rows}, ensure_ascii=False, indent=1), encoding='utf-8')
     return fails, table
+# ---------------- 실제 서버 환경 (Live Server처럼) ----------------
+# 다른 테스트는 페이지 요청을 가로채 파일을 넣어 주지만, 여기서는 진짜 정적 서버를 띄움 — 저장소 루트를 사이트 루트로,
+# 확장자대로 Content-Type, gzip 자동 처리 없음(VS Code Live Server·깃허브 페이지와 같은 방식).
+# 사용자와 같은 흐름(파일 선택 → OCR 최적화 프리셋 → 처리하기)으로 OCR이 끝까지 되는지, 엔진·언어 파일을 못 받을 때
+# 멈추지 않고 원인에 맞는 안내가 나오는지 확인. (Live Server에서 "글자 읽기를 실행하지 못했어요"가 났던 일로 추가)
+def start_static_server():
+    class Quiet(http.server.SimpleHTTPRequestHandler):
+        def log_message(self, *a): pass
+    srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Quiet, directory=str(REPO)))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, f'http://127.0.0.1:{srv.server_address[1]}'
+
+def run_serve_tests(browser):
+    photo = PRIVATE / 'photo01.jpg'
+    if not photo.is_file():
+        print('  SKIP  tests/private/photo01.jpg 가 없어서 건너뜀')
+        return 0
+    srv, base = start_static_server()
+    fails = 0
+    cases = [
+        ('정상 — 업로드 → OCR 최적화 → 글자 읽기 끝까지', None, None),
+        ('엔진 파일을 못 받을 때 — 멈추지 않고 안내', 'tesseract.min.js', '엔진 파일'),
+        ('언어 파일을 못 받을 때 — 멈추지 않고 안내', 'kor.traineddata.gz', '언어 데이터'),
+    ]
+    try:
+        for name, block, want in cases:
+            ctx = browser.new_context(); pg = ctx.new_page()
+            errs = []
+            pg.on('pageerror', lambda e: errs.append(str(e)))
+            if block: pg.route(f'**/{block}', lambda r: r.fulfill(status=404, body='Not Found'))
+            t0 = time.time()
+            try:
+                pg.goto(base + '/works/docflow/index.html')
+                pg.evaluate("document.querySelectorAll('.notice-overlay').forEach(e=>e.classList.remove('show'))")
+                pg.set_input_files('#fileInput', str(photo))
+                pg.wait_for_function("/×/.test(document.getElementById('fileBadge').textContent)", timeout=60000)
+                pg.wait_for_timeout(800)
+                pg.click('.preset-card:has-text("OCR 최적화")')
+                pg.click('#processBtn'); pg.wait_for_timeout(300)
+                pg.wait_for_function("!document.getElementById('spinnerLine').classList.contains('show')", timeout=240000)
+                warn = pg.inner_text('#warningBox') if pg.is_visible('#warningBox') else ''
+                panel = pg.is_visible('#ocrPanel')
+                text = pg.input_value('#ocrTextArea') if panel else ''
+                w, h = pg.evaluate("[resultCanvas.width, resultCanvas.height]")
+                if want is None:
+                    ok = panel and not warn and len(re.findall(r'[가-힣]', text)) > 50 and w > h and not errs
+                    info = f'읽은 한글 {len(re.findall(r"[가-힣]", text))}자 · 결과 {w}x{h}(가로) · 안내 {warn or "없음"}'
+                else:
+                    ok = (not panel) and want in warn and '인터넷 연결을 확인' not in warn and not errs
+                    info = f'안내: {warn[:60]}…'
+            except Exception as e:
+                ok, info = False, f'오류/시간 초과: {str(e)[:120]}'
+            ctx.close()
+            fails += 0 if ok else 1
+            print(f"  {'PASS' if ok else 'FAIL'}  {name}  ({time.time()-t0:.0f}s)\n        {info}" + (f"\n        페이지 오류: {errs[:2]}" if errs else ''))
+    finally:
+        srv.shutdown()
+    return fails
+
 
 def main():
     sys.stdout.reconfigure(encoding='utf-8')  # Windows 콘솔(cp949)에서 한글·이모지 안내 문구 출력 오류 방지
@@ -481,6 +541,10 @@ def main():
                     print(f"  {'PASS' if ok else 'FAIL'}  {label}\n        {info}{extra}")
                 if out_dir.exists():
                     print(f'  결과 이미지: {out_dir}')
+        if which in ('all', 'serve'):
+            print('■ 실제 서버 환경 (Live Server처럼 띄워 업로드 → OCR)')
+            fails += run_serve_tests(browser)
+
         if which in ('all', 'ocr'):
             print('■ 글자 읽기(OCR) 정확도 비교')
             f_ocr, table = run_ocr_tests(fresh_page, out_dir)
