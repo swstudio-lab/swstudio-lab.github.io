@@ -99,7 +99,19 @@
   .draw-toolbar .btn-ghost{white-space:nowrap;flex-shrink:0;} /* 휴대폰에서 "지우기"가 세로로 꺾였음 */
 
   /* 프리셋 */
-  .preset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;}
+  /* 카드 5개 — 넓은 화면은 한 줄 5칸(빈 칸 없이), 중간 폭은 3개+2개,
+     휴대폰은 2칸 — 가장 자주 쓰는 문서 스캔을 맨 위 한 줄 전체로, 아래 2×2(마지막 카드가 혼자 남지 않게) */
+  .preset-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
+  @media(max-width:760px){
+    .preset-grid{grid-template-columns:repeat(6,1fr);}
+    .preset-card{grid-column:span 2;}
+    .preset-card:nth-child(n+4){grid-column:span 3;}
+  }
+  @media(max-width:560px){
+    .preset-grid{grid-template-columns:repeat(2,1fr);}
+    .preset-card, .preset-card:nth-child(n+4){grid-column:auto;}
+    .preset-card:first-child{grid-column:1 / -1;}
+  }
   .preset-card{
     background:var(--panel);border:1.5px solid var(--line);border-radius:14px;padding:16px 14px;
     text-align:center;cursor:pointer;transition:all .15s ease;
@@ -109,7 +121,8 @@
   .preset-card.locked{opacity:0.4;cursor:default;}
   .preset-emoji{font-size:24px;margin-bottom:8px;}
   .preset-name{font-size:12.5px;font-weight:600;}
-  .preset-tag{font-size:10.5px;color:var(--muted);margin-top:4px;line-height:1.45;}
+  /* 설명은 낱말 단위로 줄바꿈("이미/지"처럼 낱말 중간에서 끊기지 않게), 두 줄이면 길이를 고르게 */
+  .preset-tag{font-size:10.5px;color:var(--muted);margin-top:4px;line-height:1.45;word-break:keep-all;text-wrap:balance;}
 
   /* 세부 설정 접기 */
   .settings-fold > summary{list-style:none;}
@@ -332,7 +345,7 @@
   <div class="inapp-banner" id="inappBanner" role="status"></div>
   <div class="top">
     <div class="top-title">📄 DocFlow</div>
-    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-12-01</div>
+    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-12-02</div>
     <div class="top-sub">할 일을 고르고 이미지를 올리면 한 번에 정리해드려요.</div>
     <div class="badge-local">🔒 이 페이지에서 하는 모든 처리는 브라우저 안에서만 이뤄져요 — 서버로 업로드되지 않아요</div>
   </div>

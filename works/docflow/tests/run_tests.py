@@ -5,6 +5,7 @@
        python works/docflow/tests/run_tests.py photo      (실제 사진 테스트만)
        python works/docflow/tests/run_tests.py ocr        (글자 추출 정확도 비교만 — 몇 분 걸림)
        python works/docflow/tests/run_tests.py serve      (실제 서버 환경에서 업로드→OCR 끝까지만)
+       python works/docflow/tests/run_tests.py leak       (비공개 값 유출 검사만 — 몇 초, 어느 테스트를 돌려도 맨 먼저 함)
        python works/docflow/tests/run_tests.py redact     (정보 가리기 — 가상 문서 자동 검출·가린 저장본, redact-make는 가상 문서를 다시 그림)
 준비:  pip install playwright  →  python -m playwright install chromium
 
@@ -18,7 +19,7 @@
 
 페이지는 실제 사이트와 같은 경로 구조로 띄움: http://docflow.test/works/docflow/index.html, /assets/... = 저장소 루트
 """
-import base64, functools, http.server, json, pathlib, re, sys, threading, time, urllib.parse
+import base64, functools, http.server, json, pathlib, re, subprocess, sys, threading, time, urllib.parse
 from playwright.sync_api import sync_playwright
 
 TESTS = pathlib.Path(__file__).resolve().parent
@@ -785,7 +786,7 @@ def run_redact_tests(fresh_page, out_dir, remake=False):
     for f in ('photo01.jpg', 'photo01_original.jpg'):
         if (PRIVATE / f).is_file():
             cases.append((PRIVATE_URL + f, f, [], True, REDACT_PRESET, 'color', ()))
-    mask = lambda v: (v[:3] + '…') if v else v
+    mask = lambda v: (v[:1] + '…') if v else v   # 실제 값은 첫 글자만(한글 이름은 3자라 앞 3자면 이름 전체가 보였음)
     for url, file, expect, private, preset, scan, optional in cases:
             pg = fresh_page()
             t0 = time.time()
@@ -825,8 +826,8 @@ def run_redact_tests(fresh_page, out_dir, remake=False):
             if r['wrong']: print(f'        잘못 잡음: {", ".join(show(w) for w in r["wrong"])}')
             print(f"        가림 상자 {r['nRects']}개 — 네모 하나가 아닌 항목 {len(r['notOne'])}개 · 칸 밖으로 넘친 상자 {len(r['overflow'])}개 (표 선 {r['nLines']}개 기준)"
                   + (f" {r['notOne']} {r['overflow']}" if r['notOne'] or r['overflow'] else ''))
-            if r['emailShape']: print(f'        이메일 모양(점·@)이 글자 창에 남음: {", ".join(r["emailShape"])}')
-            if r['addrLeft']: print(f'        이메일 뒷부분이 안 가려짐: {", ".join(r["addrLeft"])}')
+            if r['emailShape']: print(f'        이메일 모양(점·@)이 글자 창에 남음: {", ".join(show(v) for v in r["emailShape"])}')
+            if r['addrLeft']: print(f'        이메일 뒷부분이 안 가려짐: {", ".join(show(v) for v in r["addrLeft"])}')
             print(f"        저장본 — 다시 읽어서 보인 값 {len(r['leaked'])}개{(' ' + ', '.join(show(v) for v in r['leaked'])) if r['leaked'] else ''}"
                   f" · 가린 자리 검정 아닌 픽셀 {r['notBlack']}/{r['px']} · PDF 문서 정보 {r['pdfInfo'] or '없음'} · PDF 글자 층 {'있음' if r['pdfText'] else '없음'}")
     pg = fresh_page()
@@ -904,12 +905,86 @@ def run_serve_tests(browser):
     return fails
 
 
+# ---------------- 비공개 값 유출 검사 ----------------
+# private/의 기대값 JSON(photo05_expected.json 등)에 적힌 실제 값이 저장소에 올라가는 파일(git이 추적하는 파일 +
+# 아직 추적 안 했지만 .gitignore에 없어 다음 커밋에 들어갈 수 있는 파일)에 들어 있으면 실패.
+# 2026-10-12 사진 05의 실제 이메일·담당자 이름이 테스트·주석·NOTES에 들어간 채 커밋됐던 일로 추가(올리기 전에 기록에서 지움).
+# 실제 값은 출력하지 않고 "파일:줄 (종류)"만 알려줌
+LEAK_SKIP_KEYS = ('_',)            # "_설명" 같은 설명용 키는 실제 값이 아님
+LEAK_ORG_COMMON = {'mail', 'www', 'ac', 'co', 'or', 'go', 're', 'ne', 'kr', 'com', 'net', 'org'}
+
+def private_leak_patterns():
+    pats = []
+    def add(kind, value):
+        if not isinstance(value, str) or len(value.strip()) < 3:
+            return
+        v = value.strip()
+        if re.fullmatch(r'[가-힣]{2,5}', v):          # 한글 이름 — 엔진이 글자마다 나눈 모양("가|나|다", "가 나 다")도
+            pats.append((kind, re.compile(r'[\s|]?'.join(map(re.escape, v)))))
+        elif re.fullmatch(r'[\d\s().+-]{9,}', v):     # 전화번호 — 구분자(-, ., 공백, 괄호)가 달라도
+            digits = re.sub(r'\D', '', v)
+            pats.append((kind, re.compile(r'[\s().-]?'.join(digits))))
+        else:
+            pats.append((kind, re.compile(re.escape(v), re.I)))
+            if '@' in v:                              # 이메일 — 아이디만, 기관 도메인만 들어가도(점이 빠진 OCR 모양 포함)
+                uid, dom = v.split('@', 1)
+                if len(uid) >= 3:
+                    pats.append((kind + ' 아이디', re.compile(r'(?<![\w.])' + re.escape(uid) + r'(?![\w])', re.I)))
+                for part in dom.split('.'):
+                    if len(part) >= 3 and part.lower() not in LEAK_ORG_COMMON:
+                        pats.append((kind + ' 도메인', re.compile(re.escape(part) + r'(?=\.?(?:ac|co|or|go|kr|com|net|org))', re.I)))
+    def walk(kind, node):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                if not k.startswith(LEAK_SKIP_KEYS): walk(k, v)
+        elif isinstance(node, list):
+            for v in node: walk(kind, v)
+        else:
+            add(kind, node)
+    files = sorted(PRIVATE.glob('*.json')) if PRIVATE.is_dir() else []
+    for f in files:
+        walk(f.stem, json.loads(f.read_text(encoding='utf-8')))
+    return files, pats
+
+def run_leak_check():
+    files, pats = private_leak_patterns()
+    if not pats:
+        print('  SKIP  비공개 값 유출 검사 — tests/private/ 에 기대값 JSON이 없어서 건너뜀')
+        return 0
+    git = lambda *a: subprocess.run(['git', *a, '-z'], cwd=REPO, capture_output=True).stdout.decode('utf-8').split('\0')
+    targets = sorted({f for f in git('ls-files') + git('ls-files', '--others', '--exclude-standard') if f})
+    found, checked = [], 0
+    for rel in targets:
+        fp = REPO / rel
+        if not fp.is_file() or fp.stat().st_size > 20_000_000:
+            continue
+        try:
+            text = fp.read_bytes().decode('utf-8')
+        except UnicodeDecodeError:
+            continue                                   # 그림·엔진 파일 등 글자가 아닌 파일
+        checked += 1
+        for i, line in enumerate(text.splitlines(), 1):
+            kinds = sorted({k for k, p in pats if p.search(line)})
+            if kinds: found.append(f'{rel}:{i} ({", ".join(kinds)})')
+    ok = not found
+    print(f"  {'PASS' if ok else 'FAIL'}  비공개 값 유출 검사 — 기대값 {len(files)}개 파일의 값 {len(pats)}가지 × 올라가는 글자 파일 {checked}개"
+          + ('' if ok else f'\n        실제 값이 들어 있는 곳 {len(found)}곳 (값은 출력하지 않음):'))
+    for loc in found[:50]: print(f'          {loc}')
+    if len(found) > 50: print(f'          … 외 {len(found) - 50}곳')
+    return 0 if ok else 1
+
+
 def main():
     sys.stdout.reconfigure(encoding='utf-8')  # Windows 콘솔(cp949)에서 한글·이모지 안내 문구 출력 오류 방지
     which = sys.argv[1] if len(sys.argv) > 1 else 'all'
+    # 비공개 값 유출 검사는 어느 테스트를 돌리든 맨 먼저(브라우저 없이 몇 초)
+    print('■ 비공개 값 유출 검사 (private 기대값의 실제 값이 저장소 파일에 있는지)')
+    fails = run_leak_check()
+    if which == 'leak':
+        print(f"\n{'모두 통과' if not fails else f'실패 {fails}건'}")
+        sys.exit(1 if fails else 0)
     photos_ready = PRIVATE.exists() and any(PRIVATE.glob('photo*.jpg'))
     out_dir = PRIVATE / 'results' / time.strftime('%Y%m%d-%H%M%S')
-    fails = 0
 
     def route(r):
         # 저장소 루트를 사이트 루트로 — index.html의 ../../assets/ (pdf.js·OCR 엔진 등)도 실제 사이트처럼 불러옴
