@@ -406,7 +406,7 @@
     </div>
     <div class="redact-panel" id="redactPanel">
       <div class="redact-title">🕶️ 가릴 부분을 고르세요</div>
-      <div class="redact-note">자동으로 찾은 개인정보는 <b>노란 테두리</b>로 미리 골라 뒀어요. 자동 찾기는 놓치거나 잘못 잡을 수 있으니
+      <div class="redact-note">자동으로 찾은 개인정보는 <b>노란 테두리</b>, 이름 후보는 <b style="color:#ff9f43;">주황 테두리</b>로 미리 골라 뒀어요. 자동 찾기는 놓치거나 잘못 잡을 수 있으니
         문서 전체를 꼭 확인해 주세요. 모든 처리는 이 기기 안에서만 해요.</div>
       <div class="redact-note" id="redactNoOcr" hidden>글자를 읽지 못해서 자동 찾기·단어 고르기를 할 수 없어요. 형광펜으로 가릴 곳을 칠해 주세요.</div>
       <div class="redact-tools" id="redactTools">
@@ -5486,6 +5486,7 @@ const REDACT_KINDS = {
   phone:   { icon:'📞', label:'전화번호' },
   account: { icon:'🏦', label:'계좌번호' },
   email:   { icon:'✉', label:'이메일' },
+  name:    { icon:'👤', label:'이름' },
   word:    { icon:'✏', label:'직접 고른 단어' },
   stroke:  { icon:'🖍', label:'형광펜으로 칠한 자리' },
 };
@@ -5527,6 +5528,54 @@ function redactWordGroups(ocr){
   });
   ocr.words.forEach((_, wi)=>{ if(!groupOf[wi]) groupOf[wi] = [wi]; });
   return groupOf;
+}
+
+// 이름 후보 — "성명·담당자·예금주…" 항목 이름 바로 뒤(같은 줄 = 표의 오른쪽 칸)의 이름처럼 보이는 단어.
+// 보이는 단어 묶음(redactWordGroups — 줄 글자의 띄어쓰기 기준)으로 셈: 엔진이 "홍|길|동|전|자우편"처럼 글자마다 나눠도
+// 이름 묶음과 옆 칸 "전자우편" 묶음이 섞이지 않음(글자 단위로 셌더니 이름 뒤에 "전"까지 붙었음).
+// 항목 이름이 "성 명"처럼 띄어 읽혀 두 묶음이 되어도 이어 붙여 봄
+const NAME_LABELS = new Set(['성명', '이름', '성함', '담당자', '예금주', '대표자', '수령인', '신청인', '작성자']);
+// 항목 이름 뒤에 와도 이름이 아닌 말(옆 칸 항목 이름 등)
+const NAME_STOP = new Set(['연락처', '전자우편', '이메일', '소속', '직위', '직급', '주소', '전화', '휴대폰', '부서', '기관', '학과', '서명', '날인',
+  '없음', '확인', '담당', '대표', '생년월일', '주민등록번호', '계좌', '계좌번호', '은행', '연락', '번호', '성명', '이름']);
+function detectNames(ocr, used){
+  const groupOf = redactWordGroups(ocr), items = [];
+  const gText = g=> g.map(i=> ocr.words[i].text).join('');
+  const bare = t=> t.replace(/[:：;]+$/, '');
+  const isLabel = t=> NAME_LABELS.has(bare(t));
+  ocr.lines.forEach((_, li)=>{
+    const groups = [];   // 이 줄의 묶음들(왼→오)
+    ocr.words.forEach((w, wi)=>{ if(w.line === li && groupOf[wi][0] === wi) groups.push(groupOf[wi]); });
+    for(let i = 0; i < groups.length; i++){
+      // 항목 이름(1묶음, 또는 띄어 읽힌 2묶음) — "담당자 성명 김가나"처럼 이어진 항목 이름은 모두 건너뜀
+      let j = i, hit = false;
+      for(;;){
+        if(j < groups.length && isLabel(gText(groups[j]))){ j += 1; hit = true; continue; }
+        if(j + 1 < groups.length && isLabel(gText(groups[j]) + gText(groups[j+1]))){ j += 2; hit = true; continue; }
+        if(j < groups.length && /^[:：]$/.test(gText(groups[j])) && hit){ j += 1; continue; }
+        break;
+      }
+      if(!hit || j >= groups.length) continue;
+      let words = [];
+      const t = gText(groups[j]).replace(/[(（].*$/, ''); // 이름 뒤에 붙은 괄호("홍길동(가상)")는 빼고 판단
+      if(/^[가-힣]{2,4}$/.test(t) && !NAME_STOP.has(t) && !/번호$/.test(t)) words = groups[j];
+      else if(/^[A-Z][A-Za-z'-]+$/.test(t)){
+        // 영문 이름: 다음 한글 칸·괄호 전까지 최대 3묶음 (성이 "53010!0"처럼 잘못 읽혀도 함께 가리도록 모양은 따지지 않음)
+        for(let k = j; k < groups.length && k < j + 3; k++){
+          const gt = gText(groups[k]), core = gt.replace(/[(（].*$/, ''); // 붙은 괄호("(가상)")는 빼고 판단
+          if(k > j && (!core || /[가-힣]/.test(core))) break;
+          words.push(...groups[k]);
+          if(/[(（]/.test(gt)) break;
+        }
+      }
+      if(!words.length) continue;
+      if(words.some(wi=> (ocr.words[wi].chars || []).some((c, ci)=> used.has(wi + ',' + ci)))) continue;
+      words.forEach(wi=> (ocr.words[wi].chars || []).forEach((c, ci)=> used.add(wi + ',' + ci)));
+      items.push({ id: newRedactId(), kind: 'name', auto: true, words, partial: [], text: words.map(wi=> ocr.words[wi].text).join(' ') });
+      i = j;
+    }
+  });
+  return items;
 }
 
 // 자동 검출 — 개인정보로 보이는 것을 "제안" 항목으로 (미리 선택)
@@ -5603,6 +5652,8 @@ function detectSensitive(ocr){
     const fixed = (ocr.addrFixes || []).some(x=> text.includes(x.to));
     items.push({ id: newRedactId(), kind: 'email', auto: true, words, partial: [], text, fixed });
   });
+  // 이름 후보: 확신이 낮아 목록에 "이름 후보"로 표시(주황 테두리)
+  items.push(...detectNames(ocr, used));
   return items;
 }
 
@@ -5618,6 +5669,14 @@ function redactionShapes(ocr, red){
         const b = byWord.get(wi) || { x0: Infinity, x1: -Infinity }; b.x0 = Math.min(b.x0, c.bbox.x0); b.x1 = Math.max(b.x1, c.bbox.x1); byWord.set(wi, b); }
       for(const [wi, b] of byWord){ const wb = ocr.words[wi].bbox; rects.push(padR({ x0: b.x0, y0: wb.y0, x1: b.x1, y1: wb.y1 })); }
       if(byWord.size) continue; // 글자 위치가 없으면 아래에서 단어 전체를 가림(안전한 쪽으로)
+    }
+    // 이메일은 줄마다 처음~끝을 한 상자로 — 단어 사이 틈으로 점·@가 보이면 주소 모양이 드러남
+    if(it.kind === 'email'){
+      const byLine = new Map();
+      for(const wi of it.words){ const w = ocr.words[wi]; if(!w) continue; const b = byLine.get(w.line);
+        byLine.set(w.line, b ? { x0: Math.min(b.x0, w.bbox.x0), y0: Math.min(b.y0, w.bbox.y0), x1: Math.max(b.x1, w.bbox.x1), y1: Math.max(b.y1, w.bbox.y1) } : { ...w.bbox }); }
+      for(const b of byLine.values()) rects.push(padR(b));
+      continue;
     }
     for(const wi of it.words) if(ocr.words[wi]) rects.push(padR(ocr.words[wi].bbox));
   }
@@ -5665,34 +5724,50 @@ function strokeHitsBox(points, width, b){
 }
 
 // 읽은 글자에서 가린 부분을 ■로 — 가린 단어는 전부, 일부만 가리기면 그 글자만, 형광펜이 지나간 단어도 전부
+// 이메일은 길이·모양(점·@ 위치)이 드러나지 않게 처음~끝(단어 사이 점 포함)을 고정 길이 ■로
+const REDACT_EMAIL_MASK = '■'.repeat(8);
 function redactOcrText(ocr, red){
   if(!red || !red.items.length) return ocr.text;
-  const full = new Set(), part = new Map(); // part: 단어 → 가릴 글자 번호들
+  const full = new Set(), part = new Map(), email = new Map(); // part: 단어 → 가릴 글자 번호들, email: 단어 → 이메일 항목
   for(const it of red.items){
     if(it.kind === 'stroke'){ ocr.words.forEach((w, wi)=>{ if(strokeHitsBox(it.points, it.width, w.bbox)) full.add(wi); }); continue; }
+    if(it.kind === 'email'){ it.words.forEach(wi=> email.set(wi, it.id)); continue; }
     if(red.mode === 'partial' && it.partial && it.partial.length && it.partial.every(([wi, ci])=> ocr.words[wi] && ocr.words[wi].chars)){
       for(const [wi, ci] of it.partial){ if(!part.has(wi)) part.set(wi, new Set()); part.get(wi).add(ci); }
       continue;
     }
     it.words.forEach(wi=> full.add(wi));
   }
-  // 줄마다 단어 글자를 순서대로 찾아 바꿈(같은 글자가 여러 번 나와도 앞에서부터 차례로)
   const out = ocr.lines.map((ln, li)=>{
-    let t = ln.text, from = 0;
+    const t = ln.text;
+    // 줄 글자에서 단어마다 자리를 앞에서부터 차례로 찾음(같은 글자가 여러 번 나와도)
+    const spans = []; let from = 0;
     ocr.words.forEach((w, wi)=>{
       if(w.line !== li) return;
       const at = t.indexOf(w.text, from);
       if(at < 0) return;
-      let rep = w.text;
+      from = at + w.text.length;
+      let rep = null;
       if(full.has(wi)) rep = '■'.repeat(w.text.length);
       else if(part.has(wi)){
         const hide = part.get(wi), chars = w.chars ? w.chars.map(c=> c.t) : [...w.text];
         rep = chars.join('') === w.text ? chars.map((c, ci)=> hide.has(ci) ? '■'.repeat(c.length) : c).join('') : '■'.repeat(w.text.length);
       }
-      t = t.slice(0, at) + rep + t.slice(at + w.text.length);
-      from = at + rep.length;
+      spans.push({ a: at, b: from, rep, email: email.get(wi) });
     });
-    return (ln.para && li ? '\n' : '') + t;
+    // 같은 이메일의 단어들은 사이(되살린 점·공백)까지 한 덩어리로
+    const merged = [];
+    for(const sp of spans){
+      const last = merged[merged.length - 1];
+      if(sp.email && last && last.email === sp.email){ last.b = sp.b; continue; }
+      merged.push({ ...sp });
+    }
+    let res = '', pos = 0;
+    for(const sp of merged){
+      if(!sp.email && sp.rep == null) continue;
+      res += t.slice(pos, sp.a) + (sp.email ? REDACT_EMAIL_MASK : sp.rep); pos = sp.b;
+    }
+    return (ln.para && li ? '\n' : '') + res + t.slice(pos);
   });
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
@@ -6032,7 +6107,7 @@ function drawRedactCanvas(){
   x.lineWidth = Math.max(2, 2*k);
   for(const it of p.red.items){
     if(it.kind === 'stroke') continue;
-    x.strokeStyle = it.auto ? '#f5c518' : '#e5484d';
+    x.strokeStyle = !it.auto ? '#e5484d' : it.kind === 'name' ? '#ff9f43' : '#f5c518'; // 이름 후보는 주황(확인 필요)
     for(const wi of it.words){ const w = p.ocr.words[wi]; if(!w) continue; const b = w.bbox, d = REDACT_PAD + k;
       x.strokeRect(b.x0 - d, b.y0 - d, b.x1 - b.x0 + 2*d, b.y1 - b.y0 + 2*d); }
   }
@@ -6147,7 +6222,7 @@ function renderRedactList(){
   };
   for(const it of red.items){
     if(it.kind === 'stroke') continue;
-    row(it.kind, redactItemPreview(ocr, red, it), it.auto ? (it.fixed ? '자동, 점 되살림' : '자동') : '',
+    row(it.kind, redactItemPreview(ocr, red, it), it.kind === 'name' && it.auto ? '이름 후보 — 확인' : it.auto ? (it.fixed ? '자동, 점 되살림' : '자동') : '',
       ()=> redactRemove(x=> x === it), ()=> scrollToRedactItem(it));
   }
   if(strokes.length) row('stroke', `${strokes.length}곳`, '', ()=> redactRemove(x=> x.kind === 'stroke'), ()=> scrollToRedactItem(strokes[strokes.length-1]));

@@ -432,7 +432,7 @@ REDACT_DOCS = {
             ('s', '이 문서는 테스트용 가상 데이터입니다 · SAMPLE'),
         ],
         'expect': [('account', '123-456789-01-234'), ('rrn', '900101-1234567'), ('phone', '010-2345-6789'),
-                   ('email', 'gildong.hong@example.com'), ('phone', '02-123-4567')],
+                   ('email', 'gildong.hong@example.com'), ('phone', '02-123-4567'), ('name', '홍길동')],
     },
     'redact_lecture_pay': {
         'size': (1654, 2000),
@@ -440,15 +440,15 @@ REDACT_DOCS = {
             ('title', '강사료 지급 명세서 (가상 데이터 · SAMPLE)'),
             ('b', '업체명: 한빛교육컨설팅(가상)   사업자등록번호: 123-45-67890 (가상)'),
             ('b', '지급일: 2026-09-30   총 지급액: 1,500,000원 (가상)'),
-            ('h', '1. 홍길동(가상)'),
+            ('h', '1. 성명: 홍길동(가상)'),
             ('b', '주민등록번호 850315-2345671 (가상)   휴대폰 010-3456-7890 (가상)'),
             ('b', '가나은행 계좌 110-234-567890 (가상)   이메일 hong.gd@example.org'),
             ('b', '지급액 500,000원 (원천징수 16,500원)'),
-            ('h', '2. 김가나(가상)'),
+            ('h', '2. 성명: 김가나(가상)'),
             ('b', '주민등록번호 920720-1357913 (가상)   휴대폰 010-4567-8901 (가상)'),
             ('b', '다라은행 계좌 352-0123-4567-83 (가상)   이메일 kim.gana@example.com'),
             ('b', '지급액 600,000원'),
-            ('h', '3. John Sample(가상)'),
+            ('h', '3. 성명: John Sample(가상)'),
             ('b', '외국인등록번호 880412-5246803 (가상)   휴대폰 010-5678-9012 (가상)'),
             ('b', '마바은행 계좌 1002-345-678901 (가상)   이메일 john.sample@example.org'),
             ('b', '지급액 400,000원'),
@@ -456,7 +456,8 @@ REDACT_DOCS = {
         ],
         'expect': [('rrn', '850315-2345671'), ('phone', '010-3456-7890'), ('account', '110-234-567890'), ('email', 'hong.gd@example.org'),
                    ('rrn', '920720-1357913'), ('phone', '010-4567-8901'), ('account', '352-0123-4567-83'), ('email', 'kim.gana@example.com'),
-                   ('frn', '880412-5246803'), ('phone', '010-5678-9012'), ('account', '1002-345-678901'), ('email', 'john.sample@example.org')],
+                   ('frn', '880412-5246803'), ('phone', '010-5678-9012'), ('account', '1002-345-678901'), ('email', 'john.sample@example.org'),
+                   ('name', '홍길동'), ('name', '김가나'), ('name', 'John Sample')],
     },
 }
 REDACT_PRESET = ['autoCrop', 'scanEffect', 'denoise', 'ocrText']
@@ -490,7 +491,8 @@ REDACT_RUN_JS = r"""
   const ocr = lastOcrPages[0];
   if(!ocr) return { ok: false, info: '글자 읽기 결과 없음 ' + (r.warning || '') };
   const items = detectSensitive(ocr);
-  const norm = s=> normDigits(s).toLowerCase().replace(/[^0-9a-z@.]/g, '');
+  // 비교용: 붙은 괄호("홍길동(가상)")는 빼고, 숫자 자리 오인식 맞추고, 글자·숫자·@·점만
+  const norm = s=> normDigits(s.replace(/[(（][^)）]*[)）]?/g, '')).toLowerCase().replace(/[^0-9a-z@.가-힣]/g, '');
   const lev = (a, b)=>{ let p = [...Array(b.length+1).keys()], c = []; for(let i=1;i<=a.length;i++){ c=[i]; for(let j=1;j<=b.length;j++) c[j]=Math.min(p[j]+1,c[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1)); p=c; } return p[b.length]; };
   // 기대값마다 같은 종류의 자동 검출 중 글자가 같은 것(이메일은 편집거리 2 이하)을 찾고,
   // 남은 것은 같은 종류끼리 순서대로 짝지음 — 글자는 틀리게 읽혔어도 그 자리를 잡아 가리는 것("읽기 틀림")
@@ -511,6 +513,8 @@ REDACT_RUN_JS = r"""
   const readable = expect.filter(([k, v])=> textN.includes(norm(v))).length;
   // 전체 가리기 글자 창에서 ■ 바로 뒤에 주소 조각(kr·com·…)이 남으면 이메일 뒷부분을 덜 가린 것
   const fullText = redactOcrText(ocr, { mode: 'full', items });
+  // 이메일은 길이·모양이 드러나지 않게 ■ 덩어리 하나로 — ■ 옆에 점·@가 남으면 모양이 드러난 것
+  const emailShape = [...fullText.matchAll(/■+[.@]+■*|[.@]+■+/g)].map(m=> m[0]);
   const addrLeft = [...fullText.matchAll(/■\s?(\.?[A-Za-z0-9-]*\.?(?:kr|com|net|org))/g)].map(m=> m[1]);
   // 일부만 가리기 — 텍스트 창 글자
   const partText = redactOcrText(ocr, { mode: 'partial', items });
@@ -536,7 +540,7 @@ REDACT_RUN_JS = r"""
   const pdfInfo = [...pdfS.matchAll(/\/(Producer|CreationDate|ModDate|Creator|Title|Author|Subject|Keywords) \(([^)]*)\)/g)].filter(m=> m[2].trim()).map(m=> m[1]);
   const pdfDoc = await pdfjsLib.getDocument({ data: pdfBytes.slice() }).promise;
   const pdfText = (await (await pdfDoc.getPage(1)).getTextContent()).items.length > 0;
-  return { ok: true, found, wrong, leaked, readable, addrLeft, notBlack, px, pdfInfo, pdfText, partText, text: ocr.text, size: r.canvas.width + 'x' + r.canvas.height,
+  return { ok: true, found, wrong, leaked, readable, addrLeft, emailShape, notBlack, px, pdfInfo, pdfText, partText, text: ocr.text, size: r.canvas.width + 'x' + r.canvas.height,
            images: { preview: T.png(applyRedaction(r.canvas, ocr, red, { preview: true })), saved: T.png(out) } };
 """
 
@@ -562,14 +566,19 @@ REDACT_UI_JS = r"""
   const wordAt = re=> P.ocr.words.findIndex(w=> re.test(w.text));
   const center = wi=>{ const b = P.ocr.words[wi].bbox; return toClient((b.x0+b.x1)/2, (b.y0+b.y1)/2); };
   // ① 단어 누르기 → 선택, 다시 누르기 → 해제, 되돌리기 → 다시 선택
-  // 이름은 엔진이 "홍 | 길 | 동"처럼 글자마다 나누기도 함 — 가운데 글자를 눌러도 이름 전체가 골라져야 함
+  // 예금주 이름은 "이름 후보"로 미리 골라져 있음 → 목록에 "이름 후보" 표시
+  if(!items().some(it=> it.kind === 'name')) fail.push('예금주 이름 후보 없음');
+  if(![...$('redactList').children].some(el=> el.textContent.includes('이름 후보'))) fail.push('목록에 "이름 후보" 표시 없음');
+  // 이름은 엔진이 "홍 | 길 | 동"처럼 글자마다 나누기도 함 — 가운데 글자를 눌러 해제, 다시 누르면 이름 전체가 골라져야 함
   const wName = wordAt(/길/);
   cv.dispatchEvent(new MouseEvent('click', { bubbles: true, ...center(wName) }));
-  if(items().length !== nAuto + 1 || items().at(-1).kind !== 'word') fail.push('단어 누르기로 선택 안 됨');
+  if(items().some(it=> it.kind === 'name') || items().length !== nAuto - 1) fail.push('이름 후보를 눌러도 해제 안 됨');
+  cv.dispatchEvent(new MouseEvent('click', { bubbles: true, ...center(wName) }));
+  if(items().length !== nAuto || items().at(-1).kind !== 'word') fail.push('단어 누르기로 선택 안 됨');
   else { const t = items().at(-1).words.map(i=> P.ocr.words[i].text).join(''); log.push(`"길"을 눌러 고른 것: ${t}`); if(!t.includes('홍길동')) fail.push('이름 일부만 골라짐: ' + t); }
   cv.dispatchEvent(new MouseEvent('click', { bubbles: true, ...center(wName) }));
-  if(items().length !== nAuto) fail.push('다시 눌러도 해제 안 됨');
-  redactUndo(); if(items().length !== nAuto + 1) fail.push('되돌리기(해제 취소) 안 됨');
+  if(items().length !== nAuto - 1) fail.push('다시 눌러도 해제 안 됨');
+  redactUndo(); if(items().length !== nAuto) fail.push('되돌리기(해제 취소) 안 됨');
   // 자동 검출을 눌러 해제 → 되돌리기
   const wRrn = P.ocr.words.findIndex((w, i)=> items().some(it=> it.kind === 'rrn' && it.words.includes(i)));
   cv.dispatchEvent(new MouseEvent('click', { bubbles: true, ...center(wRrn) }));
@@ -580,7 +589,7 @@ REDACT_UI_JS = r"""
   const ta = $('ocrTextArea').value;
   if(!/900101-1■{6}/.test(ta)) fail.push('일부만: 주민번호 글자 창 ' + (ta.match(/900101\S*/) || ['없음'])[0]);
   if(!/010-■{4}-6789/.test(ta)) fail.push('일부만: 전화 글자 창');
-  if(!ta.includes('■■■■■■■') ) fail.push('일부만: 이메일이 전부 가려지지 않음');
+  if(!/이메일: ■{8} /.test(ta)) fail.push('일부만: 이메일이 ■ 덩어리 하나로 가려지지 않음');
   if(/홍길동/.test(ta)) fail.push('직접 고른 이름이 글자 창에 보임');
   document.querySelector('[data-rmode="full"]').click();
   if(!/주민등록번호:? ■{14} /.test($('ocrTextArea').value)) fail.push('전체: 주민번호가 다 가려지지 않음');
@@ -665,7 +674,8 @@ def run_redact_tests(fresh_page, out_dir, remake=False):
     if (PRIVATE / 'photo05.jpg').is_file() and exp05.is_file():
         e = json.loads(exp05.read_text(encoding='utf-8'))
         cases.append((PRIVATE_URL + 'photo05.jpg', 'photo05.jpg',
-                       [('phone', v) for v in e.get('phones', [])] + [('email', v) for v in e['en'] if '@' in v], True))
+                       [('phone', v) for v in e.get('phones', [])] + [('email', v) for v in e['en'] if '@' in v]
+                       + [('name', v) for v in e.get('names', [])], True))
     else:
         print('  SKIP  photo05.jpg — tests/private/ 에 사진·기대값이 없어서 건너뜀')
     # 실제 사진 01 — 개인정보가 없는 예산 표(손글씨 취소선 칸 있음). 아무것도 잡히면 안 됨("Zzms@o0"를 이메일로 잡았었음)
@@ -697,7 +707,7 @@ def run_redact_tests(fresh_page, out_dir, remake=False):
             # 판정: 깨끗한 가상 문서와 사진 05는 모두 찾고 잘못 잡은 것 없어야 함. 가상 사진 합성은 기록만
             strict = not file.endswith('_photo.jpg')
             ok_detect = (hit == len(r['found']) and not r['wrong']) if strict else True
-            ok_save = not r['leaked'] and not r['addrLeft'] and r['notBlack'] == 0 and not r['pdfInfo'] and not r['pdfText']
+            ok_save = not r['leaked'] and not r['addrLeft'] and not r['emailShape'] and r['notBlack'] == 0 and not r['pdfInfo'] and not r['pdfText']
             ok = ok_detect and ok_save
             fails += 0 if ok else 1
             kinds = ' · '.join(f'{REDACT_LABEL.get(k, k)} {a[0]}/{a[1]}' for k, a in by.items())
@@ -709,6 +719,7 @@ def run_redact_tests(fresh_page, out_dir, remake=False):
             misread = [f"{show(f['val'])} → {show(f['misread'])}" for f in r['found'] if f.get('misread')]
             if misread: print(f'        읽기 틀림(자리는 잡아 가림): {", ".join(misread)}')
             if r['wrong']: print(f'        잘못 잡음: {", ".join(show(w) for w in r["wrong"])}')
+            if r['emailShape']: print(f'        이메일 모양(점·@)이 글자 창에 남음: {", ".join(r["emailShape"])}')
             if r['addrLeft']: print(f'        이메일 뒷부분이 안 가려짐: {", ".join(r["addrLeft"])}')
             print(f"        저장본 — 다시 읽어서 보인 값 {len(r['leaked'])}개{(' ' + ', '.join(show(v) for v in r['leaked'])) if r['leaked'] else ''}"
                   f" · 가린 자리 검정 아닌 픽셀 {r['notBlack']}/{r['px']} · PDF 문서 정보 {r['pdfInfo'] or '없음'} · PDF 글자 층 {'있음' if r['pdfText'] else '없음'}")
@@ -725,7 +736,7 @@ def run_redact_tests(fresh_page, out_dir, remake=False):
         print('  종류별 합계(깨끗한 이미지+사진): ' + ' · '.join(f'{REDACT_LABEL.get(k, k)} {a[0]}/{a[1]}' for k, a in total.items()))
         print(f'  결과: {od}')
     return fails
-REDACT_LABEL = {'rrn': '주민', 'frn': '외국인', 'phone': '전화', 'account': '계좌', 'email': '이메일'}
+REDACT_LABEL = {'rrn': '주민', 'frn': '외국인', 'phone': '전화', 'account': '계좌', 'email': '이메일', 'name': '이름 후보'}
 
 # ---------------- 실제 서버 환경 (Live Server처럼) ----------------
 # 다른 테스트는 페이지 요청을 가로채 파일을 넣어 주지만, 여기서는 진짜 정적 서버를 띄움 — 저장소 루트를 사이트 루트로,
