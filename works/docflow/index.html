@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DocFlow — 문서 이미지 전처리</title>
+<title>DocFlow — 문서 스캔·글자 추출·정보 가리기</title>
 <link rel="icon" type="image/svg+xml" href="../../assets/favicon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="../../assets/favicon-32.png">
 <link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
@@ -109,7 +109,24 @@
   .preset-card.locked{opacity:0.4;cursor:default;}
   .preset-emoji{font-size:24px;margin-bottom:8px;}
   .preset-name{font-size:12.5px;font-weight:600;}
-  .preset-tag{font-size:10px;color:var(--muted);margin-top:4px;}
+  .preset-tag{font-size:10.5px;color:var(--muted);margin-top:4px;line-height:1.45;}
+
+  /* 세부 설정 접기 */
+  .settings-fold > summary{list-style:none;}
+  .settings-fold > summary::-webkit-details-marker{display:none;}
+  .settings-summary{cursor:pointer;font-size:14px;font-weight:700;color:var(--ink);padding:12px 14px;background:var(--panel);
+    border:1px solid var(--line);border-radius:12px;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;}
+  .settings-summary::after{content:'▾';margin-left:auto;color:var(--muted);font-weight:400;}
+  .settings-fold[open] > .settings-summary::after{content:'▴';}
+  .settings-sum-text{font-size:12px;font-weight:400;color:var(--muted);}
+  .process-hint{text-align:center;}
+
+  /* 준비 중 화면 */
+  .soon-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:28px 20px;text-align:center;}
+  .soon-emoji{font-size:34px;margin-bottom:10px;}
+  .soon-title{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:8px;}
+  .soon-desc{font-size:13px;color:var(--muted);line-height:1.6;}
+  .soon-list{text-align:left;display:inline-block;margin:14px auto 0;padding-left:18px;font-size:12.5px;color:var(--muted);line-height:1.8;}
 
   /* 업로드 */
   .drop-zone{
@@ -217,7 +234,7 @@
   }
   .info-box.show{display:block;}
 
-  /* 글자 읽기(OCR) 결과 */
+  /* 글자 추출(OCR) 결과 */
   .ocr-panel{display:none;margin-top:18px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;}
   .ocr-panel.show{display:block;}
   .ocr-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px;}
@@ -315,14 +332,15 @@
   <div class="inapp-banner" id="inappBanner" role="status"></div>
   <div class="top">
     <div class="top-title">📄 DocFlow</div>
-    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-08-03</div>
-    <div class="top-sub">문서 이미지를 업로드하고 필요한 처리만 체크하면 한 번에 정리해드려요.</div>
+    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-12-01</div>
+    <div class="top-sub">할 일을 고르고 이미지를 올리면 한 번에 정리해드려요.</div>
     <div class="badge-local">🔒 이 페이지에서 하는 모든 처리는 브라우저 안에서만 이뤄져요 — 서버로 업로드되지 않아요</div>
   </div>
 
   <div class="mode-toggle" id="modeToggle">
-    <button class="mode-btn active" data-mode="extract">이미지 업로드해서 처리하기</button>
-    <button class="mode-btn" data-mode="generate">이름 입력해서 만들기</button>
+    <button class="mode-btn active" data-mode="extract">문서 처리</button>
+    <button class="mode-btn" data-mode="table">표 → 엑셀</button>
+    <button class="mode-btn" data-mode="generate">도장·서명 만들기</button>
   </div>
 
   <div id="extractMode">
@@ -353,10 +371,11 @@
     <div class="gen-hint" id="sigSelectStatus" style="margin-top:8px;"></div>
   </div>
 
-  <div class="section">
-    <div class="section-title">2. 처리할 항목 선택</div>
+  <!-- 세부 설정 — 평소엔 접어 둠. 카드를 고르면 자동으로 맞춰지고, 바꾸고 싶은 사람만 펼쳐서 조정 -->
+  <details class="section settings-fold" id="settingsFold">
+    <summary class="settings-summary">⚙️ 세부 설정 <span class="settings-sum-text" id="settingsSummary"></span></summary>
     <div id="sectionsWrap"></div>
-  </div>
+  </details>
 
   <div class="section" id="cornerSection" style="display:none;">
     <div class="section-title">📐 문서 모서리</div>
@@ -385,11 +404,12 @@
   </div>
 
   <div class="section">
-    <div class="section-title">3. 저장 형식</div>
+    <div class="section-title">2. 저장 형식</div>
     <div class="format-row" id="formatRow"></div>
   </div>
 
   <button class="btn-primary" id="processBtn" disabled>처리하기</button>
+  <div class="gen-hint process-hint" id="processHint"></div>
   <div class="spinner-line" id="spinnerLine"><span class="spinner-dot"></span> <span id="spinnerText">처리하는 중이에요...</span></div>
   <div class="warning-box" id="warningBox"></div>
 
@@ -448,6 +468,20 @@
   </div>
 
   </div><!-- /extractMode -->
+
+  <!-- 표 → 엑셀 — 준비 중 -->
+  <div id="tableMode" style="display:none;">
+    <div class="soon-card">
+      <div class="soon-emoji">📊</div>
+      <div class="soon-title">표를 엑셀로 — 준비 중이에요</div>
+      <div class="soon-desc">사진이나 화면 캡처 속 표를 칸 그대로 읽어서, 엑셀에 바로 붙여넣을 수 있게 준비하고 있어요.</div>
+      <ul class="soon-list">
+        <li>기울어진 사진도 표 선을 찾아 칸을 나눠요</li>
+        <li>읽기 애매한 칸은 따로 표시해서 확인할 수 있게 할 거예요</li>
+        <li>이 기능도 모든 처리를 이 기기 안에서만 해요</li>
+      </ul>
+    </div>
+  </div>
 
   <div id="generateMode" style="display:none;">
 
@@ -684,15 +718,15 @@ function saveBlobFile(blob, filename){
 })();
 
 // 화면에 보이는 처리 항목(7개). 작은 보정 단계는 항목 안에 포함해 함께 실행(INCLUDES) — 함수·처리 순서는 그대로
-//  (2026-10-12 정리: 배경 제거(준비중)·흑백 변환(스캔 효과 흑백과 중복)·명암 보정·선명도 향상(보고서 삽입 카드가 없어짐)·
-//   기울기 자동 보정(원근 보정에 포함)은 화면에서 뺌. 노이즈 제거는 스캔 효과에, 여백 정리는 도장 추출·OCR 최적화 안에)
+//  (2026-10-12 정리: 배경 제거(준비중)·흑백 변환(스캔 효과 흑백과 중복)·명암 보정·선명도 향상(쓰던 카드가 없어짐)·
+//   기울기 자동 보정(원근 보정에 포함)은 화면에서 뺌. 노이즈 제거는 스캔 효과에, 여백 정리는 도장 추출·글자 추출 카드 안에)
 const SECTIONS = [
   { title:'문서 정리', items:[
-    {id:'autoCrop', name:'문서 자동 크롭 · 원근 보정', desc:'사진 속 종이의 테두리를 찾아서, 비스듬히 찍혔으면 반듯한 직사각형으로 펴고 배경을 잘라내요. 테두리가 없는 스캔본이 기울어졌으면 기울기만 바로잡아요. 글자 방향을 보고 똑바로 세워줘요. (모서리를 확실하게 못 찾으면 펴지 않아요)', ready:true},
+    {id:'autoCrop', name:'반듯하게 펴기 (크롭·원근 보정)', desc:'사진 속 종이의 테두리를 찾아서, 비스듬히 찍혔으면 반듯한 직사각형으로 펴고 배경을 잘라내요. 테두리가 없는 스캔본이 기울어졌으면 기울기만 바로잡아요. 글자 방향을 보고 똑바로 세워줘요. (모서리를 확실하게 못 찾으면 펴지 않아요)', ready:true},
     {id:'scanEffect', name:'스캔 효과 (그림자·잡티 제거)', desc:'그림자와 누런·푸르스름한 조명색을 지워 배경을 하얗게, 글자와 표 선은 또렷하게 만들고 잡티·얼룩도 줄여요. 스캐너로 스캔한 것처럼 보여요.', ready:true},
     {id:'removeLines', name:'표 선 제거', desc:'표의 테두리 선을 지워요. 사진이 기울어져 있어도 돼요. 글자·색칠된 칸·손으로 그은 밑줄이나 체크 표시는 남겨요.', ready:true},
-    {id:'ocrText', name:'글자 읽기 (OCR)', desc:'처리한 결과에서 한글·영문을 읽어 텍스트로 꺼내요. 문서는 기기 밖으로 나가지 않아요. (처음 한 번 약 8MB를 내려받고, 다음부터는 바로 시작해요)', ready:true},
-    {id:'redact', name:'정보 가리기 (검토 후 저장)', desc:'주민등록번호·전화번호·계좌번호·이메일·이름 후보를 찾아 가릴 후보로 골라 두고, 직접 확인·수정한 뒤 검게 칠해 저장해요. 글자 읽기가 함께 실행돼요. 모든 처리는 기기 안에서만 해요.', ready:true},
+    {id:'ocrText', name:'글자 추출 (OCR)', desc:'처리한 결과에서 한글·영문을 읽어 텍스트로 꺼내요. 문서는 기기 밖으로 나가지 않아요. (처음 한 번 약 8MB를 내려받고, 다음부터는 바로 시작해요)', ready:true},
+    {id:'redact', name:'정보 가리기 (검토 후 저장)', desc:'주민등록번호·전화번호·계좌번호·이메일·이름 후보를 찾아 가릴 후보로 골라 두고, 직접 확인·수정한 뒤 검게 칠해 저장해요. 글자 추출이 함께 실행돼요. 모든 처리는 기기 안에서만 해요.', ready:true},
   ]},
   { title:'추출', items:[
     {id:'stampExtract', name:'도장 추출', desc:'여백을 정리하고 잡티를 줄여 선명하게 한 뒤, 빨간 도장만 배경 투명하게 오려내요. (본인 소유·사용 권한이 있는 도장만 사용해주세요)', ready:true},
@@ -707,16 +741,17 @@ const INCLUDES = {
 };
 const STEP_ACTIONS = { denoise:'잡티 줄이는 중…', trimMargin:'여백 정리하는 중…', sharpen:'선명하게 만드는 중…', contrast:'진하기 맞추는 중…' };
 
-// extra: 프리셋 전용 숨은 단계 — 항목에는 없지만 그 프리셋 결과에 필요한 것(OCR 최적화의 여백 정리).
+// 카드(프리셋) — 자주 쓰는 순. tag: 카드 아래 한 줄 설명(무엇을 해 주는지)
+// extra: 프리셋 전용 숨은 단계 — 항목에는 없지만 그 프리셋 결과에 필요한 것(글자 추출 카드의 여백 정리).
 //  다른 프리셋을 고르면 바뀜(항목을 직접 켜고 꺼도 유지)
+// (2026-10-12 이름 정리 — 옛 이름은 NOTES.md "화면 이름 정리". 항목을 직접 고르는 카드는 없애고 세부 설정 접기로)
 const PRESETS = [
-  {id:'stamp', name:'도장 추출하기', emoji:'🔴', checks:['stampExtract'], format:'png', ready:true},
+  {id:'archive', name:'문서 스캔', emoji:'📄', tag:'찍은 문서 → 깔끔한 스캔본', checks:['autoCrop','scanEffect'], format:'pdf', scanMode:'color', ready:true},
+  {id:'ocr', name:'글자 추출 (OCR)', emoji:'🔍', tag:'문서 사진 → 복사할 수 있는 글자', checks:['autoCrop','scanEffect','removeLines','ocrText'], extra:['trimMargin'], format:'png', scanMode:'bw', ready:true},
   // 정보 가리기: 컬러 스캔(직인·도장 색 유지 — 증빙으로 내는 문서), 기본 저장은 PDF
-  {id:'redact', name:'정보 가리기', emoji:'🕶️', checks:['autoCrop','scanEffect','ocrText','redact'], format:'pdf', scanMode:'color', ready:true},
-  {id:'signature', name:'서명 추출하기', emoji:'✍️', checks:['signatureExtract'], format:'png', ready:true},
-  {id:'ocr', name:'OCR 최적화', emoji:'🔍', checks:['autoCrop','scanEffect','removeLines','ocrText'], extra:['trimMargin'], format:'png', scanMode:'bw', ready:true},
-  {id:'archive', name:'문서 보관', emoji:'📁', checks:['autoCrop','scanEffect'], format:'pdf', scanMode:'color', ready:true},
-  {id:'custom', name:'직접 선택하기', emoji:'🎛️', checks:[], format:null, ready:true},
+  {id:'redact', name:'정보 가리기', emoji:'🕶️', tag:'가릴 정보를 골라 검게 가린 사본', checks:['autoCrop','scanEffect','ocrText','redact'], format:'pdf', scanMode:'color', ready:true},
+  {id:'signature', name:'서명 추출', emoji:'✍️', tag:'종이 위 서명 → 배경 없는 이미지', checks:['signatureExtract'], format:'png', ready:true},
+  {id:'stamp', name:'도장 추출', emoji:'🔴', tag:'찍힌 도장 → 배경 없는 이미지', checks:['stampExtract'], format:'png', ready:true},
 ];
 
 const FORMATS = [
@@ -727,7 +762,7 @@ const FORMATS = [
 ];
 
 // 다른 항목이 켜져 있으면 반드시 함께 실행되는 항목 — 체크된 채로 흐리게 표시하고 끌 수 없게 함
-//  · 글자 읽기: 정보 가리기가 읽은 글자에서 가릴 정보를 찾음
+//  · 글자 추출: 정보 가리기가 읽은 글자에서 가릴 정보를 찾음
 const REQUIRED_BY = {
   ocrText: ()=> checked.has('redact') ? '정보 가리기에 필요' : null,
 };
@@ -796,15 +831,13 @@ function renderPresets(){
     el.innerHTML = `
       <div class="preset-emoji">${p.emoji}</div>
       <div class="preset-name">${p.name}</div>
-      <div class="preset-tag">${p.ready ? (p.checks.length ? p.checks.length+'개 자동 체크' : '자유롭게 선택') : '준비중'}</div>
+      <div class="preset-tag">${p.ready ? p.tag : '준비중'}</div>
     `;
     if(p.ready){
       el.onclick = ()=>{
         selectedPreset = p.id;
         presetExtras = new Set(p.extra || []);
-        if(p.checks.length){
-          checked = new Set(p.checks.filter(id=>ITEM_MAP[id]?.ready));
-        }
+        checked = new Set(p.checks.filter(id=>ITEM_MAP[id]?.ready));
         if(p.format) selectedFormat = p.format;
         if(p.scanMode) scanMode = p.scanMode;
         renderPresets(); renderSections(); renderFormats();
@@ -861,9 +894,22 @@ function renderSections(){
     group.appendChild(list);
     wrap.appendChild(group);
   });
+  updateSettingsSummary();
   updateSignatureSelectUI();
   updateCornerUI();
   updateProcessBtn();
+}
+
+// 접힌 "세부 설정" 줄 — 지금 켜진 항목을 짧게 보여 줌. 카드를 고른 뒤 항목을 직접 바꾸면 "(직접 바꿈)"
+function updateSettingsSummary(){
+  const el = document.getElementById('settingsSummary');
+  const on = ALL_ITEMS.filter(i=> checked.has(i.id)).map(i=>{
+    const n = i.name.replace(/\s*\(.*\)$/, '');
+    return i.id === 'scanEffect' ? `${n}(${scanMode === 'bw' ? '흑백' : '컬러'})` : n;
+  });
+  el.textContent = on.length
+    ? '— ' + on.join(' · ') + (selectedPreset ? '' : ' (직접 바꿈)')
+    : '— 위에서 할 일을 고르면 자동으로 맞춰져요';
 }
 
 // "스캔 효과" 하위 옵션 — 컬러/흑백
@@ -881,7 +927,7 @@ function renderScanModeRow(){
   return wrap;
 }
 
-// "문서 자동 크롭" 하위 옵션 — 종이 모서리가 사진 밖으로 나갔던 부분(펴진 뒤 빈 칸)을 어떻게 할지
+// "반듯하게 펴기" 하위 옵션 — 종이 모서리가 사진 밖으로 나갔던 부분(펴진 뒤 빈 칸)을 어떻게 할지
 function renderOutsideModeRow(){
   const wrap = document.createElement('div');
   wrap.className = 'sub-option-row';
@@ -910,6 +956,9 @@ function renderFormats(){
 
 function updateProcessBtn(){
   document.getElementById('processBtn').disabled = !originalImage || checked.size===0;
+  // 버튼이 왜 안 눌리는지 — 카드를 고르지 않았거나 이미지를 아직 안 올렸을 때
+  document.getElementById('processHint').textContent =
+    checked.size===0 ? '위에서 할 일을 골라주세요' : !originalImage ? '이미지를 올려주세요' : '';
 }
 
 /* ---------------------------------------------------------
@@ -1177,7 +1226,7 @@ function resetDocCorners(dataUrl){
   updateCornerUI();
 }
 
-// 문서 자동 크롭 체크 여부에 따라 섹션을 보여주고, 처음 보일 때 자동 검출을 돌림
+// 반듯하게 펴기 체크 여부에 따라 섹션을 보여주고, 처음 보일 때 자동 검출을 돌림
 function updateCornerUI(){
   const section = document.getElementById('cornerSection');
   const show = checked.has('autoCrop') && !!originalImage;
@@ -1657,7 +1706,7 @@ function boxCropDocument(canvas){
 
   const totalPixels = sw*sh;
   if(!best || bestSize < totalPixels*0.12){
-    return { canvas, warning: '🖼️ 사진에서 문서 경계를 뚜렷하게 찾지 못해서, 자동 크롭 없이 원본을 그대로 사용했어요.' };
+    return { canvas, warning: '🖼️ 사진에서 문서 경계를 뚜렷하게 찾지 못해서, 펴지 않고 원본을 그대로 사용했어요.' };
   }
   // 이미 문서가 사진 가득 차 있으면(가장자리에 거의 다 닿아있으면) 크롭 안 해도 됨
   if(best.minX<=1 && best.minY<=1 && best.maxX>=sw-2 && best.maxY>=sh-2){
@@ -3469,7 +3518,7 @@ function finishWarpedDocument(canvas, corners){
   return { corners, rotation: ori.rotation, skew, dewarp, dewarpV, canvas: result, warning: [outsideNote, tilted].filter(Boolean).join(' ') || null };
 }
 
-// 문서 자동 크롭 · 원근 보정 — 네 모서리를 확실하게 찾았을 때만 펴고, 아니면 기존 박스 크롭으로 대체
+// 반듯하게 펴기 (크롭·원근 보정) — 네 모서리를 확실하게 찾았을 때만 펴고, 아니면 기존 박스 크롭으로 대체
 // 모서리 조정에서 사용자가 직접 맞췄으면(manual) 그 모서리로 펴고, "전체 이미지 사용"(full)이면 펴지 않음.
 // 마지막에 사용자가 고른 90° 회전을 더함
 function autoCropDocument(canvas){
@@ -4992,8 +5041,8 @@ function extractSignature(canvas){
 }
 
 /* ---------------------------------------------------------
-   글자 읽기 (OCR) — Tesseract.js를 브라우저 안에서만 실행 (서버·API 없음, 문서가 기기 밖으로 나가지 않음)
-   · 엔진·언어 데이터는 assets/vendor/tesseract/ 에서, "글자 읽기"를 실행할 때만 불러옴
+   글자 추출 (OCR) — Tesseract.js를 브라우저 안에서만 실행 (서버·API 없음, 문서가 기기 밖으로 나가지 않음)
+   · 엔진·언어 데이터는 assets/vendor/tesseract/ 에서, "글자 추출"를 실행할 때만 불러옴
    · OCR에 넣는 이미지는 내부에서 따로 만듦(prepareOcrImage) — 사용자에게 보이는 결과물은 그대로
    · 결과는 "쪽 하나" 단위 { page, text, words, lines, meanConf } — 여러 쪽이면 formatOcrPages로 이어 붙임
    · 표를 엑셀로(칸마다 OCR)·정보 가리기(단어 위치)에서 그대로 쓰도록 단어·줄마다 위치(bbox)와 신뢰도를 돌려줌
@@ -5083,10 +5132,10 @@ function resetOcrWorker(){
 function ocrFailMessage(stage){
   const tail = ' (자세한 오류는 개발자 도구 Console에 "[DocFlow OCR]"로 남겼어요)';
   if(!navigator.onLine && (stage === 'script' || stage === 'core' || stage === 'lang'))
-    return '📝 인터넷 연결이 끊겨 있어서 글자 읽기 엔진을 받지 못했어요. 연결된 뒤 다시 처리해주세요. (처음 한 번은 약 8MB를 받아요)';
-  if(stage === 'script') return '📝 글자 읽기 엔진 파일을 불러오지 못했어요. 페이지를 새로고침한 뒤 다시 처리해주세요.' + tail;
-  if(stage === 'core') return '📝 글자 읽기 엔진을 시작하지 못했어요. 이 브라우저에서 WebAssembly가 막혀 있거나 메모리가 부족할 수 있어요. 크롬·엣지·사파리 최신 버전에서 다시 시도해주세요.' + tail;
-  if(stage === 'lang' || stage === 'init') return '📝 글자 읽기 언어 데이터(한국어·영어)를 불러오지 못했어요. 페이지를 새로고침한 뒤 다시 처리해주세요.' + tail;
+    return '📝 인터넷 연결이 끊겨 있어서 글자 추출 엔진을 받지 못했어요. 연결된 뒤 다시 처리해주세요. (처음 한 번은 약 8MB를 받아요)';
+  if(stage === 'script') return '📝 글자 추출 엔진 파일을 불러오지 못했어요. 페이지를 새로고침한 뒤 다시 처리해주세요.' + tail;
+  if(stage === 'core') return '📝 글자 추출 엔진을 시작하지 못했어요. 이 브라우저에서 WebAssembly가 막혀 있거나 메모리가 부족할 수 있어요. 크롬·엣지·사파리 최신 버전에서 다시 시도해주세요.' + tail;
+  if(stage === 'lang' || stage === 'init') return '📝 글자 추출 언어 데이터(한국어·영어)를 불러오지 못했어요. 페이지를 새로고침한 뒤 다시 처리해주세요.' + tail;
   return '📝 글자를 읽는 중에 오류가 났어요. 다시 처리해도 같으면 다른 브라우저에서 시도해주세요.' + tail;
 }
 
@@ -5358,7 +5407,7 @@ function cleanOcrLine(line, fixes){
   return fixAddresses(line, fixes);
 }
 
-// 글자 읽기 — 이미지 전체든 잘라낸 칸 하나든 같은 함수
+// 글자 추출 — 이미지 전체든 잘라낸 칸 하나든 같은 함수
 //  canvas: 처리 결과 등 원래 이미지 / opts.rect: {x,y,w,h}면 그 칸만 / opts.mode: 'page' | 'block' | 'line'
 //  opts.onProgress({stage:'load'|'recognize', progress 0~1}) / opts.prepare: false면 OCR용 정리 없이 그대로(테스트 비교용)
 // 결과(좌표는 모두 넘겨준 canvas 기준):
@@ -5855,27 +5904,27 @@ const PROCESSORS = {
     await status('표 선 지우는 중…');
     return removeTableLines(canvas, found);
   },
-  // 글자 읽기 — 이미지는 그대로 두고 OCR 결과만 붙여 돌려줌. 실패해도 이미지 처리 결과는 그대로 보여줌
+  // 글자 추출 — 이미지는 그대로 두고 OCR 결과만 붙여 돌려줌. 실패해도 이미지 처리 결과는 그대로 보여줌
   // 읽는 이미지는 makeOcrSource()로 따로 만듦(흑백 스캔 효과 + 표 선 제거) — 보이는 결과는 컬러·표 선 그대로여도 됨
   ocrText: async (canvas, status, ps)=>{
     try{
       const src = await makeOcrSource(canvas, ps, status);
       const ocr = await ocrRecognize(src, { onProgress: ({stage, progress})=>{
         status(stage === 'load'
-          ? '글자 읽기 — 언어 데이터 불러오는 중… (처음 한 번만)'
+          ? '글자 추출 — 언어 데이터 불러오는 중… (처음 한 번만)'
           : `글자 인식 중 ${Math.round(progress*100)}%`);
       }});
       return { canvas, ocr };
     }catch(err){
       const stage = err.ocrStage || ocrStage;
-      console.error('[DocFlow OCR] 글자 읽기 실패', { 단계: stage, 오류: err.cause || err, 첫시도오류: err.first,
+      console.error('[DocFlow OCR] 글자 추출 실패', { 단계: stage, 오류: err.cause || err, 첫시도오류: err.first,
         엔진주소: OCR_VENDOR, 온라인: navigator.onLine, 브라우저: navigator.userAgent });
       return { canvas, warning: ocrFailMessage(stage) };
     }
   },
   scanEffect: scanEffect,
 };
-// 글자 읽기에 넣을 이미지 — 보이는 결과(컬러·표 선 그대로일 수 있음)와 따로 만듦
+// 글자 추출에 넣을 이미지 — 보이는 결과(컬러·표 선 그대로일 수 있음)와 따로 만듦
 //  · 흑백 스캔 효과: 컬러 결과에서는 엔진이 이메일을 숫자로 읽거나(가상 통장 사본) 표 칸 글자를 못 읽었음(사진 05)
 //  · 표 선 제거: 표 테두리가 글자에 붙어 있으면 칸 안 글자를 거의 못 읽음(사진 05 표 — "SENET CN" 같은 글자)
 //  보이는 결과에 이미 한 단계는 다시 하지 않음. 두 단계 모두 크기를 바꾸지 않으므로 단어 위치가 보이는 결과와 같은 좌표
@@ -5886,18 +5935,18 @@ async function makeOcrSource(canvas, ps, status = ()=>{}){
   if(bwDone && linesDone) return canvas;
   let c = cloneCanvasFromImage(canvas);
   if(!bwDone){
-    await status('글자 읽기용 흑백 이미지 만드는 중…');
+    await status('글자 추출용 흑백 이미지 만드는 중…');
     const saved = scanMode; scanMode = 'bw';
     try{ scanEffect(c); } finally{ scanMode = saved; }
   }
   if(!linesDone){
-    await status('글자 읽기용 표 선 지우는 중…');
+    await status('글자 추출용 표 선 지우는 중…');
     const found = findTableLines(c);
     pageTableLines = tableLineSegs(found);   // 정보 가리기에서 칸 경계로 씀(같은 좌표)
     const r = removeTableLines(c, found);
     c = r instanceof HTMLCanvasElement ? r : r.canvas;
   }
-  if(c.width !== canvas.width || c.height !== canvas.height){ console.warn('[DocFlow OCR] 글자 읽기용 이미지 크기가 달라져 결과 그대로 읽음'); return canvas; }
+  if(c.width !== canvas.width || c.height !== canvas.height){ console.warn('[DocFlow OCR] 글자 추출용 이미지 크기가 달라져 결과 그대로 읽음'); return canvas; }
   return c;
 }
 
@@ -5919,14 +5968,14 @@ const shiftTableLines = (L, dx, dy)=> {
 // 기울어졌으면 반듯하게 편 다음, 스캔 효과(그림자 제거) → 노이즈 제거 → 표 선 제거(기울어진 선도 찾지만, 반듯할수록 정확함) → 여백 정리 순으로 진행.
 // 스캔 효과를 표 선 제거보다 먼저 하는 이유: 그림자 경계가 어두운 선으로 잡혀 표 선으로 오인되는 걸 막기 위해.
 // 원근 보정 단계에서 채운 빈 칸·가장자리도 스캔 효과에서 함께 하얗게 정리되어 이음매가 남지 않음
-// 글자 읽기(ocrText)는 모든 이미지 처리가 끝난 결과에서 맨 마지막에
-// 정보 가리기(redact)는 글자 읽기 결과에서 가릴 후보를 찾으므로 그 뒤에 — 이미지는 바꾸지 않음(검토 화면에서 고른 뒤 저장할 때 칠함)
+// 글자 추출(ocrText)는 모든 이미지 처리가 끝난 결과에서 맨 마지막에
+// 정보 가리기(redact)는 글자 추출 결과에서 가릴 후보를 찾으므로 그 뒤에 — 이미지는 바꾸지 않음(검토 화면에서 고른 뒤 저장할 때 칠함)
 const PROCESS_ORDER = ['signatureExtract','autoCrop','deskew','scanEffect','denoise','removeLines','trimMargin','grayscale','contrast','sharpen','stampExtract','ocrText','redact'];
 // 처리 중 단계별 진행 문구 — 휴대폰에서 오래 걸리는 단계도 멈춘 것처럼 보이지 않게
 const STEP_LABELS = {
   signatureExtract:'서명 오려내는 중…', autoCrop:'문서 테두리를 찾아 반듯하게 펴는 중…', deskew:'기울기 맞추는 중…',
   scanEffect:'그림자 지우고 배경 하얗게 만드는 중…', removeLines:'표 선 찾는 중…', grayscale:'흑백으로 바꾸는 중…',
-  stampExtract:'도장 오려내는 중…', ocrText:'글자 읽기 준비 중…', redact:'가릴 정보 찾는 중…',
+  stampExtract:'도장 오려내는 중…', ocrText:'글자 추출 준비 중…', redact:'가릴 정보 찾는 중…',
 };
 // 화면이 실제로 한 번 그려질 때까지 기다림 (requestAnimationFrame 다음 → 그리기가 끝난 뒤)
 const nextPaint = ()=> new Promise(r=> requestAnimationFrame(()=> setTimeout(r, 0)));
@@ -5970,7 +6019,7 @@ async function withPageSettings(image, ps, fn){
     ({ originalImage, scanMode, outsideMode, cornerState, signatureSelection } = saved);
   }
 }
-// 결과: { page, canvas, warnings:[...], ocr: OCR 결과(글자 읽기를 했으면) + page,
+// 결과: { page, canvas, warnings:[...], ocr: OCR 결과(글자 추출을 했으면) + page,
 //        redaction: 정보 가리기를 켰으면 { mode, brush, items: 자동 검출 } — 검토 화면에서 사용자가 고침 }
 // onStatus(text, stepNo, stepCount): 진행 문구 알림(화면이 그려질 때까지 기다리는 함수를 넘기면 됨)
 async function processPage(image, ps, { page = 1, onStatus } = {}){
@@ -5991,7 +6040,7 @@ async function processPage(image, ps, { page = 1, onStatus } = {}){
       }
       const result = await PROCESSORS[key](canvas, status, ps);
       // 모양·크기가 바뀌는 단계 뒤에는 앞에서 찾은 표 선 좌표가 맞지 않음. 여백 정리는 잘라 내기만 하므로 그만큼 옮겨서 계속 씀
-      //  (OCR 최적화 + 정보 가리기: 표 선을 지운 뒤 여백 정리를 해서, 결과에는 선이 없고 지우기 전에 찾은 선만 남아 있음)
+      //  (글자 추출 카드 + 정보 가리기: 표 선을 지운 뒤 여백 정리를 해서, 결과에는 선이 없고 지우기 전에 찾은 선만 남아 있음)
       const off = result && result.trimOffset;
       if(key === 'trimMargin' && result === canvas){ /* 잘라 낸 것 없음 — 그대로 */ }
       else if(key === 'trimMargin' && off && pageTableLines) pageTableLines = shiftTableLines(pageTableLines, -off.x, -off.y);
@@ -6025,7 +6074,7 @@ document.getElementById('processBtn').addEventListener('click', async ()=>{
   document.getElementById('ocrPanel').classList.remove('show');
   showRedactPanel(null);
   document.getElementById('processBtn').disabled = true;
-  // 글자 읽기를 할 거면 엔진·언어 데이터를 이미지 처리하는 동안 미리 받아 둠 — 처리가 끝나면 바로 인식 시작
+  // 글자 추출을 할 거면 엔진·언어 데이터를 이미지 처리하는 동안 미리 받아 둠 — 처리가 끝나면 바로 인식 시작
   if(ps.checks.includes('ocrText')) getOcrWorker().catch(()=>{});
   await nextPaint();
 
@@ -6460,7 +6509,7 @@ document.getElementById('downloadBtn').addEventListener('click', ()=>{
 });
 
 /* ---------------------------------------------------------
-   모드 전환 (추출하기 / 이름으로 만들기)
+   탭 전환 (문서 처리 / 표 → 엑셀(준비 중) / 도장·서명 만들기)
 --------------------------------------------------------- */
 document.getElementById('modeToggle').addEventListener('click', e=>{
   const btn = e.target.closest('.mode-btn');
@@ -6468,6 +6517,7 @@ document.getElementById('modeToggle').addEventListener('click', e=>{
   document.querySelectorAll('.mode-btn').forEach(b=>b.classList.toggle('active', b===btn));
   const mode = btn.dataset.mode;
   document.getElementById('extractMode').style.display = mode==='extract' ? '' : 'none';
+  document.getElementById('tableMode').style.display = mode==='table' ? '' : 'none';
   document.getElementById('generateMode').style.display = mode==='generate' ? '' : 'none';
 });
 

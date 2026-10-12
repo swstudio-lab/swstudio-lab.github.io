@@ -3,7 +3,7 @@
 실행:  python works/docflow/tests/run_tests.py            (전체)
        python works/docflow/tests/run_tests.py synthetic  (합성 이미지 테스트만)
        python works/docflow/tests/run_tests.py photo      (실제 사진 테스트만)
-       python works/docflow/tests/run_tests.py ocr        (글자 읽기 정확도 비교만 — 몇 분 걸림)
+       python works/docflow/tests/run_tests.py ocr        (글자 추출 정확도 비교만 — 몇 분 걸림)
        python works/docflow/tests/run_tests.py serve      (실제 서버 환경에서 업로드→OCR 끝까지만)
        python works/docflow/tests/run_tests.py redact     (정보 가리기 — 가상 문서 자동 검출·가린 저장본, redact-make는 가상 문서를 다시 그림)
 준비:  pip install playwright  →  python -m playwright install chromium
@@ -12,9 +12,9 @@
 · 실제 사진 테스트: tests/private/ 에 사진이 있을 때만 실행 (없으면 SKIP)
   결과 이미지는 tests/private/results/<시각>/ 에 저장 — 문서 내용이 담겨 있어 private 안에 둠(.gitignore)
   자동 판정은 기본 수치(오류 없음·선분 수 등)만 하고, 글자 보존 같은 화질은 저장된 이미지를 눈으로 확인
-· 글자 읽기 정확도: private/ 의 시연용 PDF와 정답 텍스트로 테스트 이미지(깨끗한 것·사진처럼 합성한 것)를 만들어
-  "원본 그대로" vs "OCR 최적화 처리 후"를 글자 단위로 비교. 결과는 private/results/<시각>/ocr/
-  (판정 기준: OCR 최적화 처리 후 정확도가 원본 그대로보다 낮아지지 않을 것)
+· 글자 추출 정확도: private/ 의 시연용 PDF와 정답 텍스트로 테스트 이미지(깨끗한 것·사진처럼 합성한 것)를 만들어
+  "원본 그대로" vs "글자 추출 카드 처리 후"를 글자 단위로 비교. 결과는 private/results/<시각>/ocr/
+  (판정 기준: 글자 추출 카드 처리 후 정확도가 원본 그대로보다 낮아지지 않을 것)
 
 페이지는 실제 사이트와 같은 경로 구조로 띄움: http://docflow.test/works/docflow/index.html, /assets/... = 저장소 루트
 """
@@ -173,7 +173,7 @@ SYNTHETIC = {
   return { ok, info: res.map(s=>`${s.deg}° → ${s.after.toFixed(1)}° ${s.size} 안내=${s.warn||'없음'}`).join(' / ') };
 """,
 
-'글자 읽기 후처리 — 주소의 빠진 점·₩·혼자 떨어진 기호': r"""
+'글자 추출 후처리 — 주소의 빠진 점·₩·혼자 떨어진 기호': r"""
   // 실제 OCR 결과에서 나온 모양을 가상 주소로 바꾼 예시 [OCR 결과, 기대 결과]
   const cases = [
     ['문의 메일: help@docflowkr (평일 09:00~18:00)', '문의 메일: help@docflow.kr (평일 09:00~18:00)'],
@@ -196,7 +196,7 @@ SYNTHETIC = {
 """,
 '정보 가리기 — 가림 상자는 항목마다 네모 하나, 표 칸 밖으로 안 넘침': r"""
   // 사진 05 상황: 표 칸 안 이름을 엔진이 글자마다 단어로 나누고, 가운데 글자 상자만 위 칸 선을 넘게 큼.
-  // 이메일 단어 상자는 오른쪽 칸 선을 넘음. 글자 읽기 없이 단어 위치를 직접 만들어 검사
+  // 이메일 단어 상자는 오른쪽 칸 선을 넘음. 글자 추출 없이 단어 위치를 직접 만들어 검사
   const W = 900, H = 400, rows = [100, 200, 300], cols = [100, 400, 800];
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, W, H); x.fillStyle = '#222';
@@ -227,11 +227,11 @@ SYNTHETIC = {
 '프리셋 — 처리 항목 7개로 정리한 뒤에도 프리셋마다 실행 단계가 이전과 같음': r'''
   // 기준: 정리 전(2026-10-12) 프리셋이 실제로 실행하던 단계(처리 순서대로)
   const BEFORE = {
-    '도장 추출하기': ['denoise','trimMargin','sharpen','stampExtract'],
-    '정보 가리기':   ['autoCrop','scanEffect','denoise','ocrText','redact'],
-    '서명 추출하기': ['signatureExtract','denoise','contrast'],
-    'OCR 최적화':    ['autoCrop','scanEffect','denoise','removeLines','trimMargin','ocrText'],
-    '문서 보관':     ['autoCrop','scanEffect','denoise'],
+    '문서 스캔':       ['autoCrop','scanEffect','denoise'],
+    '글자 추출 (OCR)': ['autoCrop','scanEffect','denoise','removeLines','trimMargin','ocrText'],
+    '정보 가리기':     ['autoCrop','scanEffect','denoise','ocrText','redact'],
+    '서명 추출':       ['signatureExtract','denoise','contrast'],
+    '도장 추출':       ['denoise','trimMargin','sharpen','stampExtract'],
   };
   const REMOVED = ['배경 제거','흑백 변환','명암 보정','선명도 향상','기울기 자동 보정','노이즈 제거','여백 자동 제거','명암','흑백'];
   const card = n=>[...document.querySelectorAll('.preset-card')].find(el=>el.querySelector('.preset-name').textContent===n);
@@ -248,13 +248,46 @@ SYNTHETIC = {
     // 진행 문구에 화면에서 뺀 항목 이름이 나오지 않음
     for(const k of now){ const t = stepLabel(k, now); if(REMOVED.some(r=> t.includes(r))) fail.push(`${name} 진행 문구: ${t}`); }
   }
-  // 직접 고르기: 스캔 효과만 켜면 잡티 제거가 함께, 정보 가리기를 켜면 글자 읽기를 끌 수 없음
-  card('직접 선택하기').click(); checked = new Set(['scanEffect']); presetExtras = new Set(); renderSections();
+  // 직접 고르기(세부 설정에서 항목을 직접 바꿈): 스캔 효과만 켜면 잡티 제거가 함께, 정보 가리기를 켜면 글자 추출을 끌 수 없음
+  selectedPreset = null; checked = new Set(['scanEffect']); presetExtras = new Set(); renderSections(); renderPresets();
   if(snapshotPageSettings().checks.join(',') !== 'scanEffect,denoise') fail.push('스캔 효과에 잡티 제거가 안 포함됨');
   checked.add('redact'); renderSections();
-  const ocrRow = [...document.querySelectorAll('.check-row')].find(r=> r.querySelector('.check-name').textContent === '글자 읽기 (OCR)');
-  ocrRow.click(); if(!checked.has('ocrText')) fail.push('정보 가리기를 켰는데 글자 읽기를 끌 수 있음');
+  const ocrRow = [...document.querySelectorAll('.check-row')].find(r=> r.querySelector('.check-name').textContent === '글자 추출 (OCR)');
+  ocrRow.click(); if(!checked.has('ocrText')) fail.push('정보 가리기를 켰는데 글자 추출을 끌 수 있음');
   return { ok: !fail.length, info: fail.join(' / ') || `항목 7개·묶음 2개, 프리셋 ${Object.keys(BEFORE).length}개 실행 단계 이전과 같음, 진행 문구에 뺀 항목 이름 없음` };
+''',
+
+'화면 구성 — 탭 3개, 카드 5개(자주 쓰는 순)·한 줄 설명, 세부 설정 접기, 옛 이름 없음': r'''
+  const fail = [];
+  const tabs = [...document.querySelectorAll('.mode-btn')].map(b=> b.textContent);
+  if(tabs.join('/') !== '문서 처리/표 → 엑셀/도장·서명 만들기') fail.push('탭: ' + tabs.join('/'));
+  // 처음엔 카드 없이 시작 — 세부 설정은 접혀 있고, 처리하기 아래에 할 일을 고르라는 안내
+  if(document.querySelector('.preset-card.selected')) fail.push('처음부터 골라진 카드가 있음');
+  if(document.getElementById('settingsFold').open) fail.push('세부 설정이 처음부터 펼쳐져 있음');
+  if(document.getElementById('processHint').textContent !== '위에서 할 일을 골라주세요') fail.push('처음 안내: ' + document.getElementById('processHint').textContent);
+  const cards = [...document.querySelectorAll('.preset-card')].map(el=> el.querySelector('.preset-name').textContent + ':' + el.querySelector('.preset-tag').textContent);
+  const WANT = ['문서 스캔:찍은 문서 → 깔끔한 스캔본', '글자 추출 (OCR):문서 사진 → 복사할 수 있는 글자', '정보 가리기:가릴 정보를 골라 검게 가린 사본',
+    '서명 추출:종이 위 서명 → 배경 없는 이미지', '도장 추출:찍힌 도장 → 배경 없는 이미지'];
+  if(cards.join('|') !== WANT.join('|')) fail.push('카드: ' + cards.join('|'));
+  // 카드를 고르면 접힌 줄에 켜진 항목이 보이고, 항목을 직접 바꾸면 "(직접 바꿈)"
+  const sum = ()=> document.getElementById('settingsSummary').textContent;
+  [...document.querySelectorAll('.preset-card')][1].click();
+  if(sum() !== '— 반듯하게 펴기 · 스캔 효과(흑백) · 표 선 제거 · 글자 추출') fail.push('글자 추출 카드 접힌 줄: ' + sum());
+  if(document.getElementById('processHint').textContent !== '이미지를 올려주세요') fail.push('카드 고른 뒤 안내: ' + document.getElementById('processHint').textContent);
+  [...document.querySelectorAll('.check-row')].find(r=> r.querySelector('.check-name').textContent === '표 선 제거').click();
+  if(!/\(직접 바꿈\)$/.test(sum()) || document.querySelector('.preset-card.selected')) fail.push('직접 바꾼 뒤 접힌 줄: ' + sum());
+  // 표 → 엑셀 탭: 준비 중 화면
+  const tabBtn = m=> document.querySelector(`.mode-btn[data-mode="${m}"]`);
+  tabBtn('table').click();
+  const tm = document.getElementById('tableMode');
+  if(tm.style.display === 'none' || !tm.textContent.includes('준비 중') || document.getElementById('extractMode').style.display !== 'none') fail.push('표 → 엑셀 탭이 안 열림');
+  tabBtn('extract').click();
+  if(document.getElementById('extractMode').style.display === 'none') fail.push('문서 처리 탭으로 못 돌아옴');
+  // 옛 이름이 화면(보이는 글자·탭 제목)에 남지 않음
+  const OLD = ['OCR 최적화','문서 보관','직접 선택하기','자동 체크','도장 추출하기','서명 추출하기','이미지 업로드해서 처리하기','이름 입력해서 만들기','글자 읽기','문서 자동 크롭','처리할 항목 선택','자동 크롭 없이'];
+  const html = document.documentElement.outerHTML;
+  for(const o of OLD) if(html.includes(o)) fail.push('남은 옛 이름: ' + o);
+  return { ok: !fail.length, info: fail.join(' / ') || '탭 3개, 카드 5개·설명, 처음엔 카드 없음·세부 설정 접힘·안내, 접힌 줄 요약·직접 바꿈, 준비 중 화면, 옛 이름 없음' };
 ''',
 }
 
@@ -288,7 +321,7 @@ PHOTO_JS = r"""
            images: r.canvas ? { result: T.png(r.canvas) } : {} };
 """
 
-# ---------------- 글자 읽기(OCR) 정확도 비교 ----------------
+# ---------------- 글자 추출(OCR) 정확도 비교 ----------------
 OCR_PDF = 'DocFlow_시연용_문서.pdf'
 OCR_ANSWER = 'DocFlow_시연용_문서_정답텍스트.txt'
 OCR_PRESET = ['autoCrop', 'scanEffect', 'trimMargin', 'denoise', 'removeLines', 'ocrText']
@@ -358,13 +391,13 @@ OCR_MAKE_JS = r"""
 
 """
 
-# 페이지 안에서: 이미지 하나를 ① 원본 그대로 ② OCR 최적화 처리 후 로 읽고, 정답과 비교
+# 페이지 안에서: 이미지 하나를 ① 원본 그대로 ② 글자 추출 카드 처리 후 로 읽고, 정답과 비교
 OCR_RUN_JS = r"""
   const [url, name, refs, en, preset] = ARGS;
   const img = new Image(); img.src = url; await img.decode();
   const raw = cloneCanvasFromImage(img);
   const a = await ocrRecognize(raw, { prepare: false });           // ① 원본 그대로 (DocFlow 처리·OCR용 정리 없이)
-  await T.load(url, name);                                         // ② OCR 최적화 프리셋으로 처리(글자 읽기 포함)
+  await T.load(url, name);                                         // ② 글자 추출 카드으로 처리(글자 추출 포함)
   const t0 = performance.now();
   const r = await T.process(preset, { scanMode: 'bw' });
   const procMs = performance.now() - t0;
@@ -435,10 +468,10 @@ def run_ocr_tests(fresh_page, out_dir):
             ra, pa = r['raw']['score']['nostamp'], r['proc']['score']['nostamp']
             ok = pa['acc'] >= ra['acc'] - 0.01
             fails += 0 if ok else 1
-            print(f"  {'PASS' if ok else 'FAIL'}  {key}  원본 그대로 {pct(ra['acc'])} → OCR 최적화 후 {pct(pa['acc'])}"
+            print(f"  {'PASS' if ok else 'FAIL'}  {key}  원본 그대로 {pct(ra['acc'])} → 글자 추출 카드 후 {pct(pa['acc'])}"
                   f"  (엉뚱한 영어 {len(r['raw']['spur'])} → {len(r['proc']['spur'])}{enTxt}, 인식 {r['proc']['ms']/1000:.1f}s, 전체 처리 {r['proc']['procMs']/1000:.1f}s)")
         else:
-            print(f"  INFO  {key}  평균 신뢰도 원본 그대로 {r['raw']['conf']}% → OCR 최적화 후 {r['proc']['conf']}%{enTxt}"
+            print(f"  INFO  {key}  평균 신뢰도 원본 그대로 {r['raw']['conf']}% → 글자 추출 카드 후 {r['proc']['conf']}%{enTxt}"
                   f"  (인식 {r['proc']['ms']/1000:.1f}s, 전체 처리 {r['proc']['procMs']/1000:.1f}s)")
     # 요약표
     def cell(r, which, k, f):
@@ -446,14 +479,14 @@ def run_ocr_tests(fresh_page, out_dir):
         return f'{sc[f]*100:.1f}%' if sc else '-'
     def n_spur(r, w): return '-' if r[w]['spur'] is None else str(len(r[w]['spur']))
     def n_en(r, w): return '-' if not r['enN'] else f"{len(r[w]['en'])}/{r['enN']}"
-    md = ['| 이미지 | 정확도 원본 → OCR 최적화 | (직인 포함) | 엉뚱한 영어 | 영문·이메일 | 평균 신뢰도 | 인식 시간 | 전체 처리 시간 |',
+    md = ['| 이미지 | 정확도 원본 → 글자 추출 카드 | (직인 포함) | 엉뚱한 영어 | 영문·이메일 | 평균 신뢰도 | 인식 시간 | 전체 처리 시간 |',
           '|---|---|---|---|---|---|---|---|']
     for key, r in rows:
         md.append(f"| {key} | {cell(r,'raw','nostamp','acc')} → **{cell(r,'proc','nostamp','acc')}** | {cell(r,'raw','all','acc')} → {cell(r,'proc','all','acc')} | "
                   f"{n_spur(r,'raw')} → {n_spur(r,'proc')} | {n_en(r,'raw')} → {n_en(r,'proc')} | "
                   f"{r['raw']['conf']}% → {r['proc']['conf']}% | {r['proc']['ms']/1000:.1f}s | {r['proc']['procMs']/1000:.1f}s |")
     table = '\n'.join(md)
-    (od / 'summary.md').write_text('# 글자 읽기 정확도 비교\n\n정확도 = 1 − 글자 편집거리 ÷ 정답 글자 수 (공백 제외). 기본은 직인·결재 도장 안 글자 제외.\n'
+    (od / 'summary.md').write_text('# 글자 추출 정확도 비교\n\n정확도 = 1 − 글자 편집거리 ÷ 정답 글자 수 (공백 제외). 기본은 직인·결재 도장 안 글자 제외.\n'
                                    '엉뚱한 영어 = 결과의 영문 덩어리(2자 이상) 중 정답에 없는 것. 영문·이메일 = 확인할 영문·이메일·주소 중 그대로 읽힌 것.\n\n' + table + '\n', encoding='utf-8')
     (od / 'summary.json').write_text(json.dumps({k: {w: {kk: vv for kk, vv in r[w].items() if kk != 'text'} for w in ('raw', 'proc')} for k, r in rows}, ensure_ascii=False, indent=1), encoding='utf-8')
     return fails, table
@@ -529,13 +562,13 @@ REDACT_MAKE_JS = r"""
   return { clean: c.toDataURL('image/png'), photo: T.synthPhoto(c, size[1] % 97) };
 """
 
-# 페이지 안에서: 처리(글자 읽기까지) → 자동 검출 → 기대값과 맞추기 → 가리기 적용 → 다시 읽기·검정 픽셀·PDF 확인
+# 페이지 안에서: 처리(글자 추출까지) → 자동 검출 → 기대값과 맞추기 → 가리기 적용 → 다시 읽기·검정 픽셀·PDF 확인
 REDACT_RUN_JS = r"""
   const [url, name, expect, preset, scan] = ARGS;
   await T.load(url, name);
   const r = await T.process(preset, { scanMode: scan || 'color' });
   const ocr = lastOcrPages[0];
-  if(!ocr) return { ok: false, info: '글자 읽기 결과 없음 ' + (r.warning || '') };
+  if(!ocr) return { ok: false, info: '글자 추출 결과 없음 ' + (r.warning || '') };
   const items = detectSensitive(ocr);
   // 비교용: 붙은 괄호("홍길동(가상)")는 빼고, 숫자 자리 오인식 맞추고, 글자·숫자·@·점만
   const norm = s=> normDigits(s.replace(/[(（][^)）]*[)）]?/g, '')).toLowerCase().replace(/[^0-9a-z@.가-힣]/g, '');
@@ -568,7 +601,7 @@ REDACT_RUN_JS = r"""
   // 저장할 때처럼 전체 가리기(불투명 검정) → 다시 읽어서 찾은 값이 안 읽히는지
   const red = { mode: 'full', items, lines: L };
   const out = applyRedaction(r.canvas, ocr, red);
-  const again = await ocrRecognize(await makeOcrSource(out, { checks: [], scanMode: 'color' }));   // 처리할 때와 같은 글자 읽기 경로
+  const again = await ocrRecognize(await makeOcrSource(out, { checks: [], scanMode: 'color' }));   // 처리할 때와 같은 글자 추출 경로
   const againN = norm(again.text);
   // 이메일은 아이디(@ 앞), 번호는 숫자 전체가 다시 읽히면 샌 것 (끝자리만 보면 가리지 않는 사업자등록번호와 겹침)
   const key = f=> f.kind === 'email' ? norm(f.val.split('@')[0]) : norm(f.val);
@@ -585,7 +618,7 @@ REDACT_RUN_JS = r"""
   //  가로지르는 선이 있으면 넘친 것(사진 05에서 이름 상자가 울퉁불퉁하고 위 칸 쪽으로 삐져나왔었음)
   const perItem = new Map(); for(const b of rects) perItem.set(b.id, (perItem.get(b.id) || 0) + 1);
   const notOne = items.filter(it=> (perItem.get(it.id) || 0) !== new Set(it.words.map(wi=> ocr.words[wi].line)).size).map(it=> it.kind);
-  // (표 선을 지운 결과면 결과에서는 못 찾으므로 처리할 때 기억해 둔 선으로 — OCR 최적화 + 정보 가리기)
+  // (표 선을 지운 결과면 결과에서는 못 찾으므로 처리할 때 기억해 둔 선으로 — 글자 추출 카드 + 정보 가리기)
   const fresh = findTableLines(r.canvas).segments;
   const tl = fresh.h.length + fresh.v.length >= 3 || !L ? fresh : L, overflow = [];
   const crosses = (b, s, horiz)=>{
@@ -617,8 +650,8 @@ REDACT_UI_JS = r"""
   await T.load('/works/docflow/tests/fixtures/redact_bankbook.png', 'redact_bankbook.png');
   [...document.querySelectorAll('.preset-card')].find(el=> el.textContent.includes('정보 가리기')).click();
   if(!checked.has('ocrText') || !checked.has('redact') || scanMode !== 'color' || selectedFormat !== 'pdf') fail.push('프리셋 구성');
-  const ocrRow = [...document.querySelectorAll('.check-row')].find(r=> r.querySelector('.check-name').textContent === '글자 읽기 (OCR)');
-  ocrRow.click(); if(!checked.has('ocrText')) fail.push('정보 가리기가 켜져 있는데 글자 읽기를 끌 수 있음');
+  const ocrRow = [...document.querySelectorAll('.check-row')].find(r=> r.querySelector('.check-name').textContent === '글자 추출 (OCR)');
+  ocrRow.click(); if(!checked.has('ocrText')) fail.push('정보 가리기가 켜져 있는데 글자 추출을 끌 수 있음');
   $('processBtn').click();
   await new Promise(r=> setTimeout(r, 50));
   for(let i=0; i<3000 && $('spinnerLine').classList.contains('show'); i++) await new Promise(r=> setTimeout(r, 100));
@@ -742,9 +775,9 @@ def run_redact_tests(fresh_page, out_dir, remake=False):
         cases.append((PRIVATE_URL + 'photo05.jpg', 'photo05.jpg',
                        [('phone', v) for v in e.get('phones', [])] + [('email', v) for v in e['en'] if '@' in v]
                        + [('name', v) for v in e.get('names', [])], True, REDACT_PRESET, 'color', ()))
-        # OCR 최적화 + 정보 가리기(흑백, 표 선을 지운 뒤 여백 정리) — 칸 자르기는 지우기 전에 기억한 선으로. 이 경로에서는
+        # 글자 추출 카드 + 정보 가리기(흑백, 표 선을 지운 뒤 여백 정리) — 칸 자르기는 지우기 전에 기억한 선으로. 이 경로에서는
         # 항목 이름 "성 명"을 "성 멍"으로 읽어 이름 후보를 놓치기도 해서 이름은 놓쳐도 됨
-        cases.append((PRIVATE_URL + 'photo05.jpg', 'photo05.jpg (OCR 최적화 + 정보 가리기)', cases[-1][2], True,
+        cases.append((PRIVATE_URL + 'photo05.jpg', 'photo05.jpg (글자 추출 카드 + 정보 가리기)', cases[-1][2], True,
                       ['autoCrop', 'scanEffect', 'trimMargin', 'denoise', 'removeLines', 'ocrText', 'redact'], 'bw', ('name',)))
     else:
         print('  SKIP  photo05.jpg — tests/private/ 에 사진·기대값이 없어서 건너뜀')
@@ -814,8 +847,8 @@ REDACT_LABEL = {'rrn': '주민', 'frn': '외국인', 'phone': '전화', 'account
 # ---------------- 실제 서버 환경 (Live Server처럼) ----------------
 # 다른 테스트는 페이지 요청을 가로채 파일을 넣어 주지만, 여기서는 진짜 정적 서버를 띄움 — 저장소 루트를 사이트 루트로,
 # 확장자대로 Content-Type, gzip 자동 처리 없음(VS Code Live Server·깃허브 페이지와 같은 방식).
-# 사용자와 같은 흐름(파일 선택 → OCR 최적화 프리셋 → 처리하기)으로 OCR이 끝까지 되는지, 엔진·언어 파일을 못 받을 때
-# 멈추지 않고 원인에 맞는 안내가 나오는지 확인. (Live Server에서 "글자 읽기를 실행하지 못했어요"가 났던 일로 추가)
+# 사용자와 같은 흐름(파일 선택 → 글자 추출 카드 → 처리하기)으로 OCR이 끝까지 되는지, 엔진·언어 파일을 못 받을 때
+# 멈추지 않고 원인에 맞는 안내가 나오는지 확인. (Live Server에서 OCR 엔진을 불러오지 못했던 일로 추가)
 def start_static_server():
     class Quiet(http.server.SimpleHTTPRequestHandler):
         def log_message(self, *a): pass
@@ -831,7 +864,7 @@ def run_serve_tests(browser):
     srv, base = start_static_server()
     fails = 0
     cases = [
-        ('정상 — 업로드 → OCR 최적화 → 글자 읽기 끝까지', None, None),
+        ('정상 — 업로드 → 글자 추출 카드 → 글자 추출 끝까지', None, None),
         ('엔진 파일을 못 받을 때 — 멈추지 않고 안내', 'tesseract.min.js', '엔진 파일'),
         ('언어 파일을 못 받을 때 — 멈추지 않고 안내', 'kor.traineddata.gz', '언어 데이터'),
     ]
@@ -848,7 +881,7 @@ def run_serve_tests(browser):
                 pg.set_input_files('#fileInput', str(photo))
                 pg.wait_for_function("/×/.test(document.getElementById('fileBadge').textContent)", timeout=60000)
                 pg.wait_for_timeout(800)
-                pg.click('.preset-card:has-text("OCR 최적화")')
+                pg.click('.preset-card:has-text("글자 추출")')
                 pg.click('#processBtn'); pg.wait_for_timeout(300)
                 pg.wait_for_function("!document.getElementById('spinnerLine').classList.contains('show')", timeout=240000)
                 warn = pg.inner_text('#warningBox') if pg.is_visible('#warningBox') else ''
@@ -951,7 +984,7 @@ def main():
             fails += run_serve_tests(browser)
 
         if which in ('all', 'ocr'):
-            print('■ 글자 읽기(OCR) 정확도 비교')
+            print('■ 글자 추출(OCR) 정확도 비교')
             f_ocr, table = run_ocr_tests(fresh_page, out_dir)
             fails += f_ocr
             if table:
