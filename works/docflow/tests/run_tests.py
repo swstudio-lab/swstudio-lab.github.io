@@ -9,6 +9,7 @@
        python works/docflow/tests/run_tests.py redact     (정보 가리기 — 가상 문서 자동 검출·가린 저장본, redact-make는 가상 문서를 다시 그림)
        python works/docflow/tests/run_tests.py table      (표 → 엑셀 — 시연 문서·캡처·실제 사진의 칸 나누기)
        python works/docflow/tests/run_tests.py table-ocr  (표 → 엑셀 정확도 — 페이지 전체 OCR vs 칸 단위, 몇 분 걸림)
+       python works/docflow/tests/run_tests.py photo01-check (사진 01 정답 초안 확인 페이지 → tests/private/photo01_check.html)
 준비:  pip install playwright  →  python -m playwright install chromium
 
 · 합성 이미지 테스트: 사진 없이 브라우저에서 직접 그린 이미지로 검사 — 항상 실행
@@ -1321,6 +1322,146 @@ def run_table_ocr_tests(fresh_page, out_dir):
     return fails, rows
 
 
+# ---------------- 사진 01 정답 확인 페이지 ----------------
+# run_tests.py photo01-check → tests/private/photo01_check.html (저장소에 안 올라감)
+# 칸마다 원본 사진에서 자른 그림 + 정답 초안(고칠 수 있음) + OCR 결과. 초안과 OCR이 다른 칸·확실하지 않은 칸(_strike_cols)이 맨 위
+PHOTO_CHECK_JS = r"""
+  const [url] = ARGS;
+  const im = new Image(); im.src = url; await im.decode();
+  const s = shrinkLargeImage(im), src = s ? s.canvas : cloneCanvasFromImage(im);
+  const P = await prepareTableImage(src), R = await ocrTable(P), t = R.tables[0];
+  if(!t) return null;
+  const cells = t.cells.map(c=>{
+    const m = 6, b = c.box, k = Math.min(1, 70 / (b.h + 2*m));
+    const cv = document.createElement('canvas'); cv.width = Math.round((b.w + 2*m)*k); cv.height = Math.round((b.h + 2*m)*k);
+    cv.getContext('2d').drawImage(P.view, b.x - m, b.y - m, b.w + 2*m, b.h + 2*m, 0, 0, cv.width, cv.height);
+    return { r: c.r, c: c.c, rs: c.rs, cs: c.cs, ocr: c.text, low: c.low, why: c.why, strike: !!c.strike, crop: cv.toDataURL('image/jpeg', 0.85) };
+  });
+  return { rows: t.rows, cols: t.cols, cells };
+"""
+
+PHOTO_CHECK_HTML = r"""<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>사진 01 정답 확인</title>
+<style>
+  :root{--bg:#f6f6f4;--card:#fff;--ink:#1d1d1f;--muted:#6b6b70;--line:#dedede;--warn:#fff4c2;--edit:#e3f0ff;--accent:#2457c5;}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 system-ui,"Malgun Gothic",sans-serif;padding:16px 16px 90px;}
+  h1{font-size:19px;margin:0 0 4px} .muted{color:var(--muted);font-size:12.5px}
+  h2{font-size:15px;margin:22px 0 8px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:10px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:6px}
+  .card.flag{border-color:#e0b400;box-shadow:inset 4px 0 0 #e0b400}
+  .card.edited{background:var(--edit)}
+  .where{font-size:12px;color:var(--muted)} .why{font-size:12px;color:#8a6d00}
+  .crop{max-width:100%;height:auto;border:1px solid var(--line);border-radius:4px;background:#fff;align-self:flex-start;cursor:zoom-in}
+  .crop.big{cursor:zoom-out;width:100%}
+  .row{display:flex;gap:8px;align-items:center} .row b{min-width:34px;font-size:12px;color:var(--muted);font-weight:600}
+  input{flex:1;font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:6px;min-width:0}
+  .ocr{flex:1;font-family:ui-monospace,Consolas,monospace;font-size:13px;white-space:pre-wrap;word-break:break-all}
+  .diff{color:#b3261e}
+  .bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  button{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:#fff;cursor:pointer}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .msg{font-size:13px} [hidden]{display:none!important}
+</style></head><body>
+<h1>사진 01 정답 확인</h1>
+<div class="muted">이 페이지는 tests/private/ 안에만 있어요(저장소에 안 올라감). 그림은 원근 보정한 원본 사진에서 칸마다 잘랐어요(누르면 크게).
+초안 값을 고치면 파란색으로 표시돼요. 다 보면 아래 "확인 완료"를 눌러 주세요.</div>
+<div class="muted" id="meta"></div>
+<h2 id="h1"></h2><div class="grid" id="first"></div>
+<h2 id="h2"></h2><div class="grid" id="rest"></div>
+<div class="bar">
+  <span class="msg" id="count"></span>
+  <button class="primary" id="done">확인 완료 → JSON 저장</button>
+  <span id="ask" hidden>정말 확인 완료로 저장할까요? <button class="primary" id="yes">네, 저장</button> <button id="no">아니요</button></span>
+  <span class="msg" id="saved"></span>
+</div>
+<script>
+const DRAFT = __DRAFT__;
+const OCR = __OCR__;
+const norm = s=> (s || '').replace(/\s+/g, '').replace(/[ㆍ∙•]/g, '·');
+const table = DRAFT.table.map(r=> r.slice());
+const orig = DRAFT.table.map(r=> r.slice());
+const strikeCols = new Set(DRAFT._strike_cols || []);
+const lc = DRAFT._label_col || 0;
+const header = c=> (DRAFT.table[1] && DRAFT.table[1][c] || '').replace(/\n/g, ' ');
+document.getElementById('meta').textContent = `상태: ${DRAFT._status} · ${OCR.rows}행 × ${OCR.cols}열 · 그림: ${OCR.source}`;
+const cells = OCR.cells.filter(c=> c.r < table.length && c.c < table[0].length);
+const flagOf = c=>{
+  const why = [];
+  if(norm(table[c.r][c.c]) !== norm(c.ocr)) why.push('초안과 OCR이 달라요');
+  if(strikeCols.has(c.c) && c.r >= 2) why.push('취소선에 가려진 값이라 확실하지 않아요');
+  return why;
+};
+const first = cells.filter(c=> flagOf(c).length), rest = cells.filter(c=> !flagOf(c).length);
+document.getElementById('h1').textContent = `먼저 볼 칸 ${first.length}개 — 초안과 OCR이 다르거나 확실하지 않은 칸`;
+document.getElementById('h2').textContent = `나머지 ${rest.length}개 — 초안과 OCR이 같은 칸`;
+const esc = s=> String(s).replace(/[&<>"]/g, ch=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[ch]);
+const card = c=>{
+  const why = flagOf(c), d = document.createElement('div');
+  d.className = 'card' + (why.length ? ' flag' : '');
+  const label = c.r >= 2 ? `${c.r - 1}번째 행 · ${table[c.r][lc]}` : (c.r === 0 ? '맨 위 띠' : '머리글');
+  d.innerHTML = `<div class="where">${esc(label)} · ${esc(c.r >= 2 || c.r === 1 ? header(c.c) || (c.c + 1) + '열' : '')} <span class="muted">(${c.r},${c.c})</span></div>
+    ${why.length ? `<div class="why">${why.map(esc).join(' · ')}</div>` : ''}
+    <img class="crop" src="${c.crop}" alt="칸 그림">
+    <div class="row"><b>초안</b><input value="${esc(table[c.r][c.c])}"></div>
+    <div class="row"><b>OCR</b><span class="ocr ${norm(table[c.r][c.c]) !== norm(c.ocr) ? 'diff' : ''}">${esc(c.ocr || '(빈 칸)')}</span></div>`;
+  d.querySelector('img').onclick = e=> e.target.classList.toggle('big');
+  const inp = d.querySelector('input');
+  inp.oninput = ()=>{ table[c.r][c.c] = inp.value; d.classList.toggle('edited', inp.value !== orig[c.r][c.c]); count(); };
+  return d;
+};
+first.forEach(c=> document.getElementById('first').appendChild(card(c)));
+rest.forEach(c=> document.getElementById('rest').appendChild(card(c)));
+function count(){
+  let n = 0; table.forEach((r, i)=> r.forEach((v, k)=>{ if(v !== orig[i][k]) n++; }));
+  document.getElementById('count').textContent = `고친 칸 ${n}개 · 전체 ${cells.length}칸`;
+}
+count();
+const ask = document.getElementById('ask');
+document.getElementById('done').onclick = ()=>{ ask.hidden = false; };
+document.getElementById('no').onclick = ()=>{ ask.hidden = true; };
+document.getElementById('yes').onclick = async ()=>{
+  ask.hidden = true;
+  const out = { ...DRAFT, _status: '확인', _confirmed_at: new Date().toISOString().slice(0, 10), table };
+  const text = JSON.stringify(out, null, 2);
+  const msg = document.getElementById('saved');
+  try{
+    if(window.showSaveFilePicker){
+      const h = await showSaveFilePicker({ suggestedName: 'photo01_table_expected.json', types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }] });
+      const w = await h.createWritable(); await w.write(text); await w.close();
+      msg.textContent = '저장했어요. tests/private/photo01_table_expected.json에 덮어썼는지 확인해 주세요.';
+      return;
+    }
+  }catch(e){ if(e && e.name === 'AbortError'){ msg.textContent = '저장을 취소했어요.'; return; } }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = 'photo01_table_expected.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  msg.textContent = '내려받았어요. 받은 파일을 tests/private/photo01_table_expected.json에 덮어써 주세요.';
+};
+</script></body></html>
+"""
+
+def run_photo01_check(fresh_page):
+    af, photo = PRIVATE / 'photo01_table_expected.json', 'photo01_original.jpg'
+    if not (af.is_file() and (PRIVATE / photo).is_file()):
+        print('  SKIP  tests/private/ 에 사진 01 원본·정답 초안이 없어서 건너뜀')
+        return 0
+    draft = json.loads(af.read_text(encoding='utf-8'))
+    pg = fresh_page()
+    r = pg.evaluate('async (ARGS) => {' + PHOTO_CHECK_JS + '}', [PRIVATE_URL + photo])
+    pg.close()
+    if not r:
+        print('  FAIL  사진 01에서 표를 못 찾음'); return 1
+    r['source'] = photo
+    page = (PHOTO_CHECK_HTML.replace('__DRAFT__', json.dumps(draft, ensure_ascii=False).replace('</', '<\\/'))
+                            .replace('__OCR__', json.dumps(r, ensure_ascii=False).replace('</', '<\\/')))
+    out = PRIVATE / 'photo01_check.html'
+    out.write_text(page, encoding='utf-8')
+    print(f"  PASS  확인 페이지를 만들었어요 — {r['rows']}×{r['cols']}칸, {len(r['cells'])}개 그림 ({out.stat().st_size/1e6:.1f}MB)\n        {out}")
+    return 0
+
+
 def run_table_tests(fresh_page, out_dir):
     if not (PRIVATE / OCR_PDF).is_file():
         print('  SKIP  tests/private/ 에 시연용 PDF가 없어서 건너뜀')
@@ -1613,6 +1754,10 @@ def main():
         if which in ('all', 'table'):
             print('■ 표 → 엑셀 (시연 문서·캡처·실제 사진 — 칸 나누기)')
             fails += run_table_tests(fresh_page, out_dir)
+
+        if which == 'photo01-check':
+            print('■ 사진 01 정답 확인 페이지 만들기')
+            fails += run_photo01_check(fresh_page)
 
         if which in ('all', 'table-ocr'):
             print('■ 표 → 엑셀 정확도 (시연 문서 1쪽 표 — 페이지 전체 OCR vs 칸 단위)')
