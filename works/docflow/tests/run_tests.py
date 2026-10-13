@@ -341,6 +341,95 @@ SYNTHETIC = {
   return { ok: !fail.length, info: fail.join(' / ') || `값 변환 ${V.length}개·다듬기 ${C.length}개·쉼표 보정 ${F.length}개 모두 기대대로` };
 ''',
 
+'표 → 엑셀 합계 검산 — 합계 행·소계·합계 열(머리글 단서·조합 찾기)·다른 읽기로 고침·산수 되짚기·제안값': r'''
+  const fail = [];
+  // 표 만들기: data[r][c] = 글자 또는 { t: 글자, alt: [다른 읽기], why: [...] } / numCols: 숫자 열 / merge: [[r,c,cs]]
+  const mk = (data, numCols, merge = [])=>{
+    const R = data.length, C = data[0].length, cells = [], covered = new Set();
+    for(const [r, c, cs] of merge) for(let k=1; k<cs; k++) covered.add(r + ',' + (c+k));
+    data.forEach((row, r)=> row.forEach((v, c)=>{
+      if(covered.has(r + ',' + c)) return;
+      const o = typeof v === 'string' ? { t: v } : v, cs = (merge.find(m=> m[0] === r && m[1] === c) || [0, 0, 1])[2];
+      const cand = {}; (o.alt || []).forEach((a, i)=> cand[['page', 'check'][i]] = { text: a, conf: 80 }); cand.cell = { text: o.t, conf: 80 };
+      const why = o.why || [];
+      cells.push({ r, c, rs: 1, cs, text: o.t, numeric: numCols.includes(c) && /\d/.test(o.t) && !/[가-힣]/.test(o.t), why: [...why], low: why.length > 0, cand });
+    }));
+    return { rows: R, cols: C, cells, colNumeric: Array.from({ length: C }, (_, k)=> numCols.includes(k)) };
+  };
+  const cell = (t, r, c)=> t.cells.find(x=> x.r === r && x.c === c);
+  const sum1 = s=> s.map(x=> `${x.kind}:${x.ok}/${x.fixed}/${x.bad}/${x.unknown}`).join(' ');
+  // ① 합계 행 — 맞음, 퍼센트 열은 뺌, 합친 이름 칸
+  let t = mk([['연번','비목','예산액','집행률'], ['1','가','1,000','10.0%'], ['2','나','2,500','20.0%'], ['합계','','3,500','30.0%']], [0, 2, 3], [[3, 0, 2]]);
+  let s = checkTableSums(t);
+  if(sum1(s) !== 'row:1/0/0/0') fail.push('① 합계 행: ' + sum1(s));
+  // ② 한 칸이 틀렸는데 다른 읽기 결과가 맞으면 고침
+  t = mk([['항목','금액'], ['가', { t: '1,800', alt: ['1,300'] }], ['나','2,000'], ['합계','3,300']], [1]);
+  s = checkTableSums(t);
+  if(sum1(s) !== 'row:0/1/0/0' || cell(t, 1, 1).text !== '1,300' || !cell(t, 1, 1).why.includes('sumfix')) fail.push('② 다른 읽기로 고침: ' + sum1(s) + ' ' + cell(t, 1, 1).text);
+  // ③ 산수 되짚기 — 취소선 칸을 "-316.200"으로 읽음 → 합계−나머지 = 316200, 숫자만 비교해 같음 → 고침
+  t = mk([['구분','운영비(조정액)','출장비(조정액)','조정액 합계'], ['가','427,500', { t: '-316.200', why: ['strike', 'disagree'] }, '743,700']], [1, 2, 3]);
+  s = checkTableSums(t);
+  if(sum1(s) !== 'col:0/1/0/0' || cell(t, 1, 2).text !== '316,200' || !cell(t, 1, 2).why.includes('strike')) fail.push('③ 산수 되짚기: ' + sum1(s) + ' ' + cell(t, 1, 2).text);
+  // ④ 고칠 근거가 없으면 의심 칸(취소선)에만 노란 칸 + 제안값, 확실한 합계 칸은 그대로
+  t = mk([['구분','운영비(조정액)','출장비(조정액)','조정액 합계'], ['가','427,500', { t: '7400', why: ['strike'] }, '743,700'], ['나','812,500','547,300','1,359,800']], [1, 2, 3]);
+  s = checkTableSums(t);
+  if(sum1(s) !== 'col:1/0/1/0' || cell(t, 1, 2).sumHint !== '316,200' || cell(t, 1, 3).low || !cell(t, 1, 2).why.includes('sum')) fail.push('④ 제안값: ' + sum1(s) + ' 제안 ' + cell(t, 1, 2).sumHint + ' 합계 칸 노랑 ' + cell(t, 1, 3).low);
+  // ⑤ 의심 칸을 못 좁히면 묶음 전체 노란 칸
+  t = mk([['항목','금액'], ['가','1,000'], ['나','2,000'], ['합계','4,000']], [1]);
+  s = checkTableSums(t);
+  if(sum1(s) !== 'row:0/0/1/0' || [1, 2, 3].some(r=> !cell(t, r, 1).why.includes('sum'))) fail.push('⑤ 묶음 전체: ' + sum1(s));
+  // ⑥ 소계 — 소계는 바로 앞부터, 합계는 일반 행 전체 또는 소계끼리
+  t = mk([['항목','금액'], ['가','100'], ['나','200'], ['소계','300'], ['다','400'], ['소계','400'], ['합계','700']], [1]);
+  s = checkTableSums(t);
+  if(sum1(s) !== 'row:1/0/0/0 row:1/0/0/0 row:1/0/0/0') fail.push('⑥ 소계: ' + sum1(s));
+  // ⑦ 합계 열 — 머리글 단서 없이 조합 찾기(가+다 = 합계), 연번 열은 뺌
+  t = mk([['연번','가','나','다','합계'], ['1','10','99','5','15'], ['2','20','98','7','27'], ['3','30','97','1','31']], [0, 1, 2, 3, 4]);
+  s = checkTableSums(t);
+  if(sum1(s) !== 'col:3/0/0/0' || s[0].addends.join() !== '1,3' || s[0].how !== 'search') fail.push('⑦ 조합 찾기: ' + sum1(s) + ' ' + (s[0] && s[0].addends));
+  // ⑧ 숫자 근거가 없는 칸 — 검산 못 함, 그 칸에만 이유(합계 칸은 그대로)
+  //    (첫 데이터 행 전체에 숫자 칸이 없으면 머리글 줄로 보므로 둘째 행에 둠)
+  t = mk([['항목','금액'], ['가','2,000'], ['나', { t: 'l,OOO', why: ['format'] }], ['합계','3,000']], [1]);
+  s = checkTableSums(t);
+  if(sum1(s) !== 'row:0/0/0/1' || !cell(t, 2, 1).why.includes('sumunknown') || cell(t, 3, 1).low) fail.push('⑧ 검산 못 함: ' + sum1(s));
+  // ⑨ 0을 O로 읽은 "1,0O0" — 숫자만 비교하면 한 자리 차이라 합계에 맞춰 "1,000"으로 고침
+  t = mk([['항목','금액'], ['가', { t: '1,0O0', why: ['format'] }], ['나','2,000'], ['합계','3,000']], [1]);
+  s = checkTableSums(t);
+  if(sum1(s) !== 'row:0/1/0/0' || cell(t, 1, 1).text !== '1,000') fail.push('⑨ 1,0O0 고침: ' + sum1(s) + ' ' + cell(t, 1, 1).text);
+  return { ok: !fail.length, info: fail.join(' / ') || '합계 행·퍼센트 열 빼기·다른 읽기로 고침·산수 되짚기·제안값·묶음 전체·소계·조합 찾기·검산 못 함·O→0 고침 9가지 모두 기대대로' };
+''',
+
+'표 → 엑셀 취소선 — 곧은·기운·휜 취소선은 잡고, 밑줄·굵은 머리글·보통 숫자는 안 잡음': r'''
+  const fail = [];
+  // 캡처처럼 반듯한 표: 머리글(굵게) + 숫자 9줄. 예산액 열(1번 열)에 취소선: 2번째 줄 곧게, 4번째 3° 기울게, 6번째 살짝 휘게, 3번째는 밑줄.
+  // 종이를 1800×1400으로 둠 — 취소선이 종이 긴 변의 12%보다 길면 findTableLines가 표 선으로 보고 지움(실제 사진의 취소선은 그보다 짧음)
+  const c = document.createElement('canvas'); c.width = 1800; c.height = 1400;
+  const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 1800, 1400);
+  const cols = [80, 300, 560, 820], rows = []; for(let y=60; y<=660; y+=60) rows.push(y);
+  x.strokeStyle = '#222'; x.lineWidth = 2;
+  for(const y of rows){ x.beginPath(); x.moveTo(cols[0], y); x.lineTo(cols[3], y); x.stroke(); }
+  for(const xx of cols){ x.beginPath(); x.moveTo(xx, rows[0]); x.lineTo(xx, rows[rows.length-1]); x.stroke(); }
+  x.fillStyle = '#111'; x.textBaseline = 'middle'; x.textAlign = 'right';
+  x.font = 'bold 26px sans-serif'; [['항목', 1], ['예산액', 2], ['조정액', 3]].forEach(([s, k])=>{ x.textAlign = 'center'; x.fillText(s, (cols[k-1] + cols[k])/2, 90); });
+  x.font = '26px sans-serif'; x.textAlign = 'right';
+  const vals = ['1,234,500', '357,800', '2,468,000', '975,300', '1,357,900', '86,400', '3,141,500', '642,700', '1,118,300'];
+  for(let i=0; i<9; i++){ const y = 150 + i*60; x.textAlign = 'center'; x.fillText('항목 ' + (i+1), 190, y); x.textAlign = 'right';
+    x.fillText(vals[i], 540, y); x.fillText(vals[8-i], 800, y); }
+  // 손 취소선(가운데)·밑줄 — 예산액 열(가운데 열)에만
+  x.strokeStyle = '#333'; x.lineWidth = 3; x.lineCap = 'round';
+  const strike = (i, f)=>{ const y = 150 + i*60; x.beginPath(); f(y); x.stroke(); };
+  strike(1, y=>{ x.moveTo(400, y); x.lineTo(548, y + 1); });                        // 2번째 줄: 곧게
+  strike(3, y=>{ x.moveTo(410, y + 4); x.lineTo(548, y - 3); });                    // 4번째 줄: 3° 기울게
+  strike(5, y=>{ x.moveTo(445, y); x.quadraticCurveTo(495, y - 5, 548, y + 2); });  // 6번째 줄: 살짝 휘게
+  strike(2, y=>{ x.moveTo(420, y + 17); x.lineTo(548, y + 17); });                  // 3번째 줄: 밑줄
+  const P = await prepareTableImage(c), R = await ocrTable(P);
+  const got = R.tables[0].cells.filter(e=> e.strike).map(e=> e.r + ',' + e.c).sort().join(' ');
+  const want = ['2,1', '4,1', '6,1'].join(' ');
+  if(got !== want) fail.push(`취소선 칸 ${got || '없음'} (기대 ${want})`);
+  const low = R.tables[0].cells.filter(e=> e.strike && !e.low);
+  if(low.length) fail.push('취소선 칸이 노란 칸이 아님');
+  return { ok: !fail.length, info: fail.join(' / ') || `취소선 3칸(곧게·기울게·휘게)만 잡음 — 밑줄·굵은 머리글·보통 숫자 ${R.tables[0].cells.length - 3}칸은 안 잡음, 취소선 칸은 노란 칸` };
+''',
+
 '표 → 엑셀 화면 — Ctrl+V 붙여넣기·사진/캡처 판단·판단 바꾸기·표 여러 개·표 없음 안내': r'''
   const fail = [];
   document.querySelector('.mode-btn[data-mode="table"]').click();
@@ -1112,9 +1201,35 @@ TABLE_OCR_JS = r"""
   answers.forEach((ans, ti)=>{ const t = P.grid.tables[ti]; if(!t || t.rows !== ans.length) return;
     ans.forEach((row, r)=> row.forEach((a, c)=>{ const k = t.cellAt[r][c], cl = R.tables[ti].cells[k]; if(cl.r !== r || cl.c !== c) return;
       const bad = norm(a) !== norm(cl.text); if(bad){ wrongN++; if(cl.low) wrongFlag++; } else if(cl.low) rightFlag++; })); });
+  // 합계 검산·취소선
+  out.sums = R.tables.map(t=> (t.sums || []).map(x=> `${x.kind}:${x.ok}/${x.fixed}/${x.bad}/${x.unknown}`).join(' '));
+  out.strikes = R.tables.reduce((n, t)=> n + t.cells.filter(c=> c.strike).length, 0);
+  // 일부러 틀리게: 표 1의 (2,2) 숫자를 바꾸면 ① 다른 읽기 근거가 없을 때 안 맞음으로 잡고 ② 원래 값이 다른 읽기에 있으면 고침
+  const clone = t=> JSON.parse(JSON.stringify(t));
+  const t1 = R.tables[0];
+  if(t1 && t1.rows === 9){
+    const tamper = (keepAlt)=>{ const t = clone(t1); const c = t.cells.find(x=> x.r === 2 && x.c === 2), orig = c.text;
+      c.text = orig.replace(/\d(?=\D*$)/, d=> String((+d + 3) % 10)); c.cand = keepAlt ? { page: { text: orig, conf: 90 } } : {}; c.why = []; c.low = false;
+      const s = checkTableSums(t); return { s: s.map(x=> `${x.kind}:${x.ok}/${x.fixed}/${x.bad}/${x.unknown}`).join(' '), back: c.text === orig, flagged: c.why.join('+') }; };
+    out.tamper = { noAlt: tamper(false), alt: tamper(true) };
+  }
   out.flags = { wrongN, wrongFlag, rightFlag, why: R.tables.flatMap(t=> t.cells).filter(c=> c.low).map(c=> c.why.join('+') + ':' + c.text + ' [' + ['page','cell','check'].map(k=> c.cand[k] ? c.cand[k].text + '(' + c.cand[k].conf + ')' : '-').join(' / ') + ']'),
     pageDissent: R.tables.flatMap(t=> t.cells).filter(c=> c.cand.page && !tblSame(c.cand.page.text, c.text)).map(c=> (c.low ? '노랑 ' : '') + c.text + ' [' + ['page','cell','check'].map(k=> c.cand[k] ? c.cand[k].text + '(' + c.cand[k].conf + ')' : '-').join(' / ') + ']') };
   return out;
+"""
+
+# 페이지 안에서: 사진 01 — 칸 구조·합계 열 검산·취소선 개수(값은 돌려주지 않음)
+TABLE_PHOTO_JS = r"""
+  const [url] = ARGS;
+  const im = new Image(); im.src = url; await im.decode();
+  const s = shrinkLargeImage(im), src = s ? s.canvas : cloneCanvasFromImage(im);
+  const P = await prepareTableImage(src), R = await ocrTable(P), t = R.tables[0];
+  if(!t) return { shape: '표 없음', sums: [], strikeIn: 0, strikeOut: 0, low: 0, hints: 0, prepMs: P.ms, ocrMs: 0 };
+  const strikeCol = 8;
+  return { shape: t.rows + 'x' + t.cols, prepMs: P.ms, ocrMs: R.ms, low: t.cells.filter(c=> c.low).length,
+    sums: (t.sums || []).map(x=> ({ kind: x.kind, how: x.how, addends: x.addends, groups: x.groups, ok: x.ok, fixed: x.fixed, bad: x.bad, unknown: x.unknown })),
+    hints: t.cells.filter(c=> c.sumHint).length,
+    strikeIn: t.cells.filter(c=> c.strike && c.c === strikeCol).length, strikeOut: t.cells.filter(c=> c.strike && c.c !== strikeCol).length };
 """
 
 def run_table_ocr_tests(fresh_page, out_dir):
@@ -1150,14 +1265,43 @@ def run_table_ocr_tests(fresh_page, out_dir):
         pct = lambda s: f"{s['exact']}/{s['cells']} ({s['exact']/s['cells']*100:.0f}%) · 글자 {s['acc']*100:.1f}% · 숫자 칸 {s['numExact']}/{s['numCells']}"
         # 판정: 최종(④)이 페이지 전체(①)·칸 단위(②)보다 칸 정확히 맞음 수가 적지 않을 것
         ok = r['vote']['exact'] >= max(r['page']['exact'], r['cell']['exact'])
+        # 합계 검산: 표 1 합계 행 3열(예산액·집행액·잔액) 모두 맞음, 표 2는 합계 없음 / 취소선 없음
+        ok_sum = r['sums'] == ['row:3/0/0/0', ''] and r['strikes'] == 0
+        tp = r.get('tamper') or {}
+        # 일부러 바꾼 숫자: 근거 없으면 안 맞음 1곳 + 그 칸 노란 칸(합계 칸만 남기지 않음), 원래 값이 다른 읽기에 있으면 고침
+        ok_tamper = bool(tp) and tp['noAlt']['s'] == 'row:2/0/1/0' and 'sum' in tp['noAlt']['flagged'] and tp['alt']['s'] == 'row:2/1/0/0' and tp['alt']['back']
+        ok = ok and ok_sum and ok_tamper
         fails += 0 if ok else 1
         f = r['flags']
         print(f"  {'PASS' if ok else 'FAIL'}  {names[k]} — {r['shape']} · {r['kind']} · 준비 {r['prepMs']/1000:.1f}s · "
               f"페이지 OCR {r['pageMs']/1000:.1f}s · 칸만 {r['cellOnlyMs']/1000:.1f}s · 최종 {r['cellMs']/1000:.1f}s(칸 {r['read']}개 읽고 {r['checked']}개 다시)\n"
               f"        ① 페이지 전체:     {pct(r['page'])}\n        ② 칸 단위:         {pct(r['cell'])}\n"
               f"        ③ 칸 + 숫자 열:    {pct(r['cellNum'])}\n        ④ 최종(맞춰 보기): {pct(r['vote'])}\n"
-              f"        노란 칸: 틀린 칸 {f['wrongN']}개 중 {f['wrongFlag']}개 표시, 맞는 칸 중 표시 {f['rightFlag']}개")
+              f"        노란 칸: 틀린 칸 {f['wrongN']}개 중 {f['wrongFlag']}개 표시, 맞는 칸 중 표시 {f['rightFlag']}개\n"
+              f"        합계 검산 {r['sums']}{'' if ok_sum else ' (기대 [row:3/0/0/0, ])'} · 취소선 {r['strikes']}칸 · "
+              f"숫자 하나 바꾸면 {tp.get('noAlt', {}).get('s')}({tp.get('noAlt', {}).get('flagged')}) / 원래 값이 다른 읽기에 있으면 {tp.get('alt', {}).get('s')} 고침={tp.get('alt', {}).get('back')}")
         rows.append((names[k], r))
+    # 사진 01: 칸 구조 + 합계 열 검산(더할 열을 머리글 단서로 2개 찾음, 20행 검산) + 취소선 열(8번 열)
+    for f in ['photo01.jpg', 'photo01_original.jpg']:
+        if not (PRIVATE / f).is_file():
+            continue
+        pg = fresh_page()
+        try:
+            r = pg.evaluate('async (ARGS) => {' + TABLE_PHOTO_JS + '}', [PRIVATE_URL + f])
+        except Exception as e:
+            r = None; print(f'  FAIL  {f} 검산·취소선 — 오류: {e}')
+        pg.close()
+        if not r:
+            fails += 1; continue
+        sm = r['sums'][0] if r['sums'] else None
+        ok = (r['shape'] == '22x10' and sm and sm['kind'] == 'col' and len(sm['addends']) == 2 and sm['how'] == 'header' and sm['groups'] == 20
+              and r['strikeIn'] >= 10 and r['strikeOut'] <= 1)
+        fails += 0 if ok else 1
+        print(f"  {'PASS' if ok else 'FAIL'}  {f} 검산·취소선 — {r['shape']} · 준비 {r['prepMs']/1000:.1f}s · 글자 추출 {r['ocrMs']/1000:.1f}s · 노란 칸 {r['low']}개\n"
+              f"        합계 열: 더할 열 {len(sm['addends']) if sm else '-'}개({sm and sm['how']}) · {sm and sm['groups']}행 중 맞음 {sm and sm['ok']} · 합계에 맞춰 고침 {sm and sm['fixed']} · "
+              f"안 맞음 {sm and sm['bad']}(제안값 {r['hints']}칸) · 검산 못 함 {sm and sm['unknown']}\n"
+              f"        취소선: 취소선 열 {r['strikeIn']}칸 · 다른 열 {r['strikeOut']}칸 (기대: 취소선 열 10칸 이상, 다른 열 1칸 이하)")
+        summary[f] = r
     od = out_dir / 'table'; od.mkdir(parents=True, exist_ok=True)
     (od / 'table_ocr.json').write_text(json.dumps(summary, ensure_ascii=False, indent=1), encoding='utf-8')
     print(f'  틀린 칸 목록: {od / "table_ocr.json"}')
