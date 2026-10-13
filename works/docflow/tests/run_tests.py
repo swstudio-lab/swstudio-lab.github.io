@@ -431,6 +431,87 @@ SYNTHETIC = {
   return { ok: !fail.length, info: fail.join(' / ') || `취소선 3칸(곧게·기울게·휘게)만 잡음 — 밑줄·굵은 머리글·보통 숫자 ${R.tables[0].cells.length - 3}칸은 안 잡음, 취소선 칸은 노란 칸` };
 ''',
 
+'표 → 엑셀 고치기·복사·xlsx — 칸 누르기·바로 고치기·Enter/Esc·엑셀용 복사·xlsx 서식(숫자·병합·취소선·노란 칸)·인앱 안내': r'''
+  const fail = [];
+  document.querySelector('.mode-btn[data-mode="table"]').click();
+  // 가상 예산표(캡처처럼 반듯하게): 머리글 2줄 — "항목"·"비율" 세로 2칸, "금액" 가로 2칸 / 데이터 4줄 / 합계 / "나" 집행액에 손 취소선
+  const c = document.createElement('canvas'); c.width = 1800; c.height = 1400;
+  const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 1800, 1400);
+  const X = [100, 400, 750, 1100, 1350], Y = [100, 170, 240, 310, 380, 450, 520, 590];
+  x.strokeStyle = '#222'; x.lineWidth = 3;
+  const L = (a, b, c2, d)=>{ x.beginPath(); x.moveTo(a, b); x.lineTo(c2, d); x.stroke(); };
+  for(const y of Y) if(y !== 170) L(X[0], y, X[4], y); else L(X[1], y, X[3], y);
+  for(const xx of X) if(xx !== 750) L(xx, Y[0], xx, Y[7]); else L(xx, Y[1], xx, Y[7]);
+  x.fillStyle = '#111'; x.textBaseline = 'middle'; x.font = 'bold 28px sans-serif'; x.textAlign = 'center';
+  x.fillText('항목', 250, 170); x.fillText('금액', 750, 135); x.fillText('비율', 1225, 170); x.fillText('예산액', 575, 205); x.fillText('집행액', 925, 205);
+  const rows = [['가', '1,234,000', '987,500', '80.0%'], ['나', '2,345,600', '1,876,480', '80.0%'], ['다', '3,000,000', '2,700,000', '90.0%'],
+                ['라', '1,420,400', '1,136,320', '80.0%'], ['합계', '8,000,000', '6,700,300', '83.8%']];
+  x.font = '28px sans-serif';
+  rows.forEach((r, i)=>{ const y = (Y[i+2] + Y[i+3])/2; x.textAlign = 'center'; x.fillText(r[0], 250, y); x.textAlign = 'right';
+    x.fillText(r[1], 730, y); x.fillText(r[2], 1080, y); x.fillText(r[3], 1330, y); });
+  x.strokeStyle = '#333'; x.lineWidth = 3; L(900, 345, 1085, 344);   // "나" 집행액 취소선
+  const blob = await new Promise(r=> c.toBlob(r, 'image/png'));
+  await loadTableFile(new File([blob], '가상 예산표.png', { type: 'image/png' }));
+  const T = tblCur();
+  if(!T){ return { ok: false, info: '표를 못 찾음' }; }
+  const merges = T.cells.filter(e=> e.rs > 1 || e.cs > 1).map(e=> `${e.r},${e.c} ${e.rs}x${e.cs}`).join(' ');
+  if(`${T.rows}x${T.cols}` !== '7x4' || merges !== '0,0 2x1 0,1 1x2 0,3 2x1') fail.push(`칸 구조 ${T.rows}x${T.cols} ${merges}`);
+  const kOf = (r, cc)=> T.cells.findIndex(e=> e.r === r && e.c === cc);
+  const td = k=> document.querySelector(`#tblGridWrap td[data-k="${k}"]`);
+  // ① 칸 누르기 → 편집 상자·원본 칸 그림·선택 표시
+  const k1 = kOf(2, 1); td(k1).click();
+  const panel = document.getElementById('tblCellPanel'), input = document.getElementById('tblCellInput');
+  if(!panel.classList.contains('show') || tblState.sel !== k1 || !td(k1).classList.contains('sel')) fail.push('칸을 눌러도 편집 상자·선택 표시가 안 나옴');
+  if(document.getElementById('tblCellCrop').width < 20) fail.push('원본 칸 그림이 비어 있음');
+  if(document.activeElement !== input) fail.push('입력 칸에 커서가 없음');
+  // ② 입력 → 표에 바로, Enter → 확정·다음 칸
+  input.value = '1,234,500'; input.dispatchEvent(new Event('input', { bubbles: true }));
+  if(td(k1).textContent !== '1,234,500') fail.push('입력이 표에 바로 반영 안 됨: ' + td(k1).textContent);
+  input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  if(tblState.sel === k1 || !td(k1).classList.contains('edited')) fail.push('Enter 뒤 다음 칸으로 안 감·고친 칸 표시 없음');
+  // ③ Esc → 되돌리고 닫기
+  const k2 = tblState.sel, before = T.cells[k2].text;
+  input.value = '틀린 값'; input.dispatchEvent(new Event('input', { bubbles: true }));
+  input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  if(T.cells[k2].text !== before || panel.classList.contains('show')) fail.push('Esc로 안 되돌아감');
+  // ④ 엑셀용 복사 — 클립보드에 tableTsv와 같은 글자, 합친 칸은 첫 칸에만
+  let copied = null; const origCopy = window.copyTextToClipboard; window.copyTextToClipboard = async t=>{ copied = t; return true; };
+  document.getElementById('tblCopy').click(); await new Promise(r=> setTimeout(r, 50));
+  window.copyTextToClipboard = origCopy;
+  const lines = (copied || '').split('\r\n');
+  if(copied !== tableTsv(T)) fail.push('복사한 글자가 tableTsv와 다름');
+  if(lines.length !== 7 || lines[0].split('\t').length !== 4 || lines[0].split('\t')[2] !== '' || lines[1].split('\t')[0] !== '') fail.push('복사 형식(7줄·4칸·합친 칸 빈 자리): ' + JSON.stringify(lines.slice(0, 2)));
+  if(!lines[2].includes('1,234,500')) fail.push('고친 값이 복사에 없음');
+  // ⑤ xlsx — 내려받기 가로채서 다시 열어 봄
+  let saved = null; const origSave = window.saveBlobFile; window.saveBlobFile = (b, n)=>{ saved = { b, n }; };
+  document.getElementById('tblXlsx').click();
+  for(let i=0; i<200 && !saved; i++) await new Promise(r=> setTimeout(r, 50));
+  window.saveBlobFile = origSave;
+  if(!saved){ fail.push('xlsx 안 만들어짐: ' + document.getElementById('tblMsg').textContent); }
+  else {
+    if(saved.n !== '가상 예산표_표.xlsx') fail.push('파일 이름: ' + saved.n);
+    const wb = new ExcelJS.Workbook(); await wb.xlsx.load(await saved.b.arrayBuffer());
+    const ws = wb.worksheets[0], cell = (r, cc)=> ws.getCell(r + 1, cc + 1);
+    if(wb.worksheets.length !== 1) fail.push('시트 수 ' + wb.worksheets.length);
+    if((ws.model.merges || []).length !== 3) fail.push('병합 ' + (ws.model.merges || []).length + '개 (기대 3)');
+    if(cell(2, 1).value !== 1234500 || cell(2, 1).numFmt !== '#,##0') fail.push(`숫자 칸 ${cell(2, 1).value} ${cell(2, 1).numFmt}`);
+    if(typeof cell(2, 3).value !== 'number' || Math.abs(cell(2, 3).value - 0.8) > 1e-9 || cell(2, 3).numFmt !== '0.0%') fail.push(`퍼센트 칸 ${cell(2, 3).value} ${cell(2, 3).numFmt}`);
+    if(!(cell(0, 0).font || {}).bold || cell(0, 0).value !== '항목') fail.push('머리글 굵게·글자');
+    const sk = T.cells.find(e=> e.strike);
+    if(!sk || sk.r !== 3 || sk.c !== 2) fail.push('취소선 칸을 못 찾음');
+    else if(!(cell(sk.r, sk.c).font || {}).strike || !cell(sk.r, sk.c).note) fail.push('xlsx 취소선 서식·메모 없음');
+    const yellow = T.cells.filter(e=> ((cell(e.r, e.c).fill || {}).fgColor || {}).argb === 'FFFFF2A8');
+    if(yellow.length !== T.cells.filter(e=> e.low).length || yellow.some(e=> !e.low)) fail.push(`노란 채우기 ${yellow.length}칸 (노란 칸 ${T.cells.filter(e=> e.low).length})`);
+    if(T.cells[k1].low || ((cell(2, 1).fill || {}).fgColor || {}).argb === 'FFFFF2A8') fail.push('고친 칸이 아직 노란색');
+  }
+  // ⑥ 인앱 브라우저 — 내려받지 않고 안내
+  INAPP.inApp = true; let saved2 = false; const origSave2 = window.saveBlobFile; window.saveBlobFile = ()=>{ saved2 = true; };
+  document.getElementById('tblXlsx').click(); await new Promise(r=> setTimeout(r, 100));
+  INAPP.inApp = false; window.saveBlobFile = origSave2; document.getElementById('inappBanner').classList.remove('show');
+  if(saved2 || !document.getElementById('tblMsg').textContent.includes('앱 안의 화면')) fail.push('인앱에서 내려받기 안내가 안 나옴');
+  return { ok: !fail.length, info: fail.join(' / ') || `7×4·합친 칸 3개, 칸 누르기·바로 고치기·Enter·Esc, 복사(합친 칸 첫 칸만), xlsx(숫자·퍼센트·병합 3·취소선·노란 ${T.cells.filter(e=> e.low).length}칸·머리글 굵게), 인앱 안내` };
+''',
+
 '표 → 엑셀 화면 — Ctrl+V 붙여넣기·사진/캡처 판단·판단 바꾸기·표 여러 개·표 없음 안내': r'''
   const fail = [];
   document.querySelector('.mode-btn[data-mode="table"]').click();

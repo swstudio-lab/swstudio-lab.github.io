@@ -156,6 +156,29 @@
   .tbl-grid td.num{text-align:right;font-variant-numeric:tabular-nums;}
   .tbl-grid td.low{background:rgba(250,204,21,0.28);}
   .tbl-grid td.strike{text-decoration:line-through;text-decoration-thickness:1.5px;}
+  .tbl-grid td{cursor:pointer;}
+  .tbl-grid td:hover{outline:1px solid var(--gold-dim);outline-offset:-1px;}
+  .tbl-grid td.sel{outline:2px solid #4f8cff;outline-offset:-2px;}
+  .tbl-grid td.edited{color:#8fc1ff;}
+  .tbl-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 10px;}
+  .tbl-btn{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:12.5px;color:var(--ink);cursor:pointer;}
+  .tbl-btn.primary{background:var(--gold);border-color:var(--gold);color:#0b0b0e;font-weight:700;}
+  .tbl-btn:disabled{opacity:.45;cursor:default;}
+  .tbl-msg{font-size:12px;color:var(--muted);}
+  .tbl-cell-panel{display:none;flex-direction:column;gap:8px;position:sticky;top:env(safe-area-inset-top, 0px);z-index:5;
+    background:var(--panel);border:1px solid #4f8cff;border-radius:12px;padding:10px 12px;margin-bottom:10px;box-shadow:0 6px 18px rgba(0,0,0,.35);}
+  .tbl-cell-panel.show{display:flex;}
+  .tbl-cell-top{display:flex;align-items:center;gap:8px;}
+  .tbl-cell-where{flex:1;font-size:12.5px;color:var(--ink);font-weight:600;}
+  .tbl-x{background:none;border:none;color:var(--muted);font-size:20px;line-height:1;cursor:pointer;padding:0 4px;}
+  #tblCellCrop{max-width:100%;height:auto;align-self:flex-start;border-radius:6px;background:#fff;}
+  .tbl-cell-why{font-size:12px;color:#f5d36b;}
+  .tbl-cell-why:empty{display:none;}
+  #tblCellInput{width:100%;box-sizing:border-box;font:inherit;font-size:15px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);
+    background:var(--panel-2);color:var(--ink);resize:vertical;min-height:40px;}
+  .tbl-cell-btns{display:flex;flex-wrap:wrap;gap:6px;}
+  .tbl-keys{margin:0;}
+  @media (hover:none) and (pointer:coarse){ .tbl-keys{display:none;} }
 
   /* 업로드 */
   .drop-zone{
@@ -361,7 +384,7 @@
   <div class="inapp-banner" id="inappBanner" role="status"></div>
   <div class="top">
     <div class="top-title">📄 DocFlow</div>
-    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-13-06</div>
+    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-13-07</div>
     <div class="top-sub">할 일을 고르고 이미지를 올리면 한 번에 정리해드려요.</div>
     <div class="badge-local">🔒 이 페이지에서 하는 모든 처리는 브라우저 안에서만 이뤄져요 — 서버로 업로드되지 않아요</div>
   </div>
@@ -522,9 +545,31 @@
       </div>
       <div class="tbl-tabs" id="tblTabs"></div>
       <div class="tbl-view" id="tblView"><canvas id="tblCanvas"></canvas></div>
-      <div class="section-title" style="margin-top:18px;">3. 읽은 표</div>
+      <div class="section-title" style="margin-top:18px;">3. 읽은 표 — 칸을 눌러 고치기</div>
       <div class="gen-hint tbl-summary" id="tblSummary"></div>
+      <div class="tbl-actions">
+        <button type="button" class="tbl-btn primary" id="tblCopy">📋 엑셀용으로 복사</button>
+        <button type="button" class="tbl-btn" id="tblXlsx">⬇ .xlsx 내려받기</button>
+        <button type="button" class="tbl-btn" id="tblNextLow">다음 확인할 칸 →</button>
+        <span class="tbl-msg" id="tblMsg"></span>
+      </div>
+      <div class="tbl-cell-panel" id="tblCellPanel">
+        <div class="tbl-cell-top">
+          <span class="tbl-cell-where" id="tblCellWhere"></span>
+          <button type="button" class="tbl-x" id="tblCellClose" aria-label="닫기">×</button>
+        </div>
+        <canvas id="tblCellCrop"></canvas>
+        <div class="tbl-cell-why" id="tblCellWhy"></div>
+        <textarea id="tblCellInput" rows="1" spellcheck="false" aria-label="칸 내용"></textarea>
+        <div class="tbl-cell-btns">
+          <button type="button" class="tbl-btn primary" id="tblCellApply">적용하고 다음 칸</button>
+          <button type="button" class="tbl-btn" id="tblCellHint"></button>
+          <button type="button" class="tbl-btn" id="tblCellOk">이대로 맞아요</button>
+        </div>
+        <div class="gen-hint tbl-keys">Enter 적용하고 다음 칸 · Shift+Enter 칸 안 줄바꿈 · Esc 되돌리고 닫기</div>
+      </div>
       <div class="tbl-grid-wrap" id="tblGridWrap"></div>
+      <div class="gen-hint">복사는 지금 보는 표만(합친 칸은 첫 칸에만), .xlsx는 표마다 시트 하나로 — 숫자는 숫자로, 합친 칸은 병합, 취소선 칸은 취소선, 노란 칸은 노란색과 이유 메모로 들어가요.</div>
     </div>
   </div>
 
@@ -6929,7 +6974,9 @@ function checkTableSums(t){
     // 한 칸만 다른 읽기 결과로 바꿔서 딱 맞는지(숫자로 못 읽은 칸이 그 한 칸이면 그것도 여기서 맞춰짐)
     const fixes = [];
     for(const c of all){
-      const alts = new Set(['page', 'cell', 'check'].map(k=> c.cand && c.cand[k] && c.cand[k].text).filter(x=> x && !tblSame(x, c.text)));
+      // 다른 읽기 결과 + 부호 의심 칸이면 앞의 "-"를 뗀 값도(취소선이 "-"로 섞여 읽힌 경우)
+      const reads = [c.text, ...['page', 'cell', 'check'].map(k=> c.cand && c.cand[k] && c.cand[k].text)].filter(Boolean);
+      const alts = new Set([...reads, ...(c.why.includes('sign') ? reads.map(x=> x.replace(/^\s*[-−]\s*/, '')) : [])].filter(x=> x && !tblSame(x, c.text)));
       for(const a of alts){
         const v = parseCellValue(a); if(v.type !== 'number' || /%$/.test(v.fmt)) continue;
         const alt = { c, v: v.value };
@@ -6958,7 +7005,7 @@ function checkTableSums(t){
     if(uniq.length === 1){
       const { c, text } = uniq[0];
       c.sumNote = `합계에 맞춰 "${c.text}" → "${text}"로 고쳤어요 (${label})`;
-      c.text = text; c.why = c.why.filter(w=> w !== 'format' && w !== 'disagree').concat('sumfix'); c.low = true;
+      c.text = text; c.why = c.why.filter(w=> !['format', 'disagree', 'sign'].includes(w)).concat('sumfix'); c.low = true;
       return 'fixed';
     }
     // 숫자로 못 읽은 칸이 있으면 검산 못 함 — 그 칸에만 이유를 닮(합계 칸까지 노랗게 하지 않음)
@@ -6971,7 +7018,7 @@ function checkTableSums(t){
     // 나머지 칸이 모두 확실하면 그 칸만, 아니면 그 칸과 합계 칸을 노랗게. 의심 칸을 못 좁히면 묶음 전체
     // (사진 01: 더하는 다른 열·합계 칸은 두 방식이 똑같이 읽었고 취소선이 그어진 칸만 2~4자리씩 달랐음)
     let mark = all, suspect = null;
-    for(const w of ['strike', 'format', 'disagree']){ const s = all.filter(c=> c.why.includes(w)); if(s.length === 1){ suspect = s[0]; break; } if(s.length > 1) break; }
+    for(const w of ['strike', 'sign', 'format', 'disagree']){ const s = all.filter(c=> c.why.includes(w)); if(s.length === 1){ suspect = s[0]; break; } if(s.length > 1) break; }
     const note = `${label}: 더하면 ${sumOf(group).toLocaleString('ko-KR')}, 합계 칸은 ${totOf().toLocaleString('ko-KR')}`;
     if(suspect){
       const exp = suspect === total ? sumOf(group) : val(total) - sumOf(group.filter(x=> x !== suspect));
@@ -7289,6 +7336,14 @@ async function ocrTable(prep, opts = {}){
     delete c._lk;
   }
   const out = tables.map(T=> ({ rows: T.t.rows, cols: T.t.cols, cells: T.cells, colNumeric: T.colNumeric }));
+  // 부호 의심 — 거의 다 양수인 숫자 열(양수 3칸 이상, 음수 20% 이하)에서 혼자 음수인 칸: 취소선·밑줄이 "-"로 섞여 읽혔을 수 있음
+  // (사진 01: 취소선 칸을 두 방식 모두 "-…"로 읽어 엇갈림 표시도 없이 음수로 더해졌고, 엉뚱하게 합계 칸이 의심 칸이 됐었음)
+  for(const t of out) for(let k=0; k<t.cols; k++){
+    const col = t.cells.filter(c=> c.c === k && c.numeric).map(c=> [c, parseCellValue(c.text)]).filter(([, v])=> v.type === 'number');
+    const neg = col.filter(([, v])=> v.value < 0), pos = col.length - neg.length;
+    if(!neg.length || pos < 3 || neg.length > col.length*0.2) continue;
+    for(const [c] of neg){ if(!c.why.includes('sign')) c.why.push('sign'); c.low = true; }
+  }
   if(opts.sums !== false) for(const t of out) t.sums = checkTableSums(t);
   return { tables: out, ms: performance.now() - t0, read: readN, checked: todo.length, total };
 }
@@ -7358,7 +7413,9 @@ async function runTable(kind){
           : p.phase === 'cell' ? `칸 읽는 중 ${p.done}/${p.total}` : `애매한 칸 다시 읽는 중 ${p.done}/${p.total}`;
       } });
     }
-    tblState.prep = prep;
+    // 읽은 그대로의 글자 — 사용자가 고친 칸 표시(edited)에 씀
+    if(tblState.result) for(const t of tblState.result.tables) for(const c of t.cells) c.ocrText = c.text;
+    tblState.prep = prep; tblState.sel = null;
     renderTableResult();
   }catch(err){
     console.error('[DocFlow 표]', err);
@@ -7388,7 +7445,8 @@ function renderTableResult(){
 
 // 읽은 표 — 합쳐진 칸은 rowspan/colspan, 확신 낮은 칸은 노란색
 const TBL_WHY = { disagree: '읽을 때마다 다르게 읽혔어요', format: '숫자 형식이 맞지 않아요', suspect: '엉뚱한 영문일 수 있어요', strike: '손으로 그은 취소선이 있어요',
-  sum: '합계가 맞지 않아요', sumfix: '합계에 맞춰 고쳤어요', sumunknown: '숫자로 읽지 못해 합계를 검산하지 못했어요' };
+  sum: '합계가 맞지 않아요', sumfix: '합계에 맞춰 고쳤어요', sumunknown: '숫자로 읽지 못해 합계를 검산하지 못했어요',
+  sign: '앞의 -는 선이 섞여 읽힌 것일 수 있어요' };
 // 합계 검산 요약 한 줄
 function tblSumSummary(sums){
   if(!sums || !sums.length) return '';
@@ -7401,28 +7459,187 @@ function tblSumSummary(sums){
     return `${s.label}: ${parts.join(', ')}`;
   }).join(' / ');
 }
+const tblEsc = s=> String(s).replace(/[&<>"]/g, ch=> ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
+const tblCur = ()=> tblState.result && tblState.result.tables[tblState.current];
+function tblCellClass(c, k){
+  return [c.low ? 'low' : '', c.numeric ? 'num' : '', c.strike ? 'strike' : '', c.edited ? 'edited' : '', k === tblState.sel ? 'sel' : ''].filter(Boolean).join(' ');
+}
+const tblCellTip = c=> [...c.why.map(w=> TBL_WHY[w] || w), c.sumNote].filter(Boolean).join(' · ');
 function renderTableGrid(){
-  const res = tblState.result, wrap = tblEl('tblGridWrap');
-  const T = res && res.tables[tblState.current];
-  if(!T){ wrap.innerHTML = ''; tblEl('tblSummary').textContent = ''; return; }
-  const esc = s=> s.replace(/[&<>"]/g, ch=> ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
-  const at = new Map(T.cells.map(c=> [c.r + ',' + c.c, c]));
+  const wrap = tblEl('tblGridWrap'), T = tblCur();
+  const has = !!T;
+  ['tblCopy', 'tblXlsx', 'tblNextLow'].forEach(id=> tblEl(id).disabled = !has);
+  if(!has){ wrap.innerHTML = ''; tblEl('tblSummary').textContent = ''; tblClosePanel(); return; }
+  const at = new Map(T.cells.map((c, k)=> [c.r + ',' + c.c, k]));
   let html = '<table class="tbl-grid"><tbody>';
   for(let r=0; r<T.rows; r++){
     html += '<tr>';
-    for(let k=0; k<T.cols; k++){
-      const c = at.get(r + ',' + k); if(!c) continue;   // 합쳐진 칸에 덮인 자리
-      const cls = [c.low ? 'low' : '', c.numeric ? 'num' : '', c.strike ? 'strike' : ''].filter(Boolean).join(' ');
-      const tip = [...c.why.map(w=> TBL_WHY[w] || w), c.sumNote].filter(Boolean).join(' · ');
-      html += `<td${c.rs > 1 ? ` rowspan="${c.rs}"` : ''}${c.cs > 1 ? ` colspan="${c.cs}"` : ''}${cls ? ` class="${cls}"` : ''}${tip ? ` title="${esc(tip)}"` : ''}>${esc(c.text).replace(/\n/g, '<br>')}</td>`;
+    for(let col=0; col<T.cols; col++){
+      const k = at.get(r + ',' + col); if(k === undefined) continue;   // 합쳐진 칸에 덮인 자리
+      const c = T.cells[k], cls = tblCellClass(c, k), tip = tblCellTip(c);
+      html += `<td data-k="${k}"${c.rs > 1 ? ` rowspan="${c.rs}"` : ''}${c.cs > 1 ? ` colspan="${c.cs}"` : ''}${cls ? ` class="${cls}"` : ''}${tip ? ` title="${tblEsc(tip)}"` : ''}>${tblEsc(c.text).replace(/\n/g, '<br>')}</td>`;
     }
     html += '</tr>';
   }
   wrap.innerHTML = html + '</tbody></table>';
-  const low = T.cells.filter(c=> c.low).length;
+  tblUpdateSummary();
+}
+function tblUpdateSummary(){
+  const T = tblCur(); if(!T) return;
+  const low = T.cells.filter(c=> c.low).length, edited = T.cells.filter(c=> c.edited).length;
   const strike = T.cells.filter(c=> c.strike).length, sum = tblSumSummary(T.sums);
-  tblEl('tblSummary').textContent = `${T.rows}행 × ${T.cols}열` + (low ? ` · 확인이 필요한 칸 ${low}개(노란색)` : ' · 모든 칸을 확신 있게 읽었어요')
-    + (strike ? ` · 취소선 ${strike}칸` : '') + (sum ? '\n' + sum : '');
+  tblEl('tblSummary').textContent = `${T.rows}행 × ${T.cols}열` + (low ? ` · 확인이 필요한 칸 ${low}개(노란색)` : ' · 확인이 필요한 칸 없음')
+    + (strike ? ` · 취소선 ${strike}칸` : '') + (edited ? ` · 고친 칸 ${edited}개` : '') + (sum ? '\n' + sum : '');
+  tblEl('tblNextLow').disabled = !low;
+}
+// 칸 하나만 다시 그림(글자·노란색·선택 표시)
+function tblRefreshCell(k){
+  const T = tblCur(), c = T.cells[k], td = tblEl('tblGridWrap').querySelector(`td[data-k="${k}"]`);
+  if(!td) return;
+  td.className = tblCellClass(c, k);
+  td.innerHTML = tblEsc(c.text).replace(/\n/g, '<br>');
+  const tip = tblCellTip(c); if(tip) td.title = tip; else td.removeAttribute('title');
+}
+
+// 칸 편집 상자 — 칸을 누르면 원본 사진의 그 칸을 크게 보여주고(큰 이미지에서도 파란 테두리), 바로 고칠 수 있게 입력 칸에 커서
+// 노란 칸이면 이유와 "합계와 맞으려면 …" 제안값 버튼. 고치거나 "이대로 맞아요"를 누르면 노란색을 뗌(취소선 표시는 그대로 — 그림에 있는 사실이라)
+function tblColHeader(T, col){
+  let head = 0; while(head < T.rows && !T.cells.some(c=> c.r === head && c.numeric)) head++;
+  return T.cells.filter(c=> c.r < head && c.c <= col && col < c.c + c.cs && c.cs < T.cols).map(c=> c.text.replace(/\n/g, ' ')).filter(Boolean).join(' · ');
+}
+function tblRowLabel(T, r){
+  const first = T.cells.filter(c=> c.r === r && !c.numeric && c.text && c.cs < T.cols).sort((a, b)=> a.c - b.c);
+  return first.length ? first.slice(0, 2).map(c=> c.text.replace(/\n/g, ' ')).join(' ') : '';
+}
+function tblSelect(k){
+  const T = tblCur(); if(!T || !T.cells[k]) return;
+  const prev = tblState.sel; tblState.sel = k;
+  if(prev !== undefined && prev !== null && prev !== k) tblRefreshCell(prev);
+  const c = T.cells[k];
+  tblState.before = c.text;
+  tblRefreshCell(k);
+  const head = tblColHeader(T, c.c), label = tblRowLabel(T, c.r);
+  tblEl('tblCellWhere').textContent = `${c.r + 1}행 ${c.c + 1}열` + (label && label !== c.text ? ` · ${label}` : '') + (head && head !== c.text ? ` · ${head}` : '');
+  tblEl('tblCellWhy').textContent = c.low || c.strike ? [...c.why.map(w=> TBL_WHY[w] || w), c.sumNote].filter(Boolean).join(' · ') : '';
+  const hint = tblEl('tblCellHint');
+  hint.style.display = c.sumHint && c.sumHint !== c.text ? '' : 'none';
+  hint.textContent = c.sumHint ? `제안값 ${c.sumHint} 넣기` : '';
+  tblEl('tblCellOk').style.display = c.low ? '' : 'none';
+  // 원본 칸 그림 — 칸 둘레를 조금 넉넉히 잘라 화면 폭에 맞춤
+  const src = tblState.prep.view, b = c.box, m = Math.max(8, b.h*0.35);
+  const sx = Math.max(0, b.x - m), sy = Math.max(0, b.y - m), sw = Math.min(src.width - sx, b.w + 2*m), sh = Math.min(src.height - sy, b.h + 2*m);
+  const cv = tblEl('tblCellCrop'), maxW = Math.min(640, (tblEl('tblCellPanel').clientWidth || 600) - 24) * Math.min(2, window.devicePixelRatio || 1);
+  const f = Math.min(maxW / sw, 140*Math.min(2, window.devicePixelRatio || 1) / sh, 3);
+  cv.width = Math.max(1, Math.round(sw*f)); cv.height = Math.max(1, Math.round(sh*f));
+  cv.style.width = Math.round(cv.width / Math.min(2, window.devicePixelRatio || 1)) + 'px';
+  const x = cv.getContext('2d'); x.drawImage(src, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+  x.strokeStyle = 'rgba(79,140,255,0.9)'; x.lineWidth = 2; x.beginPath();
+  c.quad.forEach((p, i)=> i ? x.lineTo((p.x - sx)*f, (p.y - sy)*f) : x.moveTo((p.x - sx)*f, (p.y - sy)*f)); x.closePath(); x.stroke();
+  const input = tblEl('tblCellInput');
+  input.value = c.text; input.rows = Math.max(1, Math.min(4, c.text.split('\n').length));
+  tblEl('tblCellPanel').classList.add('show');
+  drawTableView();
+  input.focus({ preventScroll: true }); input.select();
+  const td = tblEl('tblGridWrap').querySelector(`td[data-k="${k}"]`);
+  if(td) td.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+function tblClosePanel(){
+  const prev = tblState.sel; tblState.sel = null;
+  tblEl('tblCellPanel').classList.remove('show');
+  if(prev !== null && prev !== undefined && tblCur()) tblRefreshCell(prev);
+  if(tblState.prep) drawTableView();
+}
+// 입력 중 — 표에 바로 반영(엔터 전에도)
+function tblSetText(k, text){
+  const c = tblCur().cells[k];
+  c.text = text; c.edited = text !== c.ocrText;
+  tblRefreshCell(k);
+}
+// 확정 — 고쳤거나 "이대로 맞아요"면 노란색을 뗌
+function tblConfirm(k){
+  const c = tblCur().cells[k];
+  if(c.low){ c.low = false; c.reviewed = true; }
+  tblRefreshCell(k); tblUpdateSummary();
+}
+function tblNextIndex(k, onlyLow){
+  const T = tblCur(), order = T.cells.map((c, i)=> i).sort((a, b)=> T.cells[a].r - T.cells[b].r || T.cells[a].c - T.cells[b].c);
+  const pos = order.indexOf(k);
+  for(let i=1; i<=order.length; i++){ const j = order[(pos + i) % order.length]; if(!onlyLow || T.cells[j].low) return j; }
+  return null;
+}
+
+// 엑셀용 복사 — 탭·줄바꿈, 합친 칸은 첫 칸에만(나머지 빈 칸), 칸 안 줄바꿈·탭·따옴표가 있으면 엑셀 규칙대로 따옴표로 감쌈. 숫자 쉼표는 그대로
+function tableTsv(T){
+  const g = Array.from({ length: T.rows }, ()=> new Array(T.cols).fill(''));
+  for(const c of T.cells) g[c.r][c.c] = c.text || '';
+  const q = s=> /[\t\n"]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  return g.map(row=> row.map(q).join('\t')).join('\r\n');
+}
+
+// .xlsx — ExcelJS(assets/vendor, 누를 때만 불러옴). 표마다 시트 하나
+//  · 숫자·퍼센트는 진짜 숫자 + 표시 형식(parseCellValue), 머리글 줄(숫자 칸이 없는 위쪽 줄)은 글자 그대로·굵게·회색 바탕
+//  · 합친 칸은 병합, 취소선 칸은 취소선 서식, 아직 노란 칸(확인 안 한 칸)은 노란 채우기 + 이유 메모, 모든 칸 얇은 테두리, 칸 안 줄바꿈은 줄 바꿈 표시
+let tblExcelLoading = null;
+function loadExcelJS(){
+  if(window.ExcelJS) return Promise.resolve();
+  if(!tblExcelLoading) tblExcelLoading = new Promise((resolve, reject)=>{
+    const s = document.createElement('script'); s.src = '../../assets/vendor/exceljs.min.js';
+    s.onload = ()=> resolve(); s.onerror = ()=>{ tblExcelLoading = null; s.remove(); reject(new Error('엑셀 라이브러리를 불러오지 못했어요')); };
+    document.head.appendChild(s);
+  });
+  return tblExcelLoading;
+}
+function buildTableWorkbook(tables){
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'DocFlow';
+  const thin = { style: 'thin', color: { argb: 'FFBFBFBF' } }, border = { top: thin, left: thin, bottom: thin, right: thin };
+  tables.forEach((T, i)=>{
+    const ws = wb.addWorksheet(`표 ${i + 1}`);
+    let head = 0; while(head < T.rows && !T.cells.some(c=> c.r === head && c.numeric)) head++;
+    if(head >= T.rows) head = 0;
+    for(let r=1; r<=T.rows; r++) for(let k=1; k<=T.cols; k++) ws.getCell(r, k).border = border;
+    const widths = new Array(T.cols).fill(6);
+    for(const c of T.cells){
+      const cell = ws.getCell(c.r + 1, c.c + 1), text = c.text || '';
+      const isHead = c.r < head;
+      const v = isHead ? { type: 'text', value: text } : parseCellValue(text);
+      if(v.type === 'number'){ cell.value = v.value; cell.numFmt = v.fmt; }
+      else cell.value = text;
+      cell.font = { name: '맑은 고딕', size: 10, bold: isHead, strike: !!c.strike };
+      cell.alignment = { vertical: 'middle', wrapText: text.includes('\n'), horizontal: isHead ? 'center' : (v.type === 'number' ? 'right' : 'left') };
+      if(c.low) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2A8' } };
+      else if(isHead) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
+      const note = [c.strike ? '손으로 그은 취소선이 있어요' : '', ...(c.low ? c.why.filter(w=> w !== 'strike').map(w=> TBL_WHY[w] || w) : []), c.low ? c.sumNote : ''].filter(Boolean);
+      if(note.length) cell.note = note.join('\n');
+      if(c.rs > 1 || c.cs > 1) ws.mergeCells(c.r + 1, c.c + 1, c.r + c.rs, c.c + c.cs);
+      if(c.cs === 1){
+        const w = Math.max(...text.split('\n').map(s=> [...s].reduce((n, ch)=> n + (/[가-힣ㄱ-ㅎ]/.test(ch) ? 2 : 1), 0)));
+        widths[c.c] = Math.max(widths[c.c], Math.min(50, w + 2));
+      }
+    }
+    widths.forEach((w, k)=> ws.getColumn(k + 1).width = w);
+  });
+  return wb;
+}
+async function downloadTableXlsx(){
+  const res = tblState.result; if(!res || !res.tables.length) return;
+  if(INAPP.inApp){
+    tblEl('tblMsg').innerHTML = `이 앱 안의 화면에서는 엑셀 파일을 받을 수 없어요 — ${externalHowTo('위')} 열어 주세요. "엑셀용으로 복사"는 여기서도 돼요.`;
+    renderInAppBanner(false);
+    return;
+  }
+  tblEl('tblMsg').textContent = '엑셀 파일 만드는 중…';
+  try{
+    await loadExcelJS();
+    const buf = await buildTableWorkbook(res.tables).xlsx.writeBuffer();
+    const base = (tblState.name || '').replace(/\.[^.]+$/, '').replace(/[\\/:*?"<>|]/g, '').trim();
+    const name = (base && base !== '붙여넣은 캡처' ? base + '_표' : 'DocFlow_표') + '.xlsx';
+    saveBlobFile(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), name);
+    tblEl('tblMsg').textContent = `${name} 내려받았어요 (표 ${res.tables.length}개 → 시트 ${res.tables.length}개)`;
+  }catch(err){
+    console.error('[DocFlow 표]', err);
+    tblEl('tblMsg').textContent = '엑셀 파일을 만들지 못했어요. 새로고침 후 다시 시도해 주세요.';
+  }
 }
 
 // 보이는 이미지 위에 칸 구분선 — 고른 표는 진하게, 다른 표는 흐리게
@@ -7442,6 +7659,13 @@ function drawTableView(){
       x.beginPath(); c.quad.forEach((p, k)=> k ? x.lineTo(p.x*s, p.y*s) : x.moveTo(p.x*s, p.y*s)); x.closePath(); x.stroke();
     }
   });
+  // 고른 칸 — 파란 테두리 + 옅은 채움
+  const T = tblCur(), sel = T && tblState.sel !== null && tblState.sel !== undefined ? T.cells[tblState.sel] : null;
+  if(sel){
+    x.beginPath(); sel.quad.forEach((p, k)=> k ? x.lineTo(p.x*s, p.y*s) : x.moveTo(p.x*s, p.y*s)); x.closePath();
+    x.fillStyle = 'rgba(79,140,255,0.22)'; x.fill();
+    x.strokeStyle = 'rgba(79,140,255,1)'; x.lineWidth = lw*2.2; x.stroke();
+  }
 }
 
 {
@@ -7465,9 +7689,45 @@ function drawTableView(){
   tblEl('tblKindSwap').addEventListener('click', ()=>{ if(tblState.prep) runTable(tblState.prep.kind === 'photo' ? 'capture' : 'photo'); });
   tblEl('tblTabs').addEventListener('click', e=>{
     const b = e.target.closest('.tbl-tab'); if(!b) return;
-    tblState.current = +b.dataset.i; renderTableResult();
+    tblClosePanel(); tblState.current = +b.dataset.i; renderTableResult();
   });
   window.addEventListener('resize', ()=>{ if(tblState.prep && tblEl('tblResult').style.display !== 'none') drawTableView(); });
+  // 칸 고치기
+  tblEl('tblGridWrap').addEventListener('click', e=>{ const td = e.target.closest('td[data-k]'); if(td) tblSelect(+td.dataset.k); });
+  const cellInput = tblEl('tblCellInput');
+  cellInput.addEventListener('input', ()=>{ if(tblState.sel !== null && tblState.sel !== undefined) tblSetText(tblState.sel, cellInput.value); });
+  const applyNext = ()=>{
+    const k = tblState.sel; if(k === null || k === undefined) return;
+    tblSetText(k, cellInput.value.replace(/\s+$/, '')); tblConfirm(k);
+    const n = tblNextIndex(k, false); if(n !== null) tblSelect(n);
+  };
+  cellInput.addEventListener('keydown', e=>{
+    if(e.key === 'Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); applyNext(); }
+    else if(e.key === 'Escape'){ e.preventDefault(); const k = tblState.sel; if(k !== null && k !== undefined) tblSetText(k, tblState.before); tblClosePanel(); }
+  });
+  tblEl('tblCellApply').addEventListener('click', applyNext);
+  tblEl('tblCellClose').addEventListener('click', ()=> tblClosePanel());
+  tblEl('tblCellHint').addEventListener('click', ()=>{
+    const k = tblState.sel, c = tblCur().cells[k]; if(!c || !c.sumHint) return;
+    cellInput.value = c.sumHint; tblSetText(k, c.sumHint); tblConfirm(k); tblSelect(k);
+  });
+  tblEl('tblCellOk').addEventListener('click', ()=>{
+    const k = tblState.sel; if(k === null || k === undefined) return;
+    tblConfirm(k); const n = tblNextIndex(k, true); if(n !== null) tblSelect(n); else tblSelect(k);
+  });
+  tblEl('tblNextLow').addEventListener('click', ()=>{
+    const T = tblCur(); if(!T) return;
+    const from = tblState.sel !== null && tblState.sel !== undefined ? tblState.sel : T.cells.length - 1;
+    const n = tblNextIndex(from, true); if(n !== null) tblSelect(n);
+  });
+  // 엑셀용 복사·내려받기
+  tblEl('tblCopy').addEventListener('click', async ()=>{
+    const T = tblCur(); if(!T) return;
+    const ok = await copyTextToClipboard(tableTsv(T));
+    const n = tblState.result.tables.length;
+    tblEl('tblMsg').textContent = ok ? `복사했어요 — ${T.rows}행 × ${T.cols}열${n > 1 ? ` (표 ${tblState.current + 1}/${n})` : ''}. 엑셀에서 붙여넣으세요(Ctrl+V).` : '복사하지 못했어요. 브라우저의 클립보드 권한을 확인해 주세요.';
+  });
+  tblEl('tblXlsx').addEventListener('click', downloadTableXlsx);
 }
 
 /* ---------------------------------------------------------
