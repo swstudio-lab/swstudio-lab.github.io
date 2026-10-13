@@ -148,6 +148,13 @@
   .tbl-tab.active{border-color:var(--gold);color:var(--gold);font-weight:700;}
   .tbl-view{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;overflow:hidden;}
   .tbl-view canvas{display:block;width:100%;height:auto;border-radius:6px;}
+  .tbl-summary{margin:0 0 8px;}
+  .tbl-grid-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel);}
+  .tbl-grid-wrap:empty{display:none;}
+  .tbl-grid{border-collapse:collapse;font-size:12.5px;color:var(--ink);min-width:100%;}
+  .tbl-grid td{border:1px solid var(--line);padding:6px 8px;vertical-align:middle;white-space:nowrap;}
+  .tbl-grid td.num{text-align:right;font-variant-numeric:tabular-nums;}
+  .tbl-grid td.low{background:rgba(250,204,21,0.28);}
 
   /* 업로드 */
   .drop-zone{
@@ -353,7 +360,7 @@
   <div class="inapp-banner" id="inappBanner" role="status"></div>
   <div class="top">
     <div class="top-title">📄 DocFlow</div>
-    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-13-02</div>
+    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-13-03</div>
     <div class="top-sub">할 일을 고르고 이미지를 올리면 한 번에 정리해드려요.</div>
     <div class="badge-local">🔒 이 페이지에서 하는 모든 처리는 브라우저 안에서만 이뤄져요 — 서버로 업로드되지 않아요</div>
   </div>
@@ -514,6 +521,9 @@
       </div>
       <div class="tbl-tabs" id="tblTabs"></div>
       <div class="tbl-view" id="tblView"><canvas id="tblCanvas"></canvas></div>
+      <div class="section-title" style="margin-top:18px;">3. 읽은 표</div>
+      <div class="gen-hint tbl-summary" id="tblSummary"></div>
+      <div class="tbl-grid-wrap" id="tblGridWrap"></div>
     </div>
   </div>
 
@@ -5675,6 +5685,7 @@ function cleanOcrLine(line, fixes){
 // 글자 추출 — 이미지 전체든 잘라낸 칸 하나든 같은 함수
 //  canvas: 처리 결과 등 원래 이미지 / opts.rect: {x,y,w,h}면 그 칸만 / opts.mode: 'page' | 'block' | 'line'
 //  opts.onProgress({stage:'load'|'recognize', progress 0~1}) / opts.prepare: false면 OCR용 정리 없이 그대로(테스트 비교용)
+//  opts.whitelist: 이 글자들만 읽음(예: 숫자 열 '0123456789,.-%') / opts.reread: false면 한글 사이 짧은 영문 다시 읽기를 건너뜀(표 칸마다 읽을 때)
 // 결과(좌표는 모두 넘겨준 canvas 기준):
 //  { text, meanConf, lowConfWords, lowConfList, ms, lines:[{text, conf, bbox:{x0,y0,x1,y1}, para}], words:[{text, conf, bbox, line, chars:[{t, bbox}], suspect?}], ocrCanvas }
 //  line: 몇 번째 줄인지(lines 번호), para: 문단 첫 줄인지, chars: 글자 단위 위치
@@ -5715,7 +5726,8 @@ function ocrRecognize(canvas, opts = {}){
         report({ stage: 'recognize', progress: 0 });
         // 세로쓰기 판단 끔 — 한국어 모델이 직인의 세로 글자·"결/재" 같은 배치를 보고 문단을 세로쓰기로 읽어
         // 글자가 엉뚱하게 나왔음(지출결의서 쪽 정확도 26% → 끄면 70%)
-        await w.setParameters({ tessedit_pageseg_mode: OCR_PSM[mode] || '4', textord_tabfind_vertical_text: '0' });
+        // 글자 제한(whitelist)은 엔진에 남으므로 매번 정함(안 주면 빈 값 = 제한 없음) — 표 숫자 열 다시 읽기에서 씀
+        await w.setParameters({ tessedit_pageseg_mode: OCR_PSM[mode] || '4', textord_tabfind_vertical_text: '0', tessedit_char_whitelist: opts.whitelist || '' });
         return [w, (await w.recognize(prep.canvas, {}, { text: true, blocks: true })).data];
       })());
       let worker, data;
@@ -5729,7 +5741,7 @@ function ocrRecognize(canvas, opts = {}){
       const rawLines = [];
       for(const bl of data.blocks || []) for(const pa of bl.paragraphs || []) (pa.lines || []).forEach((li, k)=>{ li._para = k === 0; rawLines.push(li); });
       let text = data.text || '';
-      text = await rereadStrayLatin(worker, prep.canvas, rawLines, text);
+      if(opts.reread !== false) text = await rereadStrayLatin(worker, prep.canvas, rawLines, text);
       // 후처리(₩, 혼자 떨어진 기호, 주소의 빠진 점) — 쪽 글자·줄·단어에 똑같이
       const addrFixes = [];
       text = text.split('\n').map(l=> cleanOcrLine(l, addrFixes)).join('\n');
@@ -6840,6 +6852,255 @@ async function prepareTableImage(src, opts = {}){
   return { kind, auto, view, ocr, grid, warning, ms: performance.now() - t0 };
 }
 
+// 칸 글자 → 엑셀 값. 숫자 모양이면 { type:'number', value, fmt }, 아니면 { type:'text', value }
+//  · 쉼표 숫자 "120,000,000" → 120000000, 표시 '#,##0' (소수 있으면 '#,##0.0' 처럼 자릿수만큼)
+//  · 퍼센트 "70.4%" → 0.704, 표시 '0.0%'
+//  · 쉼표 없는 정수는 숫자(표시 '0'), 단 0으로 시작하는 두 자리 이상("0412")은 코드일 수 있어 글자 그대로
+//  · 음수: 앞의 "-"·"−", 괄호 "(1,000)"
+const TBL_NUM_RE = /^\d{1,3}(,\d{3})+(\.\d+)?$|^\d+(\.\d+)?$/;
+function parseCellValue(text){
+  const raw = (text || '').trim();
+  let t = raw.replace(/\s+/g, '').replace(/^[₩\\]/, '').replace(/−/g, '-');
+  let neg = false;
+  if(/^\(.*\)$/.test(t)){ neg = true; t = t.slice(1, -1); }
+  if(t.startsWith('-')){ neg = !neg; t = t.slice(1); }
+  const pct = t.endsWith('%'); if(pct) t = t.slice(0, -1);
+  if(!t || !TBL_NUM_RE.test(t) || (/^0\d/.test(t))) return { type: 'text', value: raw };
+  const dec = (t.split('.')[1] || '').length, comma = t.includes(',');
+  let v = Number(t.replace(/,/g, '')); if(neg) v = -v;
+  const zeros = dec ? '.' + '0'.repeat(dec) : '';
+  if(pct) return { type: 'number', value: +(v/100).toFixed(dec + 2), fmt: '0' + zeros + '%' };
+  return { type: 'number', value: v, fmt: (comma ? '#,##0' : '0') + zeros };
+}
+// 숫자 모양인지(읽기 결과 판단용) — 숫자가 들어 있고 숫자·쉼표·마침표·부호·% 말고는 거의 없음
+const tblDigitShare = t=>{ const s = (t || '').replace(/\s+/g, ''); return s ? (s.match(/\d/g) || []).length / s.length : 0; };
+const tblNumLike = t=> /\d/.test(t || '') && tblDigitShare(t) >= 0.6;
+// 숫자 형식이 맞는지 — 쉼표 자리가 틀린 "1,19,000"이나 섞인 글자는 틀림(노란 칸)
+const tblNumValid = t=> parseCellValue(t).type === 'number';
+
+// 칸 글자 다듬기 — 여러 방식의 결과를 비교하기 전에 똑같이
+//  · 한글 사이의 "-"·"ㆍ"·"•" 덩어리 → 가운뎃점 "·" (엔진이 "·"를 한글 "ㆍ"(아래아)나 "-"로 읽음 — "교육-ㆍ연구", "운영-지원비")
+//  · 숫자 안 공백 없애기 "1, 357,900" → "1,357,900" (줄바꿈은 그대로)
+function tblCleanText(t){
+  return (t || '')
+    .replace(/([가-힣])[ \t]*[-ㆍ·•∙.]*[-ㆍ·•∙][-ㆍ·•∙.]*[ \t]*(?=[가-힣])/g, '$1·')
+    .replace(/(\d)[ \t]+(?=[\d,.%])/g, '$1').replace(/([,.])[ \t]+(?=\d)/g, '$1')
+    .replace(/[ \t]+/g, ' ').trim();
+}
+const tblSame = (a, b)=> (a || '').replace(/\s+/g, '') === (b || '').replace(/\s+/g, '');
+// "427.500"·"1.359,800"처럼 마침표가 낀 세 자리 묶음 → 쉼표 (쉼표 묶음 숫자를 쓰는 표에서만 부름)
+const tblFixThousands = t=> /^-?\d{1,3}([.,]\d{3})+$/.test(t) && t.includes('.') ? t.replace(/\./g, ',') : t;
+
+// 표 칸마다 글자 추출 — prep: prepareTableImage 결과. 세 가지 읽기를 맞춰 봄(시연 문서 1쪽 비교: 방식마다 틀리는 칸이 서로 달랐음)
+//  ① 표 전체: 글자 추출용 이미지 한 장을 쪽 단위(psm 4)로 읽고, 단어 상자 가운데가 들어간 칸에 넣음 — 문맥이 있어 머리글 낱말에 강함
+//  ② 칸 단위: 칸 상자를 선 두께의 1.5배만큼 안쪽으로 잘라 읽음. 빈 칸(잉크가 거의 없음)은 건너뜀, 글자 줄이 하나면 한 줄 모드(psm 7),
+//     여럿이면 블록 모드(psm 6), 어두운 바탕 칸(사진 01 파란 띠 — 흑백에서 검은 바탕 흰 글씨)은 뒤집어서 읽음
+//  ①②가 같으면 확정. 다르거나, 숫자 열인데 숫자 형식이 틀리면 ③ 다시 읽기: 흑백 처리 전 보이는 이미지(회색조)에서 칸을 글자 높이 40px로 키워서 —
+//     흑백 처리에서 굵은 머리글 글씨의 획 사이가 막혀(사진 합성 "8월"·"집행률") ②와 같은 오류를 따라 하지 않게 다른 이미지에서 읽음.
+//     숫자 열의 숫자 칸은 숫자·쉼표·마침표·-·%·괄호만 읽도록 제한 → 셋 중 둘이 같은 글자로 정함.
+//     셋이 다 다르면 (숫자 열이면 숫자 형식이 맞는 것 중) 확신 높은 쪽 + 노란 칸
+//  · 열 성격: 머리글(첫 줄) 아래 칸의 60% 이상(2칸 이상)이 숫자 모양이면 숫자 열. 한글이 든 칸은 숫자로 다시 읽지 않음("3월" → "38"이 됐었음)
+//  · 퍼센트 열(숫자 칸 대부분이 %로 끝남)에서 소수 자릿수가 맞는데 끝이 "96"·"9%"인 것은 "%"로("70.496" → "70.4%")
+//  · 합쳐진 칸은 첫 칸에만 글자(다른 칸은 비움)
+// opts.onProgress({ phase:'table'|'cell'|'check', done, total }) — 화면의 "칸 읽는 중 42/275"
+// 결과: { tables:[{ rows, cols, cells:[{ r,c,rs,cs, text, conf, low, why:[], lines, empty, numeric, cand:{page,cell,check?}, agree }], colNumeric }],
+//        ms, read(칸 단위로 읽은 칸 수), checked(③ 다시 읽은 칸 수), total }
+async function ocrTable(prep, opts = {}){
+  const t0 = performance.now(), progress = opts.onProgress || (()=>{});
+  const src = prep.ocr, W = src.width, H = src.height;
+  const d = src.getContext('2d', CTX_READ).getImageData(0, 0, W, H).data;
+  const lum = p=> 0.299*d[p*4] + 0.587*d[p*4+1] + 0.114*d[p*4+2];
+  const tables = prep.grid.tables.map(t=>{
+    const th = [...t.h, ...t.v].filter(l=> !l.virtual).map(l=> l.thick).sort((m, n)=> m - n);
+    const thick = Math.max(2, th[th.length >> 1] || 2);
+    return { t, inset: Math.max(2, Math.round(thick*1.5)),
+      cells: t.cells.map(c=> ({ ...c, text: '', conf: 100, low: false, why: [], lines: 0, empty: true, numeric: false, cand: {}, agree: true })) };
+  });
+  const total = tables.reduce((s, x)=> s + x.cells.length, 0);
+
+  // 칸 안쪽 사각형 + 잉크 살피기(빈 칸·줄 수·글자 높이·어두운 바탕)
+  const look = (cell, inset)=>{
+    const x0 = Math.max(0, Math.round(cell.box.x + inset)), y0 = Math.max(0, Math.round(cell.box.y + inset));
+    const x1 = Math.min(W, Math.round(cell.box.x + cell.box.w - inset)), y1 = Math.min(H, Math.round(cell.box.y + cell.box.h - inset));
+    const rect = { x: x0, y: y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0) };
+    if(x1 - x0 < 4 || y1 - y0 < 4) return { rect, empty: true, lines: 0, dark: false, textH: 0 };
+    const vals = []; for(let y=y0; y<y1; y+=2) for(let x=x0; x<x1; x+=2) vals.push(lum(y*W + x));
+    vals.sort((a, b)=> a - b);
+    const bg = vals[vals.length >> 1], dark = bg < 110;
+    const isInk = v=> dark ? v > bg + 70 : v < Math.min(bg - 60, 170);
+    const rowInk = []; let sum = 0;
+    for(let y=y0; y<y1; y++){ let n = 0; for(let x=x0; x<x1; x++) if(isInk(lum(y*W + x))) n++; rowInk.push(n); sum += n; }
+    if(sum < Math.max(8, rect.w*rect.h*0.002)) return { rect, empty: true, lines: 0, dark, textH: 0 };
+    const minRow = Math.max(1, rect.w*0.005), bands = [];
+    let s = -1, gap = 0;
+    rowInk.forEach((n, i)=>{
+      if(n >= minRow){ if(s < 0) s = i; gap = 0; }
+      else if(s >= 0 && ++gap > 2){ bands.push(i - gap - s + 1); s = -1; gap = 0; }
+    });
+    if(s >= 0) bands.push(rowInk.length - gap - s);
+    const tall = Math.max(...bands, 1);
+    return { rect, empty: false, lines: Math.max(1, bands.filter(h=> h >= tall*0.4).length), dark, bg, textH: tall };
+  };
+  // 칸만 잘라 f배로 키운 캔버스 — 어두운 바탕이면 뒤집고, 회색 바탕(머리글 칸 등)이면 바탕이 흰색이 되게 폄
+  // (사진 합성의 회색 머리글 칸 "집행률"·"8월"을 칸 단위·다시 읽기 모두 빈 글자로 읽었음)
+  //  from: 'ocr'(글자 추출용 흑백, 기본) | 'view'(보이는 이미지 — 회색조로, 칸 바탕을 다시 재서 폄)
+  const cropOf = (lk, f, from)=>{
+    const img = from === 'view' ? prep.view : src;
+    const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(lk.rect.w*f)); c.height = Math.max(1, Math.round(lk.rect.h*f));
+    const x = c.getContext('2d', CTX_READ); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
+    x.drawImage(img, lk.rect.x, lk.rect.y, lk.rect.w, lk.rect.h, 0, 0, c.width, c.height);
+    const im = x.getImageData(0, 0, c.width, c.height), dd = im.data;
+    let bg = lk.bg || 255, dark = lk.dark;
+    if(from === 'view'){
+      const v = []; for(let i=0; i<dd.length; i+=16) v.push(0.299*dd[i] + 0.587*dd[i+1] + 0.114*dd[i+2]);
+      v.sort((a, b)=> a - b); bg = v[v.length >> 1] || 255; dark = bg < 110;
+    }
+    if(from === 'view' || dark || bg < 235){
+      for(let i=0; i<dd.length; i+=4){
+        const g = 0.299*dd[i] + 0.587*dd[i+1] + 0.114*dd[i+2];
+        dd[i] = dd[i+1] = dd[i+2] = dark ? 255 - g : Math.min(255, Math.round(g*255/Math.max(1, bg)));
+      }
+      x.putImageData(im, 0, 0);
+    }
+    return c;
+  };
+  // 한글 사이 짧은 영문 다시 읽기(reread)도 켬 — 칸에서도 "실험·실습 기자재 PY REY"처럼 나옴(후보가 있을 때만 돌아서 거의 안 느려짐)
+  const read = async (lk, { f = 1, whitelist, from } = {})=>{
+    const c = cropOf(lk, f, from);
+    const r = await ocrRecognize(c, { rect: { x: 0, y: 0, w: c.width, h: c.height }, mode: lk.lines > 1 ? 'block' : 'line', reread: !whitelist, whitelist });
+    const raw = lk.lines > 1 ? r.text.split('\n').map(s=> s.trim()).filter(Boolean).join('\n') : r.text.replace(/\s*\n\s*/g, ' ');
+    const text = tblCleanText(raw);
+    return { text, conf: text ? r.meanConf : 0, suspect: r.words.some(w=> w.suspect) };
+  };
+
+  // ① 표 전체 읽기 → 단어를 칸에 넣기
+  progress({ phase: 'table', done: 0, total });
+  const inQuad = (q, x, y)=>{
+    let sg = 0;
+    for(let i=0; i<4; i++){ const a = q[i], b = q[(i+1)%4], c = (b.x-a.x)*(y-a.y) - (b.y-a.y)*(x-a.x); if(c){ if(!sg) sg = Math.sign(c); else if(Math.sign(c) !== sg) return false; } }
+    return true;
+  };
+  const usePage = opts.pagePass !== false;
+  const pageR = usePage ? await ocrRecognize(src, { mode: 'page' }) : { words: [] };
+  for(const T of tables){
+    const bucket = T.cells.map(()=> []), bb = T.t.bbox;
+    for(const w of pageR.words){
+      const cx = (w.bbox.x0 + w.bbox.x1)/2, cy = (w.bbox.y0 + w.bbox.y1)/2;
+      if(cx < bb.x || cy < bb.y || cx > bb.x + bb.w || cy > bb.y + bb.h) continue;
+      const k = T.cells.findIndex(c=> inQuad(c.quad, cx, cy)); if(k >= 0) bucket[k].push(w);
+    }
+    T.cells.forEach((c, k)=>{
+      const ws = bucket[k].sort((a, b)=> a.line - b.line || a.bbox.x0 - b.bbox.x0);
+      let text = '', last = null, cs = 0, cn = 0;
+      for(const w of ws){ text += last === null ? w.text : (w.line === last ? ' ' : '\n') + w.text; last = w.line; cs += w.conf*w.text.length; cn += w.text.length; }
+      c.cand.page = { text: tblCleanText(text), conf: cn ? Math.round(cs/cn) : 0, suspect: ws.some(w=> w.suspect) };
+    });
+  }
+  // ② 칸 단위
+  let done = 0, readN = 0;
+  for(const T of tables) for(const c of T.cells){
+    const lk = look(c, T.inset); c._lk = lk; c.lines = lk.lines;
+    if(lk.empty) c.cand.cell = { text: '', conf: 100, suspect: false };
+    else { readN++; c.cand.cell = await read(lk); }
+    progress({ phase: 'cell', done: ++done, total });
+  }
+  // 열 성격 — ①② 중 하나라도 숫자 모양이면 숫자 모양으로 셈
+  const either = c=> c.cand.cell.text || c.cand.page.text || '';
+  for(const T of tables){
+    T.colNumeric = [];
+    for(let k=0; k<T.t.cols; k++){
+      const body = T.cells.filter(c=> c.c === k && c.cs === 1 && c.r > 0 && either(c));
+      const num = body.filter(c=> tblNumLike(c.cand.cell.text) || tblNumLike(c.cand.page.text)).length;
+      T.colNumeric.push(num >= 2 && num >= body.length*0.6);
+    }
+    for(const c of T.cells) c.numeric = T.colNumeric[c.c] && c.cs === 1 && !hasHangul(either(c)) && tblDigitShare(either(c)) >= 0.3;
+    // 퍼센트 열·행: 숫자 칸의 60% 이상이 형식 맞는 %이면, 가장 흔한 소수 자릿수 뒤에 "96"·"9%"·"%%"가 붙은 것을 "%"로
+    // (1쪽 월별 표는 퍼센트가 열이 아니라 "누적률" 행으로 놓여 있음)
+    T.pctFix = new Map();   // 칸 → 고칠 정규식
+    const groups = [];
+    for(let k=0; k<T.t.cols; k++) groups.push(T.cells.filter(c=> c.numeric && c.c === k));
+    for(let r=0; r<T.t.rows; r++) groups.push(T.cells.filter(c=> c.numeric && c.r === r));
+    for(const g of groups){
+      const pct = g.filter(c=> /%$/.test(c.cand.cell.text) && tblNumValid(c.cand.cell.text));
+      if(g.length < 2 || pct.length < g.length*0.6) continue;
+      const decs = pct.map(c=> (c.cand.cell.text.replace('%', '').split('.')[1] || '').length);
+      const dec = decs.slice().sort((a, b)=> decs.filter(v=> v === b).length - decs.filter(v=> v === a).length)[0];
+      if(!dec) continue;
+      const re = new RegExp(`^(-?\\d+\\.\\d{${dec}})(96|9%|%%)$`);
+      for(const c of g){
+        T.pctFix.set(c, re);
+        for(const key of ['page', 'cell']) if(re.test(c.cand[key].text)) c.cand[key].text = c.cand[key].text.replace(re, '$1%');
+      }
+    }
+    // 천 단위 쉼표를 마침표로 읽은 것 — 사진 01은 "427,500"을 "427.500"처럼 읽은 칸이 많아 ①②가 거의 다 엇갈렸음.
+    // 이 표의 숫자 칸에 쉼표 묶음 숫자가 있으면, 마침표·쉼표가 섞인 세 자리 묶음("427.500", "1.359,800")은 쉼표로.
+    // 퍼센트 열·행의 칸은 뺌 — "77.5%"를 "77.596"으로 읽은 것이 "77,596"이 됐었음(위 퍼센트 다듬기를 먼저)
+    T.commaNums = T.cells.some(c=> c.numeric && ['page', 'cell'].some(k=> /^\d{1,3}(,\d{3})+$/.test(c.cand[k].text)));
+    if(T.commaNums) for(const c of T.cells) if(c.numeric && !T.pctFix.has(c)) for(const k of ['page', 'cell']) c.cand[k].text = tblFixThousands(c.cand[k].text);
+  }
+  // ③ 맞춰 보기 — ①②가 다르거나 숫자 형식이 틀린 칸만 다시 읽음
+  const todo = [];
+  for(const T of tables) for(const c of T.cells){
+    const same = !usePage || tblSame(c.cand.page.text, c.cand.cell.text);
+    if(!same || (c.numeric && !tblNumValid(c.cand.cell.text))) todo.push([T, c]);
+  }
+  let checked = 0;
+  for(const [T, c] of todo){
+    const lk = c._lk;
+    if(!(lk.empty && !c.cand.page.text)){
+      const lk2 = lk.empty ? { ...lk, lines: 1 } : lk;
+      const f = Math.min(4, Math.max(1, 40 / Math.max(6, lk2.textH || lk2.rect.h*0.5)));
+      const r = await read(lk2, { f, whitelist: c.numeric ? '0123456789,.-%()' : undefined, from: 'view' });
+      const re = T.pctFix.get(c); if(re && re.test(r.text)) r.text = r.text.replace(re, '$1%');
+      if(c.numeric && T.commaNums && !re) r.text = tblFixThousands(r.text);
+      c.cand.check = r;
+    }
+    progress({ phase: 'check', done: ++checked, total: todo.length });
+  }
+  // 정하기 — 둘 이상 같은 글자면 그것(확신 높은 쪽 모양), 아니면 형식 맞는 것 중 확신 높은 쪽 + 노란 칸
+  for(const T of tables) for(const c of T.cells){
+    const cands = ['cell', 'page', 'check'].filter(k=> c.cand[k] && (k !== 'page' || usePage)).map(k=> ({ ...c.cand[k], src: k }));
+    const valid = v=> !c.numeric || tblNumValid(v.text);
+    const anyValid = cands.some(valid);
+    // 빈 글자끼리의 일치는, 다른 읽기에 확신 50 이상인 글자가 있으면 표로 치지 않음(회색 칸에서 둘이 같이 못 읽은 경우)
+    const someText = cands.some(v=> v.text && v.conf >= 50);
+    let pick = null, agree = false;
+    for(let i=0; i<cands.length && !pick; i++) for(let j=i+1; j<cands.length; j++){
+      if(!cands[i].text && someText) continue;
+      if(tblSame(cands[i].text, cands[j].text) && (valid(cands[i]) || !anyValid)){
+        pick = cands[i].conf >= cands[j].conf ? cands[i] : cands[j]; agree = true; break;
+      }
+    }
+    if(!pick){
+      const pool = anyValid ? cands.filter(valid) : cands;
+      pick = pool.filter(v=> v.text).sort((a, b)=> b.conf - a.conf)[0] || pool[0];
+    }
+    if(cands.length === 1) agree = pick.conf >= OCR_LOW_CONF;  // 비교할 읽기가 하나뿐(①을 끈 비교용)이면 확신도로
+    // 표 전체 읽기(①)가 확신 90 이상이고, 고른 것보다 10 넘게 높고, 공백 뺀 글자 수가 같으면(한두 글자만 다름) ①을 쓰되 노란 칸.
+    // 칸 단위 두 번이 같은 글자를 똑같이 틀렸음(사진 합성 "비목" → "비록", "누적률" → "누적를": ① 92~93, ②③ 75~79).
+    // 시연 문서 4장에서 ①이 틀린 칸은 확신이 모두 90 미만이었음
+    const P1 = cands.find(v=> v.src === 'page');
+    if(P1 && P1.src !== pick.src && P1.text && !tblSame(P1.text, pick.text) && P1.conf >= 90 && P1.conf > pick.conf + 10 && valid(P1)
+       && P1.text.replace(/\s+/g, '').length === pick.text.replace(/\s+/g, '').length){ pick = P1; agree = false; }
+    // ①이 확신 80 이상인데 글자 수가 같은 다른 글자면(②③이 같은 글자를 똑같이 틀렸을 수 있음 — 캡처 150% "협력" → "현력") 고른 것은 두고 노란 칸
+    else if(P1 && agree && P1.text && !tblSame(P1.text, pick.text) && P1.conf >= 80
+       && P1.text.replace(/\s+/g, '').length === pick.text.replace(/\s+/g, '').length) agree = false;
+    c.text = pick.text; c.conf = pick.conf; c.agree = agree; c.empty = !c.text; c.pick = pick.src;
+    c.why = [];
+    if(!c.empty){
+      if(!agree) c.why.push('disagree');
+      if(c.numeric && !tblNumValid(c.text)) c.why.push('format');
+      if(pick.suspect) c.why.push('suspect');
+    }
+    c.low = c.why.length > 0;
+    delete c._lk;
+  }
+  return {
+    tables: tables.map(T=> ({ rows: T.t.rows, cols: T.t.cols, cells: T.cells, colNumeric: T.colNumeric })),
+    ms: performance.now() - t0, read: readN, checked: todo.length, total,
+  };
+}
+
 // 화면
 const tblState = { src: null, name: '', prep: null, current: 0, busy: false };
 const tblEl = id=> document.getElementById(id);
@@ -6895,9 +7156,17 @@ async function runTable(kind){
   const status = async t=>{ tblEl('tblStatus').textContent = t; await nextPaint(); };
   try{
     const prep = await prepareTableImage(tblState.src, { kind, onStatus: status });
-    tblState.prep = prep; tblState.current = 0;
+    tblState.result = null; tblState.current = 0;
     if(!prep.grid.tables.length){ tblShowWarn(TBL_NO_TABLE); }
-    else if(prep.warning) tblShowWarn(prep.warning);
+    else {
+      if(prep.warning) tblShowWarn(prep.warning);
+      await status('글자 추출 엔진 준비 중…');
+      tblState.result = await ocrTable(prep, { onProgress: p=>{
+        tblEl('tblStatus').textContent = p.phase === 'table' ? '표 전체 읽는 중…'
+          : p.phase === 'cell' ? `칸 읽는 중 ${p.done}/${p.total}` : `애매한 칸 다시 읽는 중 ${p.done}/${p.total}`;
+      } });
+    }
+    tblState.prep = prep;
     renderTableResult();
   }catch(err){
     console.error('[DocFlow 표]', err);
@@ -6922,6 +7191,31 @@ function renderTableResult(){
     ? tables.map((t, i)=> `<button type="button" class="tbl-tab${i === tblState.current ? ' active' : ''}" data-i="${i}">표 ${i+1} · ${t.rows}×${t.cols}</button>`).join('')
     : '';
   drawTableView();
+  renderTableGrid();
+}
+
+// 읽은 표 — 합쳐진 칸은 rowspan/colspan, 확신 낮은 칸은 노란색
+const TBL_WHY = { disagree: '읽을 때마다 다르게 읽혔어요', format: '숫자 형식이 맞지 않아요', suspect: '엉뚱한 영문일 수 있어요' };
+function renderTableGrid(){
+  const res = tblState.result, wrap = tblEl('tblGridWrap');
+  const T = res && res.tables[tblState.current];
+  if(!T){ wrap.innerHTML = ''; tblEl('tblSummary').textContent = ''; return; }
+  const esc = s=> s.replace(/[&<>"]/g, ch=> ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
+  const at = new Map(T.cells.map(c=> [c.r + ',' + c.c, c]));
+  let html = '<table class="tbl-grid"><tbody>';
+  for(let r=0; r<T.rows; r++){
+    html += '<tr>';
+    for(let k=0; k<T.cols; k++){
+      const c = at.get(r + ',' + k); if(!c) continue;   // 합쳐진 칸에 덮인 자리
+      const cls = [c.low ? 'low' : '', c.numeric ? 'num' : ''].filter(Boolean).join(' ');
+      const tip = c.why.map(w=> TBL_WHY[w] || w).join(' · ');
+      html += `<td${c.rs > 1 ? ` rowspan="${c.rs}"` : ''}${c.cs > 1 ? ` colspan="${c.cs}"` : ''}${cls ? ` class="${cls}"` : ''}${tip ? ` title="${esc(tip)}"` : ''}>${esc(c.text).replace(/\n/g, '<br>')}</td>`;
+    }
+    html += '</tr>';
+  }
+  wrap.innerHTML = html + '</tbody></table>';
+  const low = T.cells.filter(c=> c.low).length;
+  tblEl('tblSummary').textContent = `${T.rows}행 × ${T.cols}열` + (low ? ` · 확인이 필요한 칸 ${low}개(노란색)` : ' · 모든 칸을 확신 있게 읽었어요');
 }
 
 // 보이는 이미지 위에 칸 구분선 — 고른 표는 진하게, 다른 표는 흐리게

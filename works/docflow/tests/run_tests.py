@@ -8,6 +8,7 @@
        python works/docflow/tests/run_tests.py leak       (비공개 값 유출 검사만 — 몇 초, 어느 테스트를 돌려도 맨 먼저 함)
        python works/docflow/tests/run_tests.py redact     (정보 가리기 — 가상 문서 자동 검출·가린 저장본, redact-make는 가상 문서를 다시 그림)
        python works/docflow/tests/run_tests.py table      (표 → 엑셀 — 시연 문서·캡처·실제 사진의 칸 나누기)
+       python works/docflow/tests/run_tests.py table-ocr  (표 → 엑셀 정확도 — 페이지 전체 OCR vs 칸 단위, 몇 분 걸림)
 준비:  pip install playwright  →  python -m playwright install chromium
 
 · 합성 이미지 테스트: 사진 없이 브라우저에서 직접 그린 이미지로 검사 — 항상 실행
@@ -320,6 +321,26 @@ SYNTHETIC = {
            images: { grid: T.png(o, 1200) } };
 ''',
 
+'표 → 엑셀 값 — 숫자·퍼센트 변환, 가운뎃점·쉼표 다듬기': r'''
+  const fail = [];
+  const eq = (a, b)=> JSON.stringify(a) === JSON.stringify(b);
+  const V = [
+    ['120,000,000', { type:'number', value:120000000, fmt:'#,##0' }], ['70.4%', { type:'number', value:0.704, fmt:'0.0%' }],
+    ['68.30%', { type:'number', value:0.683, fmt:'0.00%' }], ['0', { type:'number', value:0, fmt:'0' }], ['1.5', { type:'number', value:1.5, fmt:'0.0' }],
+    ['1,234.56', { type:'number', value:1234.56, fmt:'#,##0.00' }], ['-1,000', { type:'number', value:-1000, fmt:'#,##0' }],
+    ['(2,500)', { type:'number', value:-2500, fmt:'#,##0' }], ['₩3,250,000', { type:'number', value:3250000, fmt:'#,##0' }],
+    ['0412', { type:'text', value:'0412' }], ['1,19,000', { type:'text', value:'1,19,000' }], ['3월', { type:'text', value:'3월' }],
+    ['합 계', { type:'text', value:'합 계' }], ['', { type:'text', value:'' }],
+  ];
+  for(const [t, want] of V){ const got = parseCellValue(t); if(!eq(got, want)) fail.push(`값 ${t}: ${JSON.stringify(got)}`); }
+  const C = [['교육-ㆍ연구 프로그램', '교육·연구 프로그램'], ['운영-지원비', '운영·지원비'], ['구입.ㆍ운영비', '구입·운영비'], ['1, 357,900', '1,357,900'],
+    ['2026-10-13', '2026-10-13'], ['A-B', 'A-B'], ['3.6 %', '3.6%'], ['가  나', '가 나']];
+  for(const [t, want] of C){ const got = tblCleanText(t); if(got !== want) fail.push(`다듬기 ${t} → ${got} (기대 ${want})`); }
+  const F = [['427.500', '427,500'], ['1.359.800', '1,359,800'], ['1.359,800', '1,359,800'], ['70.4', '70.4'], ['1.5', '1.5'], ['427,500', '427,500'], ['12.3456', '12.3456']];
+  for(const [t, want] of F){ const got = tblFixThousands(t); if(got !== want) fail.push(`쉼표 ${t} → ${got} (기대 ${want})`); }
+  return { ok: !fail.length, info: fail.join(' / ') || `값 변환 ${V.length}개·다듬기 ${C.length}개·쉼표 보정 ${F.length}개 모두 기대대로` };
+''',
+
 '표 → 엑셀 화면 — Ctrl+V 붙여넣기·사진/캡처 판단·판단 바꾸기·표 여러 개·표 없음 안내': r'''
   const fail = [];
   document.querySelector('.mode-btn[data-mode="table"]').click();
@@ -344,9 +365,14 @@ SYNTHETIC = {
   const settle = async prev=>{ for(let i=0;i<900 && (tblState.busy || tblState.prep === prev); i++) await new Promise(r=> setTimeout(r, 50)); };
   const kindText = ()=> document.getElementById('tblKind').textContent;
   // ① Ctrl+V — 클립보드의 캡처 이미지
+  const seen = new Set(), watch = setInterval(()=> seen.add(document.getElementById('tblStatus').textContent.replace(/\d+\/\d+/, 'N/M')), 30);
   const dt = new DataTransfer(); dt.items.add(new File([await blobOf(page(1, true))], 'image.png', { type: 'image/png' }));
   document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true }));
   await settle(null);
+  clearInterval(watch);
+  if(!seen.has('칸 읽는 중 N/M')) fail.push('진행 표시에 "칸 읽는 중 N/M"이 안 보임: ' + [...seen].join(' / '));
+  const grid = [...document.querySelectorAll('#tblGridWrap tr')].map(tr=> [...tr.children].map(td=> td.textContent).join(','));
+  if(grid.join(' | ') !== '100,101,102 | 200,201,202 | 300,301,302') fail.push('읽은 표: ' + grid.join(' | '));
   if(!document.getElementById('tblBadge').textContent.includes('붙여넣은 캡처')) fail.push('붙여넣기 이름: ' + document.getElementById('tblBadge').textContent);
   if(!kindText().includes('화면 캡처로 판단')) fail.push('캡처 판단: ' + kindText());
   if(!tblState.prep || tblState.prep.grid.tables.map(t=> t.rows + 'x' + t.cols).join() !== '3x3') fail.push('붙여넣은 표 칸: ' + (tblState.prep ? tblState.prep.grid.tables.map(t=> t.rows + 'x' + t.cols).join() : '없음'));
@@ -374,7 +400,7 @@ SYNTHETIC = {
   document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt2, bubbles: true }));
   await new Promise(r=> setTimeout(r, 300));
   if(tblState.src !== before) fail.push('문서 처리 탭에서 붙여넣기를 표 탭이 가져감');
-  return { ok: !fail.length, info: fail.join(' / ') || '붙여넣기 → 캡처 판단·3×3, 판단 바꾸기, 사진 합성 → 사진 판단·표 2개 고르기, 선 없는 글자 → 안내, 다른 탭 붙여넣기 무시' };
+  return { ok: !fail.length, info: fail.join(' / ') || '붙여넣기 → 캡처 판단·3×3·진행 표시·읽은 표, 판단 바꾸기, 사진 합성 → 사진 판단·표 2개 고르기, 선 없는 글자 → 안내, 다른 탭 붙여넣기 무시' };
 ''',
 
 '화면 구성 — 탭 3개, 카드 5개(자주 쓰는 순)·한 줄 설명, 세부 설정 접기, 옛 이름 없음': r'''
@@ -1017,6 +1043,127 @@ TABLE_GRID_JS = r"""
   return { out, images };
 """
 
+def table_answers():
+    """정답 텍스트에서 1쪽 두 표의 칸 단위 정답 → [[행...], [행...]] (합계 행은 연번·비목 합친 칸이라 두 번째 칸은 빈 값)"""
+    lines = (PRIVATE / OCR_ANSWER).read_text(encoding='utf-8').splitlines()
+    t1, t2 = [], []
+    i = next(k for k, l in enumerate(lines) if l.split()[:2] == ['연번', '비목'])
+    t1.append(lines[i].split())
+    for l in lines[i+1:]:
+        m = re.match(r'^\s*(\d+)\s+(.+?)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([\d.]+%)\s*$', l)
+        if m: t1.append(list(m.groups())); continue
+        m = re.match(r'^\s*(합계)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([\d.]+%)\s*$', l)
+        if m: t1.append([m.group(1), ''] + list(m.groups()[1:])); break
+    j = next(k for k, l in enumerate(lines) if l.split()[:1] == ['구분'])
+    for l in lines[j:j+3]:
+        tok = l.split()
+        k = next(n for n, x in enumerate(tok) if re.match(r'^[\d,.]+%?$', x) or re.match(r'^\d+월$', x))
+        t2.append([' '.join(tok[:k])] + tok[k:])
+    return [t1, t2]
+
+# 페이지 안에서: 한 이미지를 ① 페이지 전체 OCR(단어를 위치로 칸에 넣음) ② 칸 단위 ③ 칸 단위 + 숫자 열 다시 읽기로 읽고 정답과 칸 단위 비교
+TABLE_OCR_JS = r"""
+  const [url, answers] = ARGS;
+  const im = new Image(); im.src = url; await im.decode();
+  const s = shrinkLargeImage(im), src = s ? s.canvas : cloneCanvasFromImage(im);
+  const P = await prepareTableImage(src);
+  const norm = t=> (t || '').replace(/\s+/g, '').replace(/[ㆍ∙•]/g, '·');
+  const lev = (x, y)=>{ let prev = new Int32Array(y.length+1).map((_,j)=>j), cur = new Int32Array(y.length+1);
+    for(let i=1;i<=x.length;i++){ cur[0]=i; for(let j=1;j<=y.length;j++) cur[j] = Math.min(prev[j]+1, cur[j-1]+1, prev[j-1] + (x[i-1]===y[j-1]?0:1)); [prev,cur]=[cur,prev]; }
+    return prev[y.length]; };
+  const inQuad = (q, x, y)=>{ let sg = 0; for(let i=0;i<4;i++){ const a=q[i], b=q[(i+1)%4], c=(b.x-a.x)*(y-a.y)-(b.y-a.y)*(x-a.x); if(c){ if(!sg) sg=Math.sign(c); else if(Math.sign(c)!==sg) return false; } } return true; };
+  const shape = P.grid.tables.map(t=> t.rows + 'x' + t.cols).join(' | ');
+  // ① 페이지 전체 OCR (같은 글자 추출용 이미지) — 단어 상자 가운데가 들어간 칸에
+  const pageR = await ocrRecognize(P.ocr, { mode: 'page' });
+  const pageText = P.grid.tables.map(t=>{
+    const g = t.cells.map(()=> []);
+    for(const w of pageR.words){ const cx = (w.bbox.x0+w.bbox.x1)/2, cy = (w.bbox.y0+w.bbox.y1)/2;
+      const k = t.cells.findIndex(c=> inQuad(c.quad, cx, cy)); if(k >= 0) g[k].push(w); }
+    return g.map(ws=> ws.sort((a,b)=> a.line - b.line || a.bbox.x0 - b.bbox.x0).map(w=> w.text).join(' '));
+  });
+  // ②③ 칸 단위만(①과 맞춰 보지 않음): ②는 칸 단위로 읽은 글자, ③은 거기에 숫자 열 다시 읽기
+  const R1 = await ocrTable(P, { pagePass: false });
+  // ④ 최종: ①②를 맞춰 보고 다르면 한 번 더 읽어 다수결
+  let lastProg = '';
+  const R = await ocrTable(P, { onProgress: p=>{ lastProg = p.phase + ' ' + p.done + '/' + p.total; } });
+  const score = (getText)=>{
+    let cells = 0, exact = 0, err = 0, len = 0, numCells = 0, numExact = 0; const wrong = [];
+    answers.forEach((ans, ti)=>{
+      const t = P.grid.tables[ti];
+      ans.forEach((row, r)=> row.forEach((a, c)=>{
+        cells++; let h = '';
+        if(t && t.rows === ans.length && t.cols === row.length){ const k = t.cellAt[r][c], cell = t.cells[k]; if(cell.r === r && cell.c === c) h = getText(ti, k); }
+        const A = norm(a), Hh = norm(h), e = lev(A, Hh);
+        err += e; len += A.length; if(e === 0) exact++; else wrong.push(`표${ti+1}(${r},${c}) ${a} → ${h}`);
+        if(/^[\d,.%]+$/.test(A) && A){ numCells++; if(e === 0) numExact++; }
+      }));
+    });
+    return { cells, exact, acc: 1 - err/len, numCells, numExact, wrong };
+  };
+  const out = {
+    shape, kind: P.kind, prepMs: P.ms, pageMs: pageR.ms, cellOnlyMs: R1.ms, cellMs: R.ms, read: R.read, total: R.total, checked: R.checked, prog: lastProg,
+    page: score((ti, k)=> pageText[ti][k]),
+    cell: score((ti, k)=> R1.tables[ti].cells[k].cand.cell.text),
+    cellNum: score((ti, k)=> R1.tables[ti].cells[k].text),
+    vote: score((ti, k)=> R.tables[ti].cells[k].text),
+  };
+  // 노란 칸(확신 낮음)이 실제로 틀린 칸을 얼마나 잡는지 — ④ 기준
+  let wrongN = 0, wrongFlag = 0, rightFlag = 0;
+  answers.forEach((ans, ti)=>{ const t = P.grid.tables[ti]; if(!t || t.rows !== ans.length) return;
+    ans.forEach((row, r)=> row.forEach((a, c)=>{ const k = t.cellAt[r][c], cl = R.tables[ti].cells[k]; if(cl.r !== r || cl.c !== c) return;
+      const bad = norm(a) !== norm(cl.text); if(bad){ wrongN++; if(cl.low) wrongFlag++; } else if(cl.low) rightFlag++; })); });
+  out.flags = { wrongN, wrongFlag, rightFlag, why: R.tables.flatMap(t=> t.cells).filter(c=> c.low).map(c=> c.why.join('+') + ':' + c.text + ' [' + ['page','cell','check'].map(k=> c.cand[k] ? c.cand[k].text + '(' + c.cand[k].conf + ')' : '-').join(' / ') + ']'),
+    pageDissent: R.tables.flatMap(t=> t.cells).filter(c=> c.cand.page && !tblSame(c.cand.page.text, c.text)).map(c=> (c.low ? '노랑 ' : '') + c.text + ' [' + ['page','cell','check'].map(k=> c.cand[k] ? c.cand[k].text + '(' + c.cand[k].conf + ')' : '-').join(' / ') + ']') };
+  return out;
+"""
+
+def run_table_ocr_tests(fresh_page, out_dir):
+    if not ((PRIVATE / OCR_PDF).is_file() and (PRIVATE / OCR_ANSWER).is_file()):
+        print('  SKIP  tests/private/ 에 시연용 PDF·정답 텍스트가 없어서 건너뜀')
+        return 0, None
+    answers = table_answers()
+    pg = fresh_page()
+    imgs = pg.evaluate(r"""async (pdfUrl) => {
+      const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
+      const page = await pdf.getPage(1), out = {};
+      for(const [k, dpi] of [['clean', 200], ['cap100', 96], ['cap150', 144]]){
+        const vp = page.getViewport({ scale: dpi/72 }), c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+        const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0,0,c.width,c.height); await page.render({ canvasContext: x, viewport: vp }).promise;
+        out[k] = c.toDataURL('image/png');
+        if(k === 'clean') out.photo = T.synthPhoto(c, 1);
+      }
+      return out;
+    }""", PRIVATE_URL + urllib.parse.quote(OCR_PDF))
+    pg.close()
+    names = {'clean': '깨끗한 이미지(PDF 200dpi)', 'photo': '사진처럼 합성', 'cap100': '화면 캡처 100%(96dpi)', 'cap150': '화면 캡처 150%(144dpi)'}
+    rows, fails, summary = [], 0, {}
+    for k in ['clean', 'photo', 'cap100', 'cap150']:
+        pg = fresh_page()
+        try:
+            r = pg.evaluate('async (ARGS) => {' + TABLE_OCR_JS + '}', [imgs[k], answers])
+        except Exception as e:
+            r = None; print(f'  FAIL  {names[k]} — 오류: {e}')
+        pg.close()
+        if not r:
+            fails += 1; continue
+        summary[k] = r
+        pct = lambda s: f"{s['exact']}/{s['cells']} ({s['exact']/s['cells']*100:.0f}%) · 글자 {s['acc']*100:.1f}% · 숫자 칸 {s['numExact']}/{s['numCells']}"
+        # 판정: 최종(④)이 페이지 전체(①)·칸 단위(②)보다 칸 정확히 맞음 수가 적지 않을 것
+        ok = r['vote']['exact'] >= max(r['page']['exact'], r['cell']['exact'])
+        fails += 0 if ok else 1
+        f = r['flags']
+        print(f"  {'PASS' if ok else 'FAIL'}  {names[k]} — {r['shape']} · {r['kind']} · 준비 {r['prepMs']/1000:.1f}s · "
+              f"페이지 OCR {r['pageMs']/1000:.1f}s · 칸만 {r['cellOnlyMs']/1000:.1f}s · 최종 {r['cellMs']/1000:.1f}s(칸 {r['read']}개 읽고 {r['checked']}개 다시)\n"
+              f"        ① 페이지 전체:     {pct(r['page'])}\n        ② 칸 단위:         {pct(r['cell'])}\n"
+              f"        ③ 칸 + 숫자 열:    {pct(r['cellNum'])}\n        ④ 최종(맞춰 보기): {pct(r['vote'])}\n"
+              f"        노란 칸: 틀린 칸 {f['wrongN']}개 중 {f['wrongFlag']}개 표시, 맞는 칸 중 표시 {f['rightFlag']}개")
+        rows.append((names[k], r))
+    od = out_dir / 'table'; od.mkdir(parents=True, exist_ok=True)
+    (od / 'table_ocr.json').write_text(json.dumps(summary, ensure_ascii=False, indent=1), encoding='utf-8')
+    print(f'  틀린 칸 목록: {od / "table_ocr.json"}')
+    return fails, rows
+
+
 def run_table_tests(fresh_page, out_dir):
     if not (PRIVATE / OCR_PDF).is_file():
         print('  SKIP  tests/private/ 에 시연용 PDF가 없어서 건너뜀')
@@ -1252,6 +1399,10 @@ def main():
         if which in ('all', 'table'):
             print('■ 표 → 엑셀 (시연 문서·캡처·실제 사진 — 칸 나누기)')
             fails += run_table_tests(fresh_page, out_dir)
+
+        if which in ('all', 'table-ocr'):
+            print('■ 표 → 엑셀 정확도 (시연 문서 1쪽 표 — 페이지 전체 OCR vs 칸 단위)')
+            fails += run_table_ocr_tests(fresh_page, out_dir)[0]
 
         if which in ('all', 'serve'):
             print('■ 실제 서버 환경 (Live Server처럼 띄워 업로드 → OCR)')
