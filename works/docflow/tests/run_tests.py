@@ -7,6 +7,7 @@
        python works/docflow/tests/run_tests.py serve      (실제 서버 환경에서 업로드→OCR 끝까지만)
        python works/docflow/tests/run_tests.py leak       (비공개 값 유출 검사만 — 몇 초, 어느 테스트를 돌려도 맨 먼저 함)
        python works/docflow/tests/run_tests.py redact     (정보 가리기 — 가상 문서 자동 검출·가린 저장본, redact-make는 가상 문서를 다시 그림)
+       python works/docflow/tests/run_tests.py table      (표 → 엑셀 — 시연 문서·캡처·실제 사진의 칸 나누기)
 준비:  pip install playwright  →  python -m playwright install chromium
 
 · 합성 이미지 테스트: 사진 없이 브라우저에서 직접 그린 이미지로 검사 — 항상 실행
@@ -256,6 +257,67 @@ SYNTHETIC = {
   const ocrRow = [...document.querySelectorAll('.check-row')].find(r=> r.querySelector('.check-name').textContent === '글자 추출 (OCR)');
   ocrRow.click(); if(!checked.has('ocrText')) fail.push('정보 가리기를 켰는데 글자 추출을 끌 수 있음');
   return { ok: !fail.length, info: fail.join(' / ') || `항목 7개·묶음 2개, 프리셋 ${Object.keys(BEFORE).length}개 실행 단계 이전과 같음, 진행 문구에 뺀 항목 이름 없음` };
+''',
+
+'표 칸 나누기 — 표 여러 개·합친 칸·끊긴 선·형광펜 줄·좌우 테두리 없는 표·3° 기울기': r'''
+  // 표 A(7×5): 머리글 "구분" 세로 2칸·"예산"/"집행" 가로 2칸, 합계 행 앞 2칸 합침, 형광펜 줄 아래 선이 앞 2칸에서 빠짐,
+  //           칸 가운데·교차점에서 끊긴 선. 표 B(3×3): A 바로 아래, 좌우 세로 테두리가 A와 같은 x.
+  // 표 C(4×4): 좌우 테두리 없음(가로 선이 바깥 세로 선 밖으로 뻗음). 표가 아닌 것: 상자 하나, 제목 밑줄, 선 없는 글자 줄
+  const W=1600, H=1900, deg=3;
+  const draw = x=>{
+    x.strokeStyle='rgb(50,50,50)'; x.lineWidth=2;
+    const L=(x1,y1,x2,y2)=>{ x.beginPath(); x.moveTo(x1,y1); x.lineTo(x2,y2); x.stroke(); };
+    const txt=(s,cx,cy)=>{ x.fillStyle='rgb(30,30,30)'; x.font='22px sans-serif'; x.textAlign='center'; x.textBaseline='middle'; x.fillText(s,cx,cy); };
+    // 표 A
+    const ax=[150,350,600,850,1100,1450], ay=[200,260,320,380,440,500,560,620];
+    x.fillStyle='rgb(255,236,140)'; x.fillRect(ax[0],ay[4],ax[5]-ax[0],ay[5]-ay[4]);   // 형광펜 줄(4번 줄)
+    for(const y of ay){
+      if(y===260){ L(350,y,1450,y); continue; }                 // "구분" 세로 2칸 — 앞 칸 경계 없음
+      if(y===500){ L(600,y,1450,y); continue; }                 // 형광펜 줄 아래 선이 앞 2칸에서 빠짐
+      if(y===380){ L(150,y,870,y); L(950,y,1450,y); continue; } // 칸 가운데서 끊김
+      if(y===320){ L(150,y,1080,y); L(1120,y,1450,y); continue; } // 교차점에서 끊김
+      L(150,y,1450,y);
+    }
+    for(const xx of ax){
+      if(xx===600 || xx===1100){ L(xx,260,xx,620); continue; }  // "예산"·"집행" 가로 2칸
+      if(xx===350){ L(xx,200,xx,560); continue; }               // 합계 행 앞 2칸 합침
+      L(xx,200,xx,620);
+    }
+    txt('구분',250,260); txt('예산',725,230); txt('집행',1225,230); txt('합계',350,590);
+    for(let r=2;r<6;r++) for(let c=1;c<5;c++) txt(String(r*1000+c*10),(ax[c]+ax[c+1])/2,(ay[r]+ay[r+1])/2);
+    // 표 B
+    const bx=[150,500,900,1450], by=[760,820,880,940];
+    for(const y of by) L(150,y,1450,y); for(const xx of bx) L(xx,760,xx,940);
+    for(let r=0;r<3;r++) for(let c=0;c<3;c++) txt('칸'+r+c,(bx[c]+bx[c+1])/2,(by[r]+by[r+1])/2);
+    // 표 C — 좌우 테두리 없음
+    const cy=[1100,1160,1220,1280,1340];
+    for(const y of cy) L(200,y,1400,y); for(const xx of [500,800,1100]) L(xx,1100,xx,1340);
+    for(let r=0;r<4;r++) for(const cxx of [350,650,950,1250]) txt('값'+r,cxx,(cy[r]+cy[r+1])/2);
+    // 표가 아닌 것
+    x.strokeRect(300,1480,600,150); txt('상자 안 글자',600,1555);
+    txt('제목 밑줄',650,1700); L(300,1730,1000,1730);
+    for(let k=0;k<3;k++){ txt('선 없는 표 처럼',400,1790+k*36); txt('1,000',900,1790+k*36); txt('2,000',1200,1790+k*36); }
+  };
+  const c = T.paper(W, H, 245, deg, draw);
+  const G = buildTableGrid(findTableLines(c));
+  const desc = t=> `${t.rows}x${t.cols}` + t.cells.filter(e=> e.rs>1 || e.cs>1).map(e=> ` (${e.r},${e.c} ${e.rs}x${e.cs})`).join('');
+  const got = G.tables.map(desc);
+  const want = ['7x5 (0,0 2x1) (0,1 1x2) (0,3 1x2) (6,0 1x2)', '3x3', '4x4'];
+  const fail = [];
+  if(got.join(' | ') !== want.join(' | ')) fail.push(`표: ${got.join(' | ') || '없음'} (기대 ${want.join(' | ')})`);
+  const tc = G.tables[2];
+  if(tc && !(tc.v[0].virtual && tc.v[tc.v.length-1].virtual)) fail.push('표 C 좌우 경계가 보이지 않는 경계가 아님');
+  if(G.tables.slice(0,2).some(t=> t.h.concat(t.v).some(l=> l.virtual))) fail.push('테두리 있는 표에 보이지 않는 경계가 생김');
+  // 칸 모서리가 그린 선 위에 있는지 — 표 A 왼쪽 위 모서리(150,200)를 3° 돌린 자리
+  const rot = (px, py)=>{ const a = deg*Math.PI/180, dx = px - W/2, dy = py - H/2; return { x: W/2 + dx*Math.cos(a) - dy*Math.sin(a), y: H/2 + dx*Math.sin(a) + dy*Math.cos(a) }; };
+  if(G.tables[0]){
+    const p = G.tables[0].cells[0].quad[0], q = rot(150, 200), d = Math.hypot(p.x - q.x, p.y - q.y);
+    if(d > 4) fail.push(`표 A 모서리 위치 ${d.toFixed(1)}px 어긋남`);
+  }
+  const o = T.copy(c), x = o.getContext('2d'); x.strokeStyle='#e00'; x.lineWidth=3;
+  for(const t of G.tables) for(const e of t.cells){ x.beginPath(); e.quad.forEach((p,i)=> i ? x.lineTo(p.x,p.y) : x.moveTo(p.x,p.y)); x.closePath(); x.stroke(); }
+  return { ok: !fail.length, info: fail.join(' / ') || `표 ${got.length}개: ${got.join(' | ')}, 표 C 좌우 보이지 않는 경계, 상자·밑줄·선 없는 글자는 표 아님`,
+           images: { grid: T.png(o, 1200) } };
 ''',
 
 '화면 구성 — 탭 3개, 카드 5개(자주 쓰는 순)·한 줄 설명, 세부 설정 접기, 옛 이름 없음': r'''
@@ -850,6 +912,70 @@ REDACT_LABEL = {'rrn': '주민', 'frn': '외국인', 'phone': '전화', 'account
 # 확장자대로 Content-Type, gzip 자동 처리 없음(VS Code Live Server·깃허브 페이지와 같은 방식).
 # 사용자와 같은 흐름(파일 선택 → 글자 추출 카드 → 처리하기)으로 OCR이 끝까지 되는지, 엔진·언어 파일을 못 받을 때
 # 멈추지 않고 원인에 맞는 안내가 나오는지 확인. (Live Server에서 OCR 엔진을 불러오지 못했던 일로 추가)
+# ---------------- 표 → 엑셀 ----------------
+# 칸 구조 기대값: 표마다 "행x열" + 합친 칸 "(행,열 세로칸수x가로칸수)" — 구조만 적음(칸 안 값은 적지 않음)
+TABLE_GRID_WANT = {
+    'page1_clean':  ['9x6 (8,0 1x2)', '3x7'],     # 시연 문서 1쪽: 비목별 표(합계 행 앞 2칸 합침) + 월별 표
+    'page1_photo':  ['9x6 (8,0 1x2)', '3x7'],
+    'page1_cap100': ['9x6 (8,0 1x2)', '3x7'],     # 화면 캡처처럼 — PDF를 화면 배율 100%(96dpi)로
+    'page1_cap150': ['9x6 (8,0 1x2)', '3x7'],     #                         150%(144dpi)로
+    'page2_clean':  ['2x4 (0,0 2x1)', '6x2', '5x4'],  # 2쪽: 결재란, 기본 정보, 증빙 서류 목록
+    'photo01.jpg':  ['22x10 (0,0 1x10)'],          # 맨 위 파란 띠 10칸 합침, 표 아래 왼쪽 3칸짜리 빈 줄은 버림
+    'photo01_original.jpg': ['22x10 (0,0 1x10)'],
+    'photo02.jpg':  ['28x9 (1,0 12x1) (13,0 4x1) (17,0 11x1)'],  # 그룹 열 세로 합침, 형광펜 줄·휜 종이
+}
+TABLE_GRID_JS = r"""
+  const [pdfUrl, photos] = ARGS;
+  const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
+  const render = async (n, dpi)=>{ const page = await pdf.getPage(n), vp = page.getViewport({ scale: dpi/72 });
+    const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0,0,c.width,c.height); await page.render({ canvasContext: x, viewport: vp }).promise; return c; };
+  const fromUrl = async url=>{ const im = new Image(); im.src = url; await im.decode(); return cloneCanvasFromImage(im); };
+  const flat = r=> r instanceof HTMLCanvasElement ? r : r.canvas;
+  const p1 = await render(1, 200);
+  const list = {
+    page1_clean: p1, page1_photo: flat(autoCropDocument(await fromUrl(T.synthPhoto(p1, 1)))),
+    page1_cap100: await render(1, 96), page1_cap150: await render(1, 144), page2_clean: await render(2, 200),
+  };
+  for(const f of photos) list[f] = flat(autoCropDocument(await fromUrl('/works/docflow/tests/private/' + f)));
+  const out = {}, images = {};
+  for(const [k, c] of Object.entries(list)){
+    const t0 = performance.now(), G = buildTableGrid(findTableLines(c)), ms = performance.now() - t0;
+    out[k] = { size: c.width + 'x' + c.height, ms,
+      tables: G.tables.map(t=> `${t.rows}x${t.cols}` + t.cells.filter(e=> e.rs>1 || e.cs>1).map(e=> ` (${e.r},${e.c} ${e.rs}x${e.cs})`).join('')) };
+    const o = T.copy(c), x = o.getContext('2d'); x.lineWidth = Math.max(2, c.width/600);
+    G.tables.forEach((t, i)=>{ x.strokeStyle = ['#e00','#00c','#080'][i%3];
+      for(const e of t.cells){ x.beginPath(); e.quad.forEach((p,j)=> j ? x.lineTo(p.x,p.y) : x.moveTo(p.x,p.y)); x.closePath(); x.stroke();
+        if(e.rs>1 || e.cs>1){ x.fillStyle = 'rgba(0,200,0,0.2)'; x.fill(); } } });
+    images[k] = T.png(o, 1600);
+  }
+  return { out, images };
+"""
+
+def run_table_tests(fresh_page, out_dir):
+    if not (PRIVATE / OCR_PDF).is_file():
+        print('  SKIP  tests/private/ 에 시연용 PDF가 없어서 건너뜀')
+        return 0
+    od = out_dir / 'table'; od.mkdir(parents=True, exist_ok=True)
+    photos = [f for f in TABLE_GRID_WANT if f.endswith('.jpg') and (PRIVATE / f).is_file()]
+    pg = fresh_page()
+    res = pg.evaluate('async (ARGS) => {' + TABLE_GRID_JS + '}', [PRIVATE_URL + urllib.parse.quote(OCR_PDF), photos])
+    pg.close()
+    fails = 0
+    for k, want in TABLE_GRID_WANT.items():
+        r = res['out'].get(k)
+        if r is None:
+            print(f'  SKIP  칸 나누기 {k} — 사진 없음'); continue
+        ok = r['tables'] == want
+        fails += 0 if ok else 1
+        print(f"  {'PASS' if ok else 'FAIL'}  칸 나누기 {k} ({r['size']}, {r['ms']/1000:.1f}s)\n        "
+              + ' | '.join(r['tables'] or ['표 없음']) + ('' if ok else f"  (기대 {' | '.join(want)})"))
+    for k, v in res['images'].items():
+        (od / f'grid_{k}.png').write_bytes(base64.b64decode(v.split(',', 1)[1]))
+    print(f'  칸 구분 그림: {od}')
+    return fails
+
+
 def start_static_server():
     class Quiet(http.server.SimpleHTTPRequestHandler):
         def log_message(self, *a): pass
@@ -1053,6 +1179,10 @@ def main():
         if which in ('all', 'redact', 'redact-make'):
             print('■ 정보 가리기 (가상 문서 — 자동 검출·가린 저장본)')
             fails += run_redact_tests(fresh_page, out_dir, remake=which == 'redact-make')
+
+        if which in ('all', 'table'):
+            print('■ 표 → 엑셀 (시연 문서·캡처·실제 사진 — 칸 나누기)')
+            fails += run_table_tests(fresh_page, out_dir)
 
         if which in ('all', 'serve'):
             print('■ 실제 서버 환경 (Live Server처럼 띄워 업로드 → OCR)')

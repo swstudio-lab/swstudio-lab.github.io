@@ -345,7 +345,7 @@
   <div class="inapp-banner" id="inappBanner" role="status"></div>
   <div class="top">
     <div class="top-title">📄 DocFlow</div>
-    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-12-02</div>
+    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-13-01</div>
     <div class="top-sub">할 일을 고르고 이미지를 올리면 한 번에 정리해드려요.</div>
     <div class="badge-local">🔒 이 페이지에서 하는 모든 처리는 브라우저 안에서만 이뤄져요 — 서버로 업로드되지 않아요</div>
   </div>
@@ -4660,6 +4660,237 @@ function findTableLines(canvas){
     // 지우기 단계·진단용 중간 결과
     img, ink, lum, bgF, cross, filled, raw, inside: { mask: inside, w: bw, h: bh },
     stats: { runsFound, runsRejected, runsPen, runsJoined } };
+}
+
+// 표 칸 나누기 (표 → 엑셀) — findTableLines의 선분으로 표(여러 개)와 칸 격자를 만듦
+//  ① 일직선 조각 합치기: 같은 선이 흐리거나 글자·손 표시에 끊겨 여러 조각으로 나옴(사진 01 원근 보정본: 가로 경계 약 22개 → 선분 39개).
+//     기울기가 거의 같고(1.5° 이내) 함께 직선을 맞췄을 때 끝점이 모두 tol 안에 들어오는 조각끼리 한 선으로. 조각 구간(pieces)은 남겨 둠
+//  ② 표 나누기: 가로·세로 선이 서로 만나는 것끼리 묶음 → 묶음마다 표 하나(1쪽처럼 한 장에 표가 여럿일 수 있음)
+//  ③ 바깥 선 다듬기: 표 폭의 절반도 안 덮는 맨 바깥 선은 버림(사진 01 표 아래 왼쪽 3칸에만 있는 빈 줄),
+//     좌우(위아래) 테두리 없는 표는 가로(세로) 선들이 끝나는 자리에 보이지 않는 경계를 더함
+//  ④ 합쳐진 칸: 두 칸 사이 경계선이 그 구간의 25%도 안 덮으면 합침. 먼저 같은 줄에서 가로로 합치고, 위아래로는 같은 열 범위끼리만
+//     합침 — 칸은 항상 네모(사진 01 파란 띠 아래 선이 "연번" 칸 위에서만 빠져 있어, 띠와 연번 머리글이 ㄱ자로 합쳐질 뻔했음)
+// 결과: { tables:[표], lines:{h,v}(합친 선 전체 — 진단용) }
+//  표 = { rows, cols, h:[가로 경계 선], v:[세로 경계 선], cells:[{ r, c, rs, cs, quad:[tl,tr,br,bl], box:{x,y,w,h} }],
+//         cellAt:[r][c] → cells 번호, bbox:{x,y,w,h} }
+//  선 = { a, b, lo, hi, pieces:[[시작,끝]], thick, virtual? } — 가로 선은 y = a + b·x (lo~hi는 x), 세로 선은 x = a + b·y (lo~hi는 y)
+function buildTableGrid(found){
+  const { W, H } = found, S = Math.max(W, H);
+  const thick = Math.max(2, ...(found.maxThick || [2]));
+  const tol = Math.max(4, thick*1.5, S*0.004);
+  const median = a=>{ const s = a.slice().sort((m,n)=>m-n); return s.length ? s[s.length>>1] : 0; };
+  // 무게 있는 최소제곱 w = a + b·u
+  const fitLine = pts=>{
+    let sw=0, su=0, sv=0, suu=0, suv=0;
+    for(const [u, w, k] of pts){ sw+=k; su+=k*u; sv+=k*w; suu+=k*u*u; suv+=k*u*w; }
+    const den = sw*suu - su*su, b = Math.abs(den) > 1e-9 ? (sw*suv - su*sv)/den : 0;
+    return { a: (sv - b*su)/sw, b };
+  };
+  const unionPieces = ps=>{
+    const s = ps.slice().sort((p,q)=> p[0]-q[0]), out = [];
+    for(const p of s){ const l = out[out.length-1]; if(l && p[0] <= l[1] + 1) l[1] = Math.max(l[1], p[1]); else out.push([p[0], p[1]]); }
+    return out;
+  };
+  // ① 조각 합치기 — 긴 조각부터, 이미 만든 선 중 같이 맞췄을 때 오차가 가장 작은 선에 붙임
+  const mergeLines = (segs, vertical)=>{
+    const P = segs.map(s=> vertical ? { u1: s.y1, w1: s.x1, u2: s.y2, w2: s.x2, thick: s.thick } : { u1: s.x1, w1: s.y1, u2: s.x2, w2: s.y2, thick: s.thick })
+      .map(p=> ({ ...p, len: p.u2 - p.u1, ang: Math.atan2(p.w2 - p.w1, Math.max(1, p.u2 - p.u1)) }))
+      .sort((p, q)=> q.len - p.len);
+    const groups = [];
+    const ptsOf = p=> [[p.u1, p.w1, p.len], [p.u2, p.w2, p.len]];
+    for(const p of P){
+      let best = null, bestErr = Infinity;
+      for(const g of groups){
+        if(Math.abs(Math.atan(g.fit.b) - p.ang) > 1.5*Math.PI/180) continue;
+        const pts = g.pts.concat(ptsOf(p)), f = fitLine(pts);
+        const err = Math.max(...pts.map(([u, w])=> Math.abs(w - (f.a + f.b*u))));
+        if(err <= tol && err < bestErr){ best = g; bestErr = err; }
+      }
+      if(best){ best.pts.push(...ptsOf(p)); best.fit = fitLine(best.pts); best.segs.push(p); }
+      else groups.push({ pts: ptsOf(p), fit: fitLine(ptsOf(p)), segs: [p] });
+    }
+    return groups.map(g=>{
+      const pieces = unionPieces(g.segs.map(p=> [p.u1, p.u2]));
+      const len = g.segs.reduce((s, p)=> s + p.len, 0);
+      return { a: g.fit.a, b: g.fit.b, lo: pieces[0][0], hi: pieces[pieces.length-1][1], pieces,
+        thick: g.segs.reduce((s, p)=> s + p.thick*p.len, 0) / Math.max(1, len) };
+    });
+  };
+  const at = (L, u)=> L.a + L.b*u;
+  // 가로 선 h와 세로 선 v의 교점: y = ah + bh·x, x = av + bv·y
+  const meet = (h, v)=>{ const x = (v.a + v.b*h.a) / (1 - v.b*h.b); return { x, y: h.a + h.b*x }; };
+  const coverage = (L, u0, u1)=>{
+    if(L.virtual) return 1;
+    if(u1 <= u0) return 1;
+    let s = 0; for(const [p, q] of L.pieces) s += Math.max(0, Math.min(q, u1) - Math.max(p, u0));
+    return s / (u1 - u0);
+  };
+  const asLine = (s, vertical)=>{ // 선분 하나를 선 모양으로(교점 계산용)
+    const u1 = vertical ? s.y1 : s.x1, u2 = vertical ? s.y2 : s.x2, w1 = vertical ? s.x1 : s.y1, w2 = vertical ? s.x2 : s.y2;
+    const b = (w2 - w1) / Math.max(1, u2 - u1);
+    return { a: w1 - b*u1, b, lo: u1, hi: u2 };
+  };
+
+  // ② 표 나누기 — 합치기 전에 원래 선분끼리 만나는 것으로 묶음.
+  //    합친 뒤에 묶으면 1쪽의 위·아래 표처럼 세로 테두리가 같은 x에 있는 두 표가 빈 공간을 건너 한 선으로 이어져 한 표가 됐음
+  const hsg = found.segments.h.map(s=> asLine(s, false)), vsg = found.segments.v.map(s=> asLine(s, true));
+  const parent = [...hsg, ...vsg].map((_, i)=> i);
+  const find = i=>{ while(parent[i] !== i){ parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
+  hsg.forEach((h, i)=> vsg.forEach((v, j)=>{
+    const p = meet(h, v);
+    if(p.x >= h.lo - tol*2 && p.x <= h.hi + tol*2 && p.y >= v.lo - tol*2 && p.y <= v.hi + tol*2) parent[find(i)] = find(hsg.length + j);
+  }));
+  const comp = new Map();
+  [...found.segments.h, ...found.segments.v].forEach((s, i)=>{
+    const r = find(i); if(!comp.has(r)) comp.set(r, { h: [], v: [] }); comp.get(r)[i < hsg.length ? 'h' : 'v'].push(s);
+  });
+  const hl = [], vl = [], groups = [], orphans = [];
+  for(const g0 of comp.values()){
+    if(!g0.h.length || !g0.v.length || g0.h.length + g0.v.length < 4){ orphans.push(...g0.h.map(s=> [s, false]), ...g0.v.map(s=> [s, true])); continue; }
+    const g = { h: mergeLines(g0.h, false), v: mergeLines(g0.v, true) };
+    hl.push(...g.h); vl.push(...g.v);
+    groups.push(g);
+  }
+  // 칸 한가운데에서 끊겨 어느 선과도 만나지 않는 조각 — 같은 일직선 위의 표 선에 붙임(안 붙이면 그 경계가 덜 덮여 칸이 잘못 합쳐짐)
+  for(const [s, vertical] of orphans){
+    const p = asLine(s, vertical);
+    for(const g of groups){
+      const ls = vertical ? g.v : g.h, lo = Math.min(...ls.map(l=> l.lo)) - tol, hi = Math.max(...ls.map(l=> l.hi)) + tol;
+      if(p.lo < lo || p.hi > hi) continue;
+      const L = ls.find(l=> Math.abs(at(l, p.lo) - at(p, p.lo)) <= tol && Math.abs(at(l, p.hi) - at(p, p.hi)) <= tol);
+      if(L){ L.pieces = unionPieces(L.pieces.concat([[p.lo, p.hi]])); L.lo = L.pieces[0][0]; L.hi = L.pieces[L.pieces.length-1][1]; break; }
+    }
+  }
+
+  const tables = [];
+  for(const g of groups){
+    if(g.h.length + g.v.length < 4) continue;
+    let hs = g.h.slice(), vs = g.v.slice();
+    const sortLines = ()=>{
+      const cu = median(vs.map(v=> (v.lo + v.hi)/2)), cw = median(hs.map(h=> (h.lo + h.hi)/2));
+      hs.sort((p, q)=> at(p, cw) - at(q, cw)); vs.sort((p, q)=> at(p, cu) - at(q, cu));
+    };
+    // 아주 가까운 두 줄(겹선, 휜 종이에서 기울기가 조금 달라 따로 맞춰진 같은 선의 조각)은 하나로 — 긴 쪽의 직선에 짧은 쪽 구간을 더함
+    // (사진 02: 휜 종이에서 한 경계가 4px 떨어진 두 선으로 나왔고, 짧은 쪽을 버렸더니 그 구간 경계가 비어 칸이 잘못 합쳐졌음)
+    //  겹치지 않는 두 선은 마주 보는 끝끼리 비교 — 표 가운데까지 늘여 재면 휜 조각은 17px 벌어져(사진 02) 얇은 가짜 줄이 생겼음
+    const dedupe = (ls, other)=>{
+      const mid = median(other.map(o=> (o.lo + o.hi)/2));
+      ls.sort((p, q)=> at(p, mid) - at(q, mid));
+      const len = x=> x.pieces.reduce((s, [p, q])=> s + q - p, 0);
+      const gapOf = (p, q)=>{
+        const o0 = Math.max(p.lo, q.lo), o1 = Math.min(p.hi, q.hi);
+        if(o1 - o0 > tol*2){ const u = (o0 + o1)/2; return Math.abs(at(p, u) - at(q, u)); }
+        return p.hi <= q.lo + tol*2 ? Math.abs(at(p, p.hi) - at(q, q.lo)) : Math.abs(at(q, q.hi) - at(p, p.lo));
+      };
+      const out = [];
+      for(const L of ls){
+        const prev = out[out.length-1];
+        if(prev && gapOf(prev, L) < Math.max(tol*2, S*0.006)){
+          const [keep, drop] = len(L) > len(prev) ? [L, prev] : [prev, L];
+          keep.pieces = unionPieces(keep.pieces.concat(drop.pieces));
+          keep.lo = keep.pieces[0][0]; keep.hi = keep.pieces[keep.pieces.length-1][1];
+          out[out.length-1] = keep;
+        } else out.push(L);
+      }
+      return out;
+    };
+    hs = dedupe(hs, vs); vs = dedupe(vs, hs);
+    // 가상 경계: 가로 선들의 60% 이상이 맨 바깥 세로 선 밖으로 칸 폭 절반 넘게 뻗어 있으면 그 끝에 세로 경계를 더함 (위아래도 같은 방식)
+    const addVirtual = (lines, cross, vertical)=>{
+      if(cross.length < 2 || lines.length < 1) return;
+      sortLines();
+      // 칸 크기 기준 = 이웃한 경계 사이 간격의 중앙값
+      const mu = median(lines.map(l=> (l.lo + l.hi)/2));
+      const gaps = []; for(let i=1;i<lines.length;i++) gaps.push(Math.abs(at(lines[i], mu) - at(lines[i-1], mu)));
+      const unit = gaps.length ? median(gaps) : S*0.05;
+      for(const side of ['lo', 'hi']){
+        const edge = side === 'lo' ? lines[0] : lines[lines.length - 1];
+        const ext = cross.map(c=>{ const p = vertical ? meet(edge, c) : meet(c, edge); const u = vertical ? p.y : p.x; return side === 'lo' ? u - c.lo : c.hi - u; });
+        const far = ext.filter(e=> e > unit*0.5);
+        if(far.length < cross.length*0.6) continue;
+        const endU = median(cross.map(c=> c[side]));
+        const b = lines.reduce((s, l)=> s + l.b, 0) / lines.length;
+        const cw = median(cross.map(c=> at(c, endU)));
+        const L = { a: endU - b*cw, b, lo: Math.min(...cross.map(c=> at(c, endU))), hi: Math.max(...cross.map(c=> at(c, endU))), pieces: [], thick: 0, virtual: true };
+        L.pieces = [[L.lo, L.hi]];
+        if(side === 'lo') lines.unshift(L); else lines.push(L);
+      }
+    };
+    // ③ 바깥 선 다듬기 — 맨 바깥 선이 표 폭(높이)의 절반도 안 덮으면 버림
+    for(let it=0; it<20; it++){
+      if(hs.length < 2 || vs.length < 2) break;
+      sortLines();
+      let changed = false;
+      for(const [ls, cr, vertical] of [[hs, vs, false], [vs, hs, true]]){
+        for(const idx of [0, -1]){
+          if(ls.length < 2) break;
+          const k = idx < 0 ? ls.length - 1 : 0, L = ls[k];
+          const p0 = vertical ? meet(cr[0], L) : meet(L, cr[0]), p1 = vertical ? meet(cr[cr.length-1], L) : meet(L, cr[cr.length-1]);
+          const u0 = vertical ? p0.y : p0.x, u1 = vertical ? p1.y : p1.x;
+          if(coverage(L, Math.min(u0, u1), Math.max(u0, u1)) < 0.5){ ls.splice(k, 1); changed = true; }
+        }
+      }
+      if(!changed) break;
+    }
+    addVirtual(vs, hs, false);  // 좌우 테두리 없는 표
+    addVirtual(hs, vs, true);   // 위아래 테두리 없는 표
+    if(hs.length < 2 || vs.length < 2) continue;
+    sortLines();
+    const R = hs.length - 1, C = vs.length - 1;
+    if(R*C < 2) continue;
+    const P = hs.map(h=> vs.map(v=> meet(h, v)));   // 교점 격자
+    // ④ 합쳐진 칸 — 가로로 먼저(같은 줄의 칸 사이 세로 경계), 그다음 같은 열 범위끼리 위아래로
+    const m = thick + 2;
+    // 칸 바탕색 — 칸 안쪽(가장자리 25% 뺌)의 채널별 중앙값(글자는 보통 절반이 안 됨). 합친 칸은 바탕이 고르므로, 이웃한 두 칸의 바탕색이
+    // 확실히 다르면(형광펜 칠한 줄과 흰 줄) 경계선을 못 찾았어도 합치지 않음 — 칠한 면은 findTableLines가 선을 보호해 경계가 비기 쉬움.
+    // 밝기만 보면 연한 분홍 형광펜은 흰 칸과 차이가 작았고, 밝은 쪽 75% 지점을 쓰면 파란 띠의 흰 글씨가 바탕으로 잡혀 띠가 나뉘었음
+    const px = found.img && found.img.data;
+    const bgOf = (r0, c0, r1, c1)=>{
+      const q = [P[r0][c0], P[r0][c1+1], P[r1+1][c1+1], P[r1+1][c0]];
+      const x0 = Math.min(...q.map(p=> p.x)), x1 = Math.max(...q.map(p=> p.x)), y0 = Math.min(...q.map(p=> p.y)), y1 = Math.max(...q.map(p=> p.y));
+      const ix = (x1 - x0)*0.25, iy = (y1 - y0)*0.25, st = Math.max(1, Math.round(Math.min(x1 - x0, y1 - y0)/20));
+      const ch = [[], [], []];
+      for(let y = Math.round(y0 + iy); y <= y1 - iy; y += st) for(let x = Math.round(x0 + ix); x <= x1 - ix; x += st)
+        if(x >= 0 && y >= 0 && x < W && y < H) for(let k=0;k<3;k++) ch[k].push(px[(y*W + x)*4 + k]);
+      return ch.map(median);
+    };
+    const sameBg = (a, b)=>{
+      if(!px) return true;
+      const p = bgOf(...a), q = bgOf(...b);
+      return Math.max(...p.map((v, k)=> Math.abs(v - q[k]))) <= 20;
+    };
+    const joinH = (r, c)=>{ // (r,c)와 (r,c+1) 사이 세로 선이 없음
+      const v = vs[c+1], y0 = P[r][c+1].y, y1 = P[r+1][c+1].y;
+      return coverage(v, y0 + m, y1 - m) < 0.25 && sameBg([r, c, r, c], [r, c+1, r, c+1]);
+    };
+    const spans = []; // 줄마다 [c0, c1]
+    for(let r=0; r<R; r++){
+      const row = []; let c0 = 0;
+      for(let c=0; c<C; c++) if(c === C-1 || !joinH(r, c)){ row.push([c0, c]); c0 = c+1; }
+      spans.push(row);
+    }
+    const cells = [], cellAt = Array.from({ length: R }, ()=> new Array(C).fill(-1));
+    for(let r=0; r<R; r++) for(const [c0, c1] of spans[r]){
+      if(cellAt[r][c0] >= 0) continue;
+      let r1 = r;
+      while(r1 + 1 < R && spans[r1+1].some(([a, b])=> a === c0 && b === c1)){
+        const h = hs[r1+1], x0 = P[r1+1][c0].x, x1 = P[r1+1][c1+1].x;
+        if(coverage(h, x0 + m, x1 - m) >= 0.25 || !sameBg([r1, c0, r1, c1], [r1+1, c0, r1+1, c1])) break;
+        r1++;
+      }
+      const quad = [P[r][c0], P[r][c1+1], P[r1+1][c1+1], P[r1+1][c0]].map(p=> ({ x: +p.x.toFixed(1), y: +p.y.toFixed(1) }));
+      const xs = quad.map(p=> p.x), ys = quad.map(p=> p.y);
+      const box = { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+      const idx = cells.length;
+      cells.push({ r, c: c0, rs: r1 - r + 1, cs: c1 - c0 + 1, quad, box });
+      for(let rr=r; rr<=r1; rr++) for(let cc=c0; cc<=c1; cc++) cellAt[rr][cc] = idx;
+    }
+    const all = P.flat(), xs = all.map(p=> p.x), ys = all.map(p=> p.y);
+    tables.push({ rows: R, cols: C, h: hs, v: vs, cells, cellAt,
+      bbox: { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) } });
+  }
+  tables.sort((p, q)=> p.bbox.y - q.bbox.y || p.bbox.x - q.bbox.x);
+  return { tables, lines: { h: hl, v: vl } };
 }
 
 // 표 선 제거 — findTableLines로 찾은 선을 선 두께만큼만 지우고 주변 바탕색으로 채움
