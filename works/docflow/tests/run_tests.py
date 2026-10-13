@@ -1220,13 +1220,20 @@ TABLE_OCR_JS = r"""
 
 # 페이지 안에서: 사진 01 — 칸 구조·합계 열 검산·취소선 개수(값은 돌려주지 않음)
 TABLE_PHOTO_JS = r"""
-  const [url] = ARGS;
+  const [url, answer] = ARGS;
   const im = new Image(); im.src = url; await im.decode();
   const s = shrinkLargeImage(im), src = s ? s.canvas : cloneCanvasFromImage(im);
   const P = await prepareTableImage(src), R = await ocrTable(P), t = R.tables[0];
   if(!t) return { shape: '표 없음', sums: [], strikeIn: 0, strikeOut: 0, low: 0, hints: 0, prepMs: P.ms, ocrMs: 0 };
   const strikeCol = 8;
-  return { shape: t.rows + 'x' + t.cols, prepMs: P.ms, ocrMs: R.ms, low: t.cells.filter(c=> c.low).length,
+  // 칸 정확도 — 정답(초안) 표와 칸마다 비교(공백·줄바꿈 무시). 개수만 돌려줌
+  let exact = null, total = null;
+  if(answer && answer.length === t.rows && answer[0].length === t.cols){
+    const norm = s=> (s || '').replace(/\s+/g, '').replace(/[ㆍ∙•]/g, '·');
+    exact = 0; total = 0;
+    answer.forEach((row, r)=> row.forEach((a, k)=>{ const c = t.cells.find(x=> x.r === r && x.c === k); total++; if(norm(c ? c.text : '') === norm(a)) exact++; }));
+  }
+  return { shape: t.rows + 'x' + t.cols, prepMs: P.ms, ocrMs: R.ms, low: t.cells.filter(c=> c.low).length, exact, total,
     sums: (t.sums || []).map(x=> ({ kind: x.kind, how: x.how, addends: x.addends, groups: x.groups, ok: x.ok, fixed: x.fixed, bad: x.bad, unknown: x.unknown })),
     hints: t.cells.filter(c=> c.sumHint).length,
     strikeIn: t.cells.filter(c=> c.strike && c.c === strikeCol).length, strikeOut: t.cells.filter(c=> c.strike && c.c !== strikeCol).length };
@@ -1282,12 +1289,15 @@ def run_table_ocr_tests(fresh_page, out_dir):
               f"숫자 하나 바꾸면 {tp.get('noAlt', {}).get('s')}({tp.get('noAlt', {}).get('flagged')}) / 원래 값이 다른 읽기에 있으면 {tp.get('alt', {}).get('s')} 고침={tp.get('alt', {}).get('back')}")
         rows.append((names[k], r))
     # 사진 01: 칸 구조 + 합계 열 검산(더할 열을 머리글 단서로 2개 찾음, 20행 검산) + 취소선 열(8번 열)
+    # 사진 01 정답(초안): photo01_table_expected.json — "_status"가 "확인"이 아니면 칸 정확도는 "정답 미확인"(참고 수치만)
+    af = PRIVATE / 'photo01_table_expected.json'
+    ans = json.loads(af.read_text(encoding='utf-8')) if af.is_file() else None
     for f in ['photo01.jpg', 'photo01_original.jpg']:
         if not (PRIVATE / f).is_file():
             continue
         pg = fresh_page()
         try:
-            r = pg.evaluate('async (ARGS) => {' + TABLE_PHOTO_JS + '}', [PRIVATE_URL + f])
+            r = pg.evaluate('async (ARGS) => {' + TABLE_PHOTO_JS + '}', [PRIVATE_URL + f, ans and ans['table']])
         except Exception as e:
             r = None; print(f'  FAIL  {f} 검산·취소선 — 오류: {e}')
         pg.close()
@@ -1300,7 +1310,10 @@ def run_table_ocr_tests(fresh_page, out_dir):
         print(f"  {'PASS' if ok else 'FAIL'}  {f} 검산·취소선 — {r['shape']} · 준비 {r['prepMs']/1000:.1f}s · 글자 추출 {r['ocrMs']/1000:.1f}s · 노란 칸 {r['low']}개\n"
               f"        합계 열: 더할 열 {len(sm['addends']) if sm else '-'}개({sm and sm['how']}) · {sm and sm['groups']}행 중 맞음 {sm and sm['ok']} · 합계에 맞춰 고침 {sm and sm['fixed']} · "
               f"안 맞음 {sm and sm['bad']}(제안값 {r['hints']}칸) · 검산 못 함 {sm and sm['unknown']}\n"
-              f"        취소선: 취소선 열 {r['strikeIn']}칸 · 다른 열 {r['strikeOut']}칸 (기대: 취소선 열 10칸 이상, 다른 열 1칸 이하)")
+              f"        취소선: 취소선 열 {r['strikeIn']}칸 · 다른 열 {r['strikeOut']}칸 (기대: 취소선 열 10칸 이상, 다른 열 1칸 이하)\n"
+              + (f"        칸 정확도: 정답 없음" if r['exact'] is None else
+                 f"        칸 정확도: {r['exact']}/{r['total']} ({r['exact']/r['total']*100:.0f}%)" if ans.get('_status') == '확인' else
+                 f"        칸 정확도: 정답 미확인 (확인 전 초안 기준 참고 {r['exact']}/{r['total']}칸)"))
         summary[f] = r
     od = out_dir / 'table'; od.mkdir(parents=True, exist_ok=True)
     (od / 'table_ocr.json').write_text(json.dumps(summary, ensure_ascii=False, indent=1), encoding='utf-8')
@@ -1399,6 +1412,61 @@ def run_serve_tests(browser):
 LEAK_SKIP_KEYS = ('_',)            # "_설명" 같은 설명용 키는 실제 값이 아님
 LEAK_ORG_COMMON = {'mail', 'www', 'ac', 'co', 'or', 'go', 're', 'ne', 'kr', 'com', 'net', 'org'}
 
+class LineRule:
+    """한 줄 검사 — 정규식처럼 .search(줄)로 부름"""
+    def __init__(self, fn): self.fn = fn
+    def search(self, line): return self.fn(line)
+
+def leak_amount_re(v, plain=True):
+    """금액 하나 — "427,500"·"427.500"(plain이면 "427500"도), 더 큰 숫자의 일부("1,427,500")는 아님.
+       쉼표 없는 숫자는 이름과 함께일 때만(ⓐ) — 압축된 외부 라이브러리의 숫자 표에 우연히 들어 있어 ⓑⓒ에서 오탐이 났음"""
+    s = str(v)
+    groups = [s[max(0, i - 3):i] for i in range(len(s), 0, -3)][::-1]
+    return r'(?<![\d.,])(?:' + r'[.,]'.join(groups) + ('|' + s if plain else '') + r')(?![\d]|[.,]\d)'
+
+def table_leak_rules(doc):
+    """표 기대값 → 문서를 특정할 수 있는 조합만 잡는 규칙. 금액 하나·흔한 낱말 하나는 흔해서 잡지 않음
+       ⓐ 행 이름 + 금액: 한 줄에 같은 행의 이름(이름 열)과 그 행 금액(5자리 이상)
+       ⓑⓒ 문서 금액 묶음: 한 줄에 이 문서의 서로 다른 6자리 이상 금액(쉼표·마침표 모양)이 3개 이상,
+          또는 2개 이상이면서 그중 하나가 유효숫자 3자리 이상
+       ⓓ 머리글 문구: phrases(표 제목·띠 글자·특정 머리글) — 공백 무시
+       ⓔ 행 이름 단독: 이름 열의 4자 이상 이름("대학원"처럼 3자 이하는 흔해서 뺌) — 합성 테스트 그림에 부서명만 들어간 적이 있음
+       _leak_common_labels: 모든 기관에 흔한 이름은 ⓔ에서만 뺌(금액과 함께면 ⓐ로 잡음)"""
+    rules = []
+    norm = lambda s: re.sub(r'\s+', '', s)
+    for ph in doc.get('phrases', []):
+        p = norm(ph)
+        if len(p) >= 4:
+            rules.append(('머리글 문구', LineRule(lambda line, p=p: p in norm(line))))
+    table = doc.get('table') or []
+    lc = doc.get('_label_col', 0)
+    to_int = lambda s: int(re.sub(r'\D', '', s)) if re.fullmatch(r'[\d,]+', (s or '').strip()) else None
+    rows, all_amounts = [], {}
+    for row in table:
+        label = (row[lc] if lc < len(row) else '').strip()
+        nums = sorted({n for n in (to_int(c) for c in row) if n and n >= 10000})
+        if not re.fullmatch(r'[가-힣]{2,}', label) or not nums:
+            continue
+        lab = re.compile(r'[\s|]?'.join(map(re.escape, label)))
+        amts = [(n, re.compile(leak_amount_re(n)), re.compile(leak_amount_re(n, plain=False))) for n in nums]
+        rows.append((lab, amts))
+        if len(label) >= 4 and label not in doc.get('_leak_common_labels', []):
+            rules.append(('행 이름', lab))
+        for n, _, r in amts:
+            if n >= 100000: all_amounts[n] = r
+    for lab, amts in rows:
+        rules.append(('행 이름+금액', LineRule(lambda line, lab=lab, amts=amts: bool(lab.search(line)) and any(r.search(line) for _, r, _ in amts))))
+    # ⓑ 문서 금액 둘(그중 하나는 유효숫자 3자리 이상 — "1,359,800"처럼 덜 흔한 금액), ⓒ 문서 금액 셋
+    #    같은 행만 보면 다른 행 금액 둘(쉼표 보정 예시)을 놓쳤고, 둥근 금액 둘("100,000 300,000" 같은)은 같은 행에 우연히 있어 오탐이었음
+    rare = {n for n in all_amounts if len(str(n).rstrip('0')) >= 3}
+    big_all = list(all_amounts.items())
+    def doc_amounts(line):
+        hit = {n for n, r in big_all if r.search(line)}
+        return len(hit) >= 3 or (len(hit) >= 2 and bool(hit & rare))
+    if big_all:
+        rules.append(('문서 금액 묶음', LineRule(doc_amounts)))
+    return rules
+
 def private_leak_patterns():
     pats = []
     def add(kind, value):
@@ -1421,8 +1489,10 @@ def private_leak_patterns():
                         pats.append((kind + ' 도메인', re.compile(re.escape(part) + r'(?=\.?(?:ac|co|or|go|kr|com|net|org))', re.I)))
     def walk(kind, node):
         if isinstance(node, dict):
+            if 'table' in node or 'phrases' in node:     # 표 기대값 — 칸마다가 아니라 문서를 특정할 수 있는 조합으로(아래)
+                pats.extend(table_leak_rules(node))
             for k, v in node.items():
-                if not k.startswith(LEAK_SKIP_KEYS): walk(k, v)
+                if not k.startswith(LEAK_SKIP_KEYS) and k not in ('table', 'phrases'): walk(k, v)
         elif isinstance(node, list):
             for v in node: walk(kind, v)
         else:
