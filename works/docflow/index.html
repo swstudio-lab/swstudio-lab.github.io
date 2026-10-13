@@ -135,11 +135,19 @@
   .process-hint{text-align:center;}
 
   /* 준비 중 화면 */
-  .soon-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:28px 20px;text-align:center;}
-  .soon-emoji{font-size:34px;margin-bottom:10px;}
-  .soon-title{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:8px;}
-  .soon-desc{font-size:13px;color:var(--muted);line-height:1.6;}
-  .soon-list{text-align:left;display:inline-block;margin:14px auto 0;padding-left:18px;font-size:12.5px;color:var(--muted);line-height:1.8;}
+  /* 표 → 엑셀 */
+  .tbl-paste-hint{margin-top:6px;font-size:12px;}
+  .tbl-paste-hint b{color:var(--gold);}
+  @media (hover:none) and (pointer:coarse){ .tbl-paste-hint{display:none;} } /* 휴대폰엔 Ctrl+V가 없음 */
+  .tbl-kind-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-bottom:10px;}
+  .tbl-kind{font-size:12.5px;color:var(--ink);}
+  .tbl-link{background:none;border:none;padding:0;font-size:12px;color:var(--gold);text-decoration:underline;cursor:pointer;}
+  .tbl-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+  .tbl-tabs:empty{display:none;}
+  .tbl-tab{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--muted);cursor:pointer;}
+  .tbl-tab.active{border-color:var(--gold);color:var(--gold);font-weight:700;}
+  .tbl-view{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;overflow:hidden;}
+  .tbl-view canvas{display:block;width:100%;height:auto;border-radius:6px;}
 
   /* 업로드 */
   .drop-zone{
@@ -345,7 +353,7 @@
   <div class="inapp-banner" id="inappBanner" role="status"></div>
   <div class="top">
     <div class="top-title">📄 DocFlow</div>
-    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-13-01</div>
+    <div style="font-size:10px;color:#666;margin-top:2px;">build 2026-10-13-02</div>
     <div class="top-sub">할 일을 고르고 이미지를 올리면 한 번에 정리해드려요.</div>
     <div class="badge-local">🔒 이 페이지에서 하는 모든 처리는 브라우저 안에서만 이뤄져요 — 서버로 업로드되지 않아요</div>
   </div>
@@ -482,17 +490,30 @@
 
   </div><!-- /extractMode -->
 
-  <!-- 표 → 엑셀 — 준비 중 -->
+  <!-- 표 → 엑셀 -->
   <div id="tableMode" style="display:none;">
-    <div class="soon-card">
-      <div class="soon-emoji">📊</div>
-      <div class="soon-title">표를 엑셀로 — 준비 중이에요</div>
-      <div class="soon-desc">사진이나 화면 캡처 속 표를 칸 그대로 읽어서, 엑셀에 바로 붙여넣을 수 있게 준비하고 있어요.</div>
-      <ul class="soon-list">
-        <li>기울어진 사진도 표 선을 찾아 칸을 나눠요</li>
-        <li>읽기 애매한 칸은 따로 표시해서 확인할 수 있게 할 거예요</li>
-        <li>이 기능도 모든 처리를 이 기기 안에서만 해요</li>
-      </ul>
+    <div class="section">
+      <div class="section-title">1. 표 이미지 올리기</div>
+      <div class="drop-zone" id="tblDrop">
+        <div class="drop-zone-icon">📊</div>
+        <div class="drop-zone-text">표 사진이나 화면 캡처를 클릭해서 고르거나 끌어다 놓으세요 (JPG, PNG, PDF 첫 쪽)</div>
+        <div class="drop-zone-text tbl-paste-hint">캡처한 표는 <b>Ctrl+V</b>로 바로 붙여넣을 수 있어요</div>
+        <input type="file" id="tblFileInput" accept="image/*,.pdf,application/pdf" style="display:none;">
+      </div>
+      <div class="file-badge" id="tblBadge"></div>
+      <div class="gen-hint">선이 그어진 표를 칸 그대로 읽어요. 사진은 반듯하게 펴서, 화면 캡처는 그대로 읽어요. 모든 처리는 이 기기 안에서만 해요.</div>
+    </div>
+    <div class="spinner-line" id="tblSpinner"><div class="spinner-dot"></div><span id="tblStatus"></span></div>
+    <div class="warning-box" id="tblWarn"></div>
+    <div class="info-box" id="tblNote"></div>
+    <div class="section" id="tblResult" style="display:none;margin-top:18px;">
+      <div class="section-title">2. 칸 나누기 확인</div>
+      <div class="tbl-kind-row">
+        <span class="tbl-kind" id="tblKind"></span>
+        <button type="button" class="tbl-link" id="tblKindSwap"></button>
+      </div>
+      <div class="tbl-tabs" id="tblTabs"></div>
+      <div class="tbl-view" id="tblView"><canvas id="tblCanvas"></canvas></div>
     </div>
   </div>
 
@@ -6753,7 +6774,203 @@ document.getElementById('downloadBtn').addEventListener('click', ()=>{
 });
 
 /* ---------------------------------------------------------
-   탭 전환 (문서 처리 / 표 → 엑셀(준비 중) / 도장·서명 만들기)
+   표 → 엑셀 — 사진·캡처 판단, 칸 나누기, (칸마다 글자 추출은 아래 단계)
+--------------------------------------------------------- */
+// 사진인지 화면 캡처인지 — 캡처는 바탕이 이웃 픽셀과 똑같이 평평하고 순백(255)에 가까움.
+//  · flat: 밝은 바탕 픽셀 중 오른쪽·아래 이웃과 밝기가 같은(차이 0.5 미만) 비율
+//  · white: 밝은 쪽 상위 5% 밝기
+// 잰 값: 캡처(시연 PDF 렌더링 96·144·200dpi) flat 0.99↑·white 255, 카톡처럼 JPEG로 줄인 캡처 0.77~0.82·255,
+//        사진 합성·실제 사진 01~05 flat 0.02~0.12·white 195~207 → flat 0.5 이상이고 white 240 이상이면 캡처
+function classifyTableImage(canvas){
+  const W = canvas.width, H = canvas.height, d = canvas.getContext('2d', CTX_READ).getImageData(0, 0, W, H).data;
+  const L = i=> 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+  const samp = []; for(let p=0; p<W*H; p+=97) samp.push(L(p*4));
+  samp.sort((a, b)=> a - b);
+  const white = samp[Math.floor(samp.length*0.95)] || 0, lo = white - 25;
+  const st = Math.max(1, Math.round(Math.sqrt(W*H/200000)));
+  let n = 0, same = 0;
+  for(let y=1; y<H-1; y+=st) for(let x=1; x<W-2; x+=st){
+    const i = (y*W + x)*4, v = L(i); if(v < lo) continue;
+    const r = L(i + 4), b = L(i + W*4); if(r < lo || b < lo) continue;
+    n++; if(Math.abs(v - r) < 0.5 && Math.abs(v - b) < 0.5) same++;
+  }
+  const flat = n ? same/n : 0;
+  return { kind: flat >= 0.5 && white >= 240 ? 'capture' : 'photo', flat: +flat.toFixed(3), white: Math.round(white) };
+}
+
+// 표 이미지 준비 — 결과 { kind, auto(자동 판단), view(보여줄 이미지), ocr(글자 추출용, view와 같은 크기·좌표), grid, warning, ms }
+//  · 사진: 반듯하게 펴기(원근 보정) → 표 선 찾기·칸 나누기(컬러 그대로 — 형광펜 줄을 바탕색으로 가려야 해서)
+//          → 글자 추출용은 흑백 스캔 효과(그림자·누런 조명 정리) 뒤 표 선 지우기
+//  · 캡처: 그대로 표 선 찾기·칸 나누기 → 글자 추출용은 표 선만 지우기
+//  · 문서 처리 탭의 모서리 조정·회전이 섞이지 않게, 처리하는 동안만 모서리 상태를 기본값(자동)으로 둠
+// opts.kind: 'photo'|'capture'로 판단을 직접 정함(화면의 "판단 바꾸기"), opts.onStatus(문구): 진행 표시
+async function prepareTableImage(src, opts = {}){
+  const t0 = performance.now(), status = opts.onStatus || (async ()=>{});
+  const auto = classifyTableImage(src), kind = opts.kind || auto.kind;
+  let view = src, warning = null;
+  if(kind === 'photo'){
+    await status('사진을 반듯하게 펴는 중…');
+    const saved = { originalImage, cornerState };
+    originalImage = null;
+    cornerState = { key: cornerState.key, det: null, corners: null, mode: 'auto', rotation: 0, detecting: false, autoRot: 0, editing: false, prevBeforeFull: null };
+    try{
+      const r = autoCropDocument(src);
+      view = r instanceof HTMLCanvasElement ? r : r.canvas;
+      // 안내 중 "문서 모서리에서 직접 맞추기"는 표 탭에 없는 기능이라 뺌
+      warning = (r.warning || '').replace(/\s*\("문서 모서리"[^)]*\)/g, '') || null;
+    } finally { ({ originalImage, cornerState } = saved); }
+  }
+  await status('표 선 찾는 중…');
+  const found = findTableLines(view);
+  const grid = buildTableGrid(found);
+  let ocr = view;
+  if(grid.tables.length){
+    ocr = cloneCanvasFromImage(view);
+    if(kind === 'photo'){
+      await status('글자 추출용 흑백 이미지 만드는 중…');
+      const saved = scanMode; scanMode = 'bw';
+      try{ scanEffect(ocr); } finally { scanMode = saved; }
+    }
+    await status('글자 추출용으로 표 선 지우는 중…');
+    // 캡처는 보이는 이미지와 같은 픽셀이라 이미 찾은 선을 그대로 씀(선 찾기 한 번 줄임). 사진은 흑백으로 바뀌었으니 다시 찾음
+    const r = removeTableLines(ocr, kind === 'capture' ? found : undefined);
+    ocr = r instanceof HTMLCanvasElement ? r : r.canvas;
+    if(ocr.width !== view.width || ocr.height !== view.height){ console.warn('[DocFlow 표] 글자 추출용 이미지 크기가 달라져 보이는 이미지 그대로 읽음'); ocr = view; }
+  }
+  return { kind, auto, view, ocr, grid, warning, ms: performance.now() - t0 };
+}
+
+// 화면
+const tblState = { src: null, name: '', prep: null, current: 0, busy: false };
+const tblEl = id=> document.getElementById(id);
+const TBL_NO_TABLE = '표를 찾지 못했어요 — 선이 그어진 표만 지원해요. 선 없이 글자만 줄 맞춰 놓은 표는 아직 읽지 못해요.';
+
+async function loadTableFile(file, label){
+  const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
+  if(!isPdf && !(file.type || '').startsWith('image/')){ tblShowWarn('이미지 또는 PDF 파일만 올릴 수 있어요.'); return; }
+  const name = label || file.name || '이미지';
+  tblEl('tblBadge').classList.add('show');
+  tblEl('tblBadge').textContent = `📄 ${name} · 불러오는 중…`;
+  tblEl('tblNote').classList.remove('show');
+  let canvas, note = '';
+  try{
+    if(isPdf){
+      const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+      const page = await pdf.getPage(1), vp = page.getViewport({ scale: 2 });
+      canvas = document.createElement('canvas'); canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
+      const x = canvas.getContext('2d', CTX_READ); x.fillStyle = '#fff'; x.fillRect(0, 0, canvas.width, canvas.height);
+      await page.render({ canvasContext: x, viewport: vp }).promise;
+      if(pdf.numPages > 1) note = `📄 PDF는 첫 쪽만 읽어요 (전체 ${pdf.numPages}쪽 중 1쪽)`;
+    } else {
+      const url = URL.createObjectURL(file);
+      try{
+        const img = new Image(); img.src = url; await img.decode();
+        const small = shrinkLargeImage(img);
+        canvas = small ? small.canvas : cloneCanvasFromImage(img);
+      } finally { URL.revokeObjectURL(url); }
+    }
+  }catch(err){
+    console.error('[DocFlow 표]', err);
+    tblEl('tblBadge').textContent = `📄 ${name} · 열지 못했어요. 파일이 손상되지 않았는지 확인해주세요.`;
+    return;
+  }
+  tblEl('tblBadge').textContent = `📄 ${name} · ${canvas.width}×${canvas.height}`;
+  if(note){ tblEl('tblNote').textContent = note; tblEl('tblNote').classList.add('show'); }
+  tblState.src = canvas; tblState.name = name;
+  await runTable();
+}
+
+function tblShowWarn(text){
+  const w = tblEl('tblWarn');
+  w.textContent = text || '';
+  w.classList.toggle('show', !!text);
+}
+
+async function runTable(kind){
+  if(!tblState.src || tblState.busy) return;
+  tblState.busy = true;
+  tblShowWarn('');
+  tblEl('tblResult').style.display = 'none';
+  tblEl('tblSpinner').classList.add('show');
+  const status = async t=>{ tblEl('tblStatus').textContent = t; await nextPaint(); };
+  try{
+    const prep = await prepareTableImage(tblState.src, { kind, onStatus: status });
+    tblState.prep = prep; tblState.current = 0;
+    if(!prep.grid.tables.length){ tblShowWarn(TBL_NO_TABLE); }
+    else if(prep.warning) tblShowWarn(prep.warning);
+    renderTableResult();
+  }catch(err){
+    console.error('[DocFlow 표]', err);
+    tblShowWarn('표를 읽는 중에 문제가 생겼어요. 다른 이미지로 다시 시도해주세요.');
+  }finally{
+    tblState.busy = false;
+    tblEl('tblSpinner').classList.remove('show');
+  }
+}
+
+function renderTableResult(){
+  const prep = tblState.prep;
+  if(!prep) return;
+  tblEl('tblResult').style.display = '';
+  const auto = prep.kind === prep.auto.kind;
+  tblEl('tblKind').textContent = prep.kind === 'photo'
+    ? `📷 사진${auto ? '으로 판단' : ''} — 반듯하게 펴고 흑백으로 정리해서 읽어요`
+    : `🖥️ 화면 캡처${auto ? '로 판단' : ''} — 보정 없이 그대로 읽어요`;
+  tblEl('tblKindSwap').textContent = prep.kind === 'photo' ? '캡처예요 (보정 없이 다시)' : '사진이에요 (반듯하게 펴서 다시)';
+  const tables = prep.grid.tables;
+  tblEl('tblTabs').innerHTML = tables.length > 1
+    ? tables.map((t, i)=> `<button type="button" class="tbl-tab${i === tblState.current ? ' active' : ''}" data-i="${i}">표 ${i+1} · ${t.rows}×${t.cols}</button>`).join('')
+    : '';
+  drawTableView();
+}
+
+// 보이는 이미지 위에 칸 구분선 — 고른 표는 진하게, 다른 표는 흐리게
+function drawTableView(){
+  const prep = tblState.prep, cv = tblEl('tblCanvas');
+  const src = prep.view, maxW = Math.min(src.width, Math.round((tblEl('tblView').clientWidth || 800) * Math.min(2, window.devicePixelRatio || 1)));
+  const s = maxW / src.width;
+  cv.width = Math.round(src.width*s); cv.height = Math.round(src.height*s);
+  const x = cv.getContext('2d');
+  x.drawImage(src, 0, 0, cv.width, cv.height);
+  const lw = Math.max(1.5, cv.width/500);
+  prep.grid.tables.forEach((t, i)=>{
+    const on = i === tblState.current;
+    x.strokeStyle = on ? 'rgba(230,40,40,0.95)' : 'rgba(230,40,40,0.35)';
+    x.lineWidth = on ? lw : lw*0.7;
+    for(const c of t.cells){
+      x.beginPath(); c.quad.forEach((p, k)=> k ? x.lineTo(p.x*s, p.y*s) : x.moveTo(p.x*s, p.y*s)); x.closePath(); x.stroke();
+    }
+  });
+}
+
+{
+  const drop = tblEl('tblDrop'), input = tblEl('tblFileInput');
+  drop.addEventListener('click', ()=> input.click());
+  drop.addEventListener('dragover', e=>{ e.preventDefault(); drop.classList.add('dragover'); });
+  drop.addEventListener('dragleave', ()=> drop.classList.remove('dragover'));
+  drop.addEventListener('drop', e=>{ e.preventDefault(); drop.classList.remove('dragover'); if(e.dataTransfer.files[0]) loadTableFile(e.dataTransfer.files[0]); });
+  input.addEventListener('change', e=>{ if(e.target.files[0]) loadTableFile(e.target.files[0]); input.value = ''; });
+  // Ctrl+V — 표 탭이 열려 있을 때만. 캡처 이미지(또는 탐색기에서 복사한 이미지 파일)
+  document.addEventListener('paste', e=>{
+    if(tblEl('tableMode').style.display === 'none') return;
+    if(e.target.closest && e.target.closest('input, textarea, [contenteditable="true"]')) return;
+    const cd = e.clipboardData; if(!cd) return;
+    const file = [...cd.files].find(f=> f.type.startsWith('image/') || f.type === 'application/pdf')
+      || [...cd.items].filter(it=> it.kind === 'file' && it.type.startsWith('image/')).map(it=> it.getAsFile()).find(Boolean);
+    if(!file) return;
+    e.preventDefault();
+    loadTableFile(file, file.name && file.name !== 'image.png' ? file.name : '붙여넣은 캡처');
+  });
+  tblEl('tblKindSwap').addEventListener('click', ()=>{ if(tblState.prep) runTable(tblState.prep.kind === 'photo' ? 'capture' : 'photo'); });
+  tblEl('tblTabs').addEventListener('click', e=>{
+    const b = e.target.closest('.tbl-tab'); if(!b) return;
+    tblState.current = +b.dataset.i; renderTableResult();
+  });
+  window.addEventListener('resize', ()=>{ if(tblState.prep && tblEl('tblResult').style.display !== 'none') drawTableView(); });
+}
+
+/* ---------------------------------------------------------
+   탭 전환 (문서 처리 / 표 → 엑셀 / 도장·서명 만들기)
 --------------------------------------------------------- */
 document.getElementById('modeToggle').addEventListener('click', e=>{
   const btn = e.target.closest('.mode-btn');

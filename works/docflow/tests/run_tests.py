@@ -320,6 +320,63 @@ SYNTHETIC = {
            images: { grid: T.png(o, 1200) } };
 ''',
 
+'표 → 엑셀 화면 — Ctrl+V 붙여넣기·사진/캡처 판단·판단 바꾸기·표 여러 개·표 없음 안내': r'''
+  const fail = [];
+  document.querySelector('.mode-btn[data-mode="table"]').click();
+  // A4 크기 흰 종이에 표(위: 3×3, 아래: 2×4 — tables=2면 둘 다), 선 없는 글자만 있는 종이
+  const page = (tables, lines)=>{
+    const c = document.createElement('canvas'); c.width = 1240; c.height = 1754;
+    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+    x.fillStyle = '#222'; x.font = '26px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    // 선 3px — 2px 회색(#333) 선은 사진 합성(카톡 1400px·흐림)에서 1px 안팎으로 흐려져 짧은 세로선을 놓침(NOTES 참고)
+    x.strokeStyle = '#333'; x.lineWidth = 3;
+    const grid = (x0, y0, cw, rh, R, C)=>{
+      for(let r=0;r<=R;r++){ x.beginPath(); x.moveTo(x0, y0+r*rh); x.lineTo(x0+C*cw, y0+r*rh); x.stroke(); }
+      for(let k=0;k<=C;k++){ x.beginPath(); x.moveTo(x0+k*cw, y0); x.lineTo(x0+k*cw, y0+R*rh); x.stroke(); }
+      for(let r=0;r<R;r++) for(let k=0;k<C;k++) x.fillText(String((r+1)*100 + k), x0+k*cw+cw/2, y0+r*rh+rh/2);
+    };
+    if(lines){ grid(200, 300, 280, 70, 3, 3); if(tables > 1) grid(150, 700, 230, 70, 2, 4); }
+    else for(let r=0;r<4;r++) for(let k=0;k<3;k++) x.fillText('글자 ' + r + k, 300 + k*280, 300 + r*60);
+    return c;
+  };
+  const blobOf = (c, type)=> new Promise(r=> c.toBlob(r, type || 'image/png', 0.8));
+  // 결과가 새로 나올 때까지(이전 결과 prev와 다르고 처리 중이 아님)
+  const settle = async prev=>{ for(let i=0;i<900 && (tblState.busy || tblState.prep === prev); i++) await new Promise(r=> setTimeout(r, 50)); };
+  const kindText = ()=> document.getElementById('tblKind').textContent;
+  // ① Ctrl+V — 클립보드의 캡처 이미지
+  const dt = new DataTransfer(); dt.items.add(new File([await blobOf(page(1, true))], 'image.png', { type: 'image/png' }));
+  document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true }));
+  await settle(null);
+  if(!document.getElementById('tblBadge').textContent.includes('붙여넣은 캡처')) fail.push('붙여넣기 이름: ' + document.getElementById('tblBadge').textContent);
+  if(!kindText().includes('화면 캡처로 판단')) fail.push('캡처 판단: ' + kindText());
+  if(!tblState.prep || tblState.prep.grid.tables.map(t=> t.rows + 'x' + t.cols).join() !== '3x3') fail.push('붙여넣은 표 칸: ' + (tblState.prep ? tblState.prep.grid.tables.map(t=> t.rows + 'x' + t.cols).join() : '없음'));
+  if(document.getElementById('tblTabs').children.length) fail.push('표 하나인데 표 고르기 단추가 보임');
+  if(document.getElementById('tblWarn').classList.contains('show')) fail.push('캡처에 안내가 뜸: ' + document.getElementById('tblWarn').textContent);
+  // ② 판단 바꾸기 → 사진으로 다시
+  let prev = tblState.prep; document.getElementById('tblKindSwap').click(); await settle(prev);
+  if(!kindText().startsWith('📷 사진 —')) fail.push('판단 바꾸기(사진): ' + kindText());
+  // ③ 사진(합성) — 표 두 개, 표 고르기
+  const im = new Image(); im.src = T.synthPhoto(page(2, true), 3); await im.decode();
+  prev = tblState.prep; await loadTableFile(new File([await (await fetch(im.src)).blob()], 'photo.jpg', { type: 'image/jpeg' }));
+  await settle(prev);
+  if(!kindText().includes('사진으로 판단')) fail.push('사진 판단: ' + kindText());
+  const tabs = [...document.querySelectorAll('#tblTabs .tbl-tab')];
+  if(tabs.map(b=> b.textContent).join(' / ') !== '표 1 · 3×3 / 표 2 · 2×4') fail.push('표 고르기: ' + tabs.map(b=> b.textContent).join(' / '));
+  else { tabs[1].click(); if(tblState.current !== 1 || !document.querySelectorAll('#tblTabs .tbl-tab')[1].classList.contains('active')) fail.push('표 2를 골라도 안 바뀜'); }
+  // ④ 선 없는 글자만 — 안내
+  prev = tblState.prep; await loadTableFile(new File([await blobOf(page(1, false))], 'text.png', { type: 'image/png' })); await settle(prev);
+  const warn = document.getElementById('tblWarn');
+  if(!warn.classList.contains('show') || !warn.textContent.includes('선이 그어진 표만')) fail.push('표 없음 안내: ' + warn.textContent);
+  // ⑤ 다른 탭에서는 붙여넣기를 가로채지 않음
+  document.querySelector('.mode-btn[data-mode="extract"]').click();
+  const before = tblState.src;
+  const dt2 = new DataTransfer(); dt2.items.add(new File([await blobOf(page(1, true))], 'image.png', { type: 'image/png' }));
+  document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt2, bubbles: true }));
+  await new Promise(r=> setTimeout(r, 300));
+  if(tblState.src !== before) fail.push('문서 처리 탭에서 붙여넣기를 표 탭이 가져감');
+  return { ok: !fail.length, info: fail.join(' / ') || '붙여넣기 → 캡처 판단·3×3, 판단 바꾸기, 사진 합성 → 사진 판단·표 2개 고르기, 선 없는 글자 → 안내, 다른 탭 붙여넣기 무시' };
+''',
+
 '화면 구성 — 탭 3개, 카드 5개(자주 쓰는 순)·한 줄 설명, 세부 설정 접기, 옛 이름 없음': r'''
   const fail = [];
   const tabs = [...document.querySelectorAll('.mode-btn')].map(b=> b.textContent);
@@ -339,18 +396,19 @@ SYNTHETIC = {
   if(document.getElementById('processHint').textContent !== '이미지를 올려주세요') fail.push('카드 고른 뒤 안내: ' + document.getElementById('processHint').textContent);
   [...document.querySelectorAll('.check-row')].find(r=> r.querySelector('.check-name').textContent === '표 선 제거').click();
   if(!/\(직접 바꿈\)$/.test(sum()) || document.querySelector('.preset-card.selected')) fail.push('직접 바꾼 뒤 접힌 줄: ' + sum());
-  // 표 → 엑셀 탭: 준비 중 화면
+  // 표 → 엑셀 탭: 올리기 화면(붙여넣기 안내)
   const tabBtn = m=> document.querySelector(`.mode-btn[data-mode="${m}"]`);
   tabBtn('table').click();
   const tm = document.getElementById('tableMode');
-  if(tm.style.display === 'none' || !tm.textContent.includes('준비 중') || document.getElementById('extractMode').style.display !== 'none') fail.push('표 → 엑셀 탭이 안 열림');
+  if(tm.style.display === 'none' || !document.getElementById('tblDrop').textContent.includes('Ctrl+V') || document.getElementById('extractMode').style.display !== 'none') fail.push('표 → 엑셀 탭이 안 열림');
+  if(tm.textContent.includes('준비 중')) fail.push('표 → 엑셀 탭에 준비 중 안내가 남음');
   tabBtn('extract').click();
   if(document.getElementById('extractMode').style.display === 'none') fail.push('문서 처리 탭으로 못 돌아옴');
   // 옛 이름이 화면(보이는 글자·탭 제목)에 남지 않음
   const OLD = ['OCR 최적화','문서 보관','직접 선택하기','자동 체크','도장 추출하기','서명 추출하기','이미지 업로드해서 처리하기','이름 입력해서 만들기','글자 읽기','문서 자동 크롭','처리할 항목 선택','자동 크롭 없이'];
   const html = document.documentElement.outerHTML;
   for(const o of OLD) if(html.includes(o)) fail.push('남은 옛 이름: ' + o);
-  return { ok: !fail.length, info: fail.join(' / ') || '탭 3개, 카드 5개·설명, 처음엔 카드 없음·세부 설정 접힘·안내, 접힌 줄 요약·직접 바꿈, 준비 중 화면, 옛 이름 없음' };
+  return { ok: !fail.length, info: fail.join(' / ') || '탭 3개, 카드 5개·설명, 처음엔 카드 없음·세부 설정 접힘·안내, 접힌 줄 요약·직접 바꿈, 표 → 엑셀 올리기 화면, 옛 이름 없음' };
 ''',
 }
 
@@ -914,15 +972,20 @@ REDACT_LABEL = {'rrn': '주민', 'frn': '외국인', 'phone': '전화', 'account
 # 멈추지 않고 원인에 맞는 안내가 나오는지 확인. (Live Server에서 OCR 엔진을 불러오지 못했던 일로 추가)
 # ---------------- 표 → 엑셀 ----------------
 # 칸 구조 기대값: 표마다 "행x열" + 합친 칸 "(행,열 세로칸수x가로칸수)" — 구조만 적음(칸 안 값은 적지 않음)
+# 판단: 사진(photo)/캡처(capture) — 실제 화면과 같은 경로(prepareTableImage)로, 큰 사진은 올릴 때처럼 줄여서
 TABLE_GRID_WANT = {
-    'page1_clean':  ['9x6 (8,0 1x2)', '3x7'],     # 시연 문서 1쪽: 비목별 표(합계 행 앞 2칸 합침) + 월별 표
-    'page1_photo':  ['9x6 (8,0 1x2)', '3x7'],
-    'page1_cap100': ['9x6 (8,0 1x2)', '3x7'],     # 화면 캡처처럼 — PDF를 화면 배율 100%(96dpi)로
-    'page1_cap150': ['9x6 (8,0 1x2)', '3x7'],     #                         150%(144dpi)로
-    'page2_clean':  ['2x4 (0,0 2x1)', '6x2', '5x4'],  # 2쪽: 결재란, 기본 정보, 증빙 서류 목록
-    'photo01.jpg':  ['22x10 (0,0 1x10)'],          # 맨 위 파란 띠 10칸 합침, 표 아래 왼쪽 3칸짜리 빈 줄은 버림
-    'photo01_original.jpg': ['22x10 (0,0 1x10)'],
-    'photo02.jpg':  ['28x9 (1,0 12x1) (13,0 4x1) (17,0 11x1)'],  # 그룹 열 세로 합침, 형광펜 줄·휜 종이
+    'page1_clean':  ('capture', ['9x6 (8,0 1x2)', '3x7']),   # 시연 문서 1쪽(PDF 200dpi): 비목별 표(합계 행 앞 2칸 합침) + 월별 표
+    'page1_photo':  ('photo',   ['9x6 (8,0 1x2)', '3x7']),   # 사진처럼 합성(원근·책상·조명·카톡 압축)
+    'page1_cap100': ('capture', ['9x6 (8,0 1x2)', '3x7']),   # 화면 캡처처럼 — PDF를 화면 배율 100%(96dpi)로
+    'page1_cap150': ('capture', ['9x6 (8,0 1x2)', '3x7']),   #                         150%(144dpi)로
+    'page1_capjpg': ('capture', ['9x6 (8,0 1x2)', '3x7']),   # 100% 캡처를 카톡처럼 JPEG 압축
+    'page2_clean':  ('capture', ['2x4 (0,0 2x1)', '6x2', '5x4']),  # 2쪽: 결재란, 기본 정보, 증빙 서류 목록
+    'photo01.jpg':  ('photo', ['22x10 (0,0 1x10)']),          # 맨 위 파란 띠 10칸 합침, 표 아래 왼쪽 3칸짜리 빈 줄은 버림
+    'photo01_original.jpg': ('photo', ['22x10 (0,0 1x10)']),
+    'photo02.jpg':  ('photo', ['28x9 (1,0 12x1) (13,0 4x1) (17,0 11x1)']),  # 그룹 열 세로 합침, 형광펜 줄·휜 종이
+    'photo03.jpg':  ('photo', None),                          # 판단만 확인(칸 구조는 기대값 없음)
+    'photo04.jpg':  ('photo', None),
+    'photo05.jpg':  ('photo', None),
 }
 TABLE_GRID_JS = r"""
   const [pdfUrl, photos] = ARGS;
@@ -930,24 +993,26 @@ TABLE_GRID_JS = r"""
   const render = async (n, dpi)=>{ const page = await pdf.getPage(n), vp = page.getViewport({ scale: dpi/72 });
     const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
     const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0,0,c.width,c.height); await page.render({ canvasContext: x, viewport: vp }).promise; return c; };
-  const fromUrl = async url=>{ const im = new Image(); im.src = url; await im.decode(); return cloneCanvasFromImage(im); };
-  const flat = r=> r instanceof HTMLCanvasElement ? r : r.canvas;
-  const p1 = await render(1, 200);
+  // 올릴 때와 같이: 큰 사진은 긴 변 3000px로 줄임
+  const fromUrl = async url=>{ const im = new Image(); im.src = url; await im.decode(); const s = shrinkLargeImage(im); return s ? s.canvas : cloneCanvasFromImage(im); };
+  const p1 = await render(1, 200), cap = await render(1, 96);
   const list = {
-    page1_clean: p1, page1_photo: flat(autoCropDocument(await fromUrl(T.synthPhoto(p1, 1)))),
-    page1_cap100: await render(1, 96), page1_cap150: await render(1, 144), page2_clean: await render(2, 200),
+    page1_clean: p1, page1_photo: await fromUrl(T.synthPhoto(p1, 1)),
+    page1_cap100: cap, page1_cap150: await render(1, 144), page1_capjpg: await fromUrl(cap.toDataURL('image/jpeg', 0.7)),
+    page2_clean: await render(2, 200),
   };
-  for(const f of photos) list[f] = flat(autoCropDocument(await fromUrl('/works/docflow/tests/private/' + f)));
+  for(const f of photos) list[f] = await fromUrl('/works/docflow/tests/private/' + f);
   const out = {}, images = {};
   for(const [k, c] of Object.entries(list)){
-    const t0 = performance.now(), G = buildTableGrid(findTableLines(c)), ms = performance.now() - t0;
-    out[k] = { size: c.width + 'x' + c.height, ms,
+    const P = await prepareTableImage(c), G = P.grid;
+    out[k] = { size: c.width + 'x' + c.height, ms: P.ms, kind: P.kind, flat: P.auto.flat, white: P.auto.white,
       tables: G.tables.map(t=> `${t.rows}x${t.cols}` + t.cells.filter(e=> e.rs>1 || e.cs>1).map(e=> ` (${e.r},${e.c} ${e.rs}x${e.cs})`).join('')) };
-    const o = T.copy(c), x = o.getContext('2d'); x.lineWidth = Math.max(2, c.width/600);
+    const o = T.copy(P.view), x = o.getContext('2d'); x.lineWidth = Math.max(2, o.width/600);
     G.tables.forEach((t, i)=>{ x.strokeStyle = ['#e00','#00c','#080'][i%3];
       for(const e of t.cells){ x.beginPath(); e.quad.forEach((p,j)=> j ? x.lineTo(p.x,p.y) : x.moveTo(p.x,p.y)); x.closePath(); x.stroke();
         if(e.rs>1 || e.cs>1){ x.fillStyle = 'rgba(0,200,0,0.2)'; x.fill(); } } });
     images[k] = T.png(o, 1600);
+    images[k + '_ocr'] = T.png(P.ocr, 1600);
   }
   return { out, images };
 """
@@ -962,17 +1027,21 @@ def run_table_tests(fresh_page, out_dir):
     res = pg.evaluate('async (ARGS) => {' + TABLE_GRID_JS + '}', [PRIVATE_URL + urllib.parse.quote(OCR_PDF), photos])
     pg.close()
     fails = 0
-    for k, want in TABLE_GRID_WANT.items():
+    for k, (kind, want) in TABLE_GRID_WANT.items():
         r = res['out'].get(k)
         if r is None:
-            print(f'  SKIP  칸 나누기 {k} — 사진 없음'); continue
-        ok = r['tables'] == want
+            print(f'  SKIP  표 준비 {k} — 사진 없음'); continue
+        ok_kind = r['kind'] == kind
+        ok_grid = want is None or r['tables'] == want
+        ok = ok_kind and ok_grid
         fails += 0 if ok else 1
-        print(f"  {'PASS' if ok else 'FAIL'}  칸 나누기 {k} ({r['size']}, {r['ms']/1000:.1f}s)\n        "
-              + ' | '.join(r['tables'] or ['표 없음']) + ('' if ok else f"  (기대 {' | '.join(want)})"))
+        kname = {'photo': '사진', 'capture': '캡처'}
+        print(f"  {'PASS' if ok else 'FAIL'}  표 준비 {k} ({r['size']}, {r['ms']/1000:.1f}s) — "
+              f"{kname[r['kind']]}{'' if ok_kind else ' (기대 ' + kname[kind] + ')'} · 평평함 {r['flat']} · 밝기 {r['white']}\n        "
+              + ' | '.join(r['tables'] or ['표 없음']) + ('' if ok_grid else f"  (기대 {' | '.join(want)})"))
     for k, v in res['images'].items():
         (od / f'grid_{k}.png').write_bytes(base64.b64decode(v.split(',', 1)[1]))
-    print(f'  칸 구분 그림: {od}')
+    print(f'  칸 구분 그림·글자 읽기용 이미지: {od}')
     return fails
 
 
