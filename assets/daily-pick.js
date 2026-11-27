@@ -32,7 +32,6 @@
     { category:'tool', icon:'✅', title:'오늘의 작업물 — TaskFlow', body:'팀 할일 관리 보드. 실시간으로 같이 씁니다.', link:'works/todo-wbs/index.html', linkLabel:'자세히 보기' },
     { category:'tool', icon:'🧮', title:'오늘의 작업물 — 함수식 마법사', body:'엑셀 함수식을 조건만 넣으면 자동으로 만들어줘요.', link:'works/excel-wizard/index.html', linkLabel:'자세히 보기' },
     { category:'tool', icon:'📊', title:'오늘의 작업물 — DataLoom', body:'엑셀 업로드하면 대시보드가 자동으로 만들어져요.', link:'works/dataloom/index.html', linkLabel:'자세히 보기' },
-    { category:'tool', icon:'🖨️', title:'오늘의 작업물 — DocFlow', body:'문서 이미지 자동 크롭·기울기 보정·도장 추출 도구.', link:'works/docflow/index.html', linkLabel:'자세히 보기' },
 
     // ── 오늘의 꿀팁(엑셀) ──
     { category:'tool', icon:'💡', title:'오늘의 엑셀 함수', body:'=UNIQUE(범위) — 중복 없는 값만 쏙 뽑아줘요 (최신 엑셀 한정).' },
